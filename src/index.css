@@ -1,0 +1,385 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Kartu dengan shadow halus ala design system (flat, dua level shadow) */
+.ant-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.ant-card-bordered {
+  border-color: #eef2f7;
+}
+
+/* Scrollbar tipis */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: #e0e7ff;
+}
+
+/* Label form lebih tegas */
+.ant-form-item .ant-form-item-label > label {
+  font-weight: 600;
+}
+
+/* Header tabel lebih ringkas */
+.ant-table-thead > tr > th {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Judul grup menu sidebar: kecil, kapital, berjarak */
+.ant-menu-item-group-title {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Angka statistik lebih rapat */
+.ant-statistic-content {
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================
+   Modal: scroll hanya di body — header & footer tetap terlihat.
+   Posisi vertikal ditangani prop `centered` (AppModal).
+   !important agar menang dari specificity style antd.
+   ============================================================ */
+.ant-modal {
+  max-width: calc(100vw - 24px) !important;
+}
+
+.ant-modal-content {
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: calc(100vh - 48px) !important;
+  max-height: calc(100dvh - 48px) !important;
+  overflow: hidden !important;
+}
+
+.ant-modal-header,
+.ant-modal-footer {
+  flex-shrink: 0 !important;
+}
+
+.ant-modal-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Scrollbar modal & drawer disembunyikan (scroll tetap berfungsi) */
+.ant-modal-body,
+.ant-drawer-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ant-modal-body::-webkit-scrollbar,
+.ant-drawer-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
+   Kartu raport (preview & cetak)
+   ============================================================ */
+.raport-print-root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+.raport-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.raport-header {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.raport-header-logo {
+  width: 70px;
+  text-align: center;
+}
+
+.raport-header-center {
+  text-align: center;
+}
+
+.raport-info,
+.raport-scores,
+.raport-block-table,
+.raport-signatures {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.raport-info td {
+  padding: 3px 6px;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.raport-info-label {
+  color: #64748b;
+  width: 110px;
+}
+
+.raport-info-value {
+  font-weight: 600;
+}
+
+.raport-scores th,
+.raport-scores td {
+  padding: 5px 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.raport-scores th {
+  font-size: 12px;
+  color: #475569;
+}
+
+.raport-blocks {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  align-items: stretch;
+}
+
+.raport-block {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.raport-block-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.raport-block-table td {
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.raport-block-label {
+  color: #64748b;
+  width: 45%;
+}
+
+.raport-block-value {
+  font-weight: 600;
+}
+
+.raport-signatures {
+  margin-top: 16px;
+  table-layout: fixed;
+}
+
+.raport-sign-cell {
+  text-align: center;
+  padding: 0 8px;
+}
+
+.raport-sign-role {
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.raport-sign-space {
+  height: 58px;
+  border-bottom: 1px dotted #94a3b8;
+  margin: 0 18px;
+}
+
+.raport-sign-name {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.raport-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+/* ============================================================
+   Surat izin keluar pondok (preview & cetak)
+   ============================================================ */
+.permit-print-root {
+  display: flex;
+  justify-content: center;
+}
+
+.permit-letter {
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 18px 22px;
+  font-size: 12.5px;
+}
+
+.permit-letter-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 2px solid #1a5c35;
+  padding-bottom: 8px;
+}
+
+.permit-letter-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.permit-letter-table td {
+  padding: 4px 2px;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.permit-letter-table td:first-child {
+  color: #64748b;
+  width: 42%;
+}
+
+.permit-letter-table td:last-child {
+  font-weight: 600;
+}
+
+.permit-letter-sign {
+  width: 100%;
+  margin-top: 18px;
+  table-layout: fixed;
+  text-align: center;
+  font-size: 12px;
+}
+
+.permit-sign-space {
+  height: 52px;
+}
+
+/* Saat mencetak surat: hanya surat yang tampil */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .permit-print-root,
+  .permit-print-root * {
+    visibility: visible !important;
+  }
+
+  .permit-print-root {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
+  .permit-letter {
+    border: none !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Saat mencetak: hanya kartu raport yang tampil */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .raport-print-root,
+  .raport-print-root * {
+    visibility: visible !important;
+  }
+
+  .raport-print-root {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    max-width: none;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  .raport-card {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    page-break-after: always;
+  }
+
+  .raport-card:last-child {
+    page-break-after: auto;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
