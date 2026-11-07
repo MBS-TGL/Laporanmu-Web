@@ -1,13 +1,24 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Link, Navigate } from 'react-router-dom'
-import { Spin } from 'antd'
+import { createBrowserRouter, Link } from 'react-router-dom'
+import { Button, Space, Spin, Typography } from 'antd'
 import { MainLayout } from '../layouts/MainLayout'
 import { ProtectedRoute, PublicRoute } from '../shared/components/ProtectedRoute'
 import { LoginPage } from '../features/auth/LoginPage'
-import { DashboardPage } from '../features/dashboard/DashboardPage'
+
+// Dashboard & landing juga lazy — recharts dan halaman publik tidak
+// ikut terunduh saat load awal aplikasi
+const DashboardPage = lazy(() =>
+  import('../features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+)
+const LandingPage = lazy(() =>
+  import('../features/public/LandingPage').then((m) => ({ default: m.LandingPage })),
+)
 
 const StudentsPage = lazy(() =>
   import('../features/students/StudentsPage').then((m) => ({ default: m.StudentsPage })),
+)
+const StudentArchivePage = lazy(() =>
+  import('../features/students/StudentArchivePage').then((m) => ({ default: m.StudentArchivePage })),
 )
 const TeachersPage = lazy(() =>
   import('../features/teachers/TeachersPage').then((m) => ({ default: m.TeachersPage })),
@@ -63,6 +74,9 @@ const UsersPage = lazy(() =>
 const AuditLogPage = lazy(() =>
   import('../features/admin/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
 )
+const AnnouncementsPage = lazy(() =>
+  import('../features/announcements/AnnouncementsPage').then((m) => ({ default: m.AnnouncementsPage })),
+)
 const ParentCheckPage = lazy(() =>
   import('../features/public/ParentCheckPage').then((m) => ({ default: m.ParentCheckPage })),
 )
@@ -89,19 +103,48 @@ function PageFallback() {
 
 function NotFoundPage() {
   return (
-    <div style={{ textAlign: 'center', padding: '64px 16px' }}>
-      <h2>404</h2>
-      <p>Halaman tidak ditemukan.</p>
-      <Link to="/dashboard">Kembali ke Dashboard</Link>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #f8fafc 100%)',
+        padding: 24,
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 64, fontWeight: 800, color: '#4f46e5', letterSpacing: '-0.04em', lineHeight: 1 }}>
+        404
+      </div>
+      <Typography.Title level={3} style={{ marginTop: 14, marginBottom: 4, letterSpacing: '-0.02em' }}>
+        Halaman tidak ditemukan
+      </Typography.Title>
+      <Typography.Text type="secondary" style={{ marginBottom: 24 }}>
+        Alamat yang Anda tuju tidak tersedia atau sudah dipindahkan.
+      </Typography.Text>
+      <Space wrap style={{ justifyContent: 'center' }}>
+        <Link to="/">
+          <Button type="primary">Kembali ke Beranda</Button>
+        </Link>
+        <Link to="/check">
+          <Button>Cek Wali Santri</Button>
+        </Link>
+        <Link to="/dashboard">
+          <Button type="text">Dashboard</Button>
+        </Link>
+      </Space>
     </div>
   )
 }
 
 export const appRouter = createBrowserRouter([
   // Halaman publik (tanpa login)
-  { path: '/cek', element: <ParentCheckPage /> },
-  { path: '/verifikasi', element: <VerifyPage /> },
-  { path: '/skorsing/:token', element: <SuspensionWaliPage /> },
+  { path: '/', element: <LandingPage /> },
+  { path: '/check', element: <ParentCheckPage /> },
+  { path: '/verify', element: <VerifyPage /> },
+  { path: '/suspension/:token', element: <SuspensionWaliPage /> },
   {
     path: '/login',
     element: <PublicRoute />,
@@ -113,13 +156,20 @@ export const appRouter = createBrowserRouter([
       {
         element: <MainLayout />,
         children: [
-          { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: 'dashboard', element: <DashboardPage /> },
           {
             path: 'master/students',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <StudentsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'master/students/archive',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <StudentArchivePage />
               </Suspense>
             ),
           },
@@ -156,7 +206,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'poin/rules',
+            path: 'points/rules',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <PointRulesPage />
@@ -164,7 +214,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'poin/reports',
+            path: 'points/reports',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <BehaviorReportsPage />
@@ -180,7 +230,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'raport',
+            path: 'report-cards',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <RaportPage />
@@ -188,7 +238,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'raport/arsip',
+            path: 'report-cards/archive',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <RaportArchivePage />
@@ -196,7 +246,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'raport/input/:classId',
+            path: 'report-cards/input/:classId',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <RaportInputPage />
@@ -204,7 +254,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'raport/preview/:classId',
+            path: 'report-cards/preview/:classId',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <RaportPreviewPage />
@@ -212,7 +262,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'pengaturan/sekolah',
+            path: 'settings/school',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <SchoolSettingsPage />
@@ -220,7 +270,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'absensi',
+            path: 'attendance',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <AttendancePage />
@@ -228,7 +278,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'boarding/kesehatan',
+            path: 'boarding/health',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <HealthPage />
@@ -236,7 +286,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'boarding/bk',
+            path: 'boarding/counseling',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <CounselingPage />
@@ -244,7 +294,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'boarding/izin-pulang',
+            path: 'boarding/leave-permit',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <LeavePermitPage />
@@ -252,7 +302,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'skorsing',
+            path: 'suspension',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <SkorsingPage />
@@ -260,7 +310,7 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'skorsing/detail/:id',
+            path: 'suspension/detail/:id',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <SkorsingDetailPage />
@@ -268,7 +318,15 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'pengaturan/pengguna',
+            path: 'settings/announcements',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <AnnouncementsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'settings/users',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <UsersPage />
@@ -276,16 +334,17 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'pengaturan/audit-log',
+            path: 'settings/audit-log',
             element: (
               <Suspense fallback={<PageFallback />}>
                 <AuditLogPage />
               </Suspense>
             ),
           },
-          { path: '*', element: <NotFoundPage /> },
         ],
       },
     ],
   },
+  // 404 publik — menangkap semua URL yang tidak dikenal
+  { path: '*', element: <NotFoundPage /> },
 ])

@@ -9,6 +9,8 @@ import {
   FolderOpenOutlined,
   GatewayOutlined,
   HeartOutlined,
+  HistoryOutlined,
+  NotificationOutlined,
   ProfileOutlined,
   ReadOutlined,
   SafetyCertificateOutlined,
@@ -51,17 +53,17 @@ const MASTER_ITEMS: NavItem[] = [
 ]
 
 const BEHAVIOR_ITEMS: NavItem[] = [
-  { to: '/poin/rules', label: 'Aturan Poin', icon: FileDoneOutlined, desc: 'Daftar pelanggaran dan prestasi beserta bobot poin' },
-  { to: '/poin/reports', label: 'Catatan Poin', icon: ProfileOutlined, desc: 'Riwayat pelanggaran dan prestasi santri' },
+  { to: '/points/rules', label: 'Aturan Poin', icon: FileDoneOutlined, desc: 'Daftar pelanggaran dan prestasi beserta bobot poin' },
+  { to: '/points/reports', label: 'Catatan Poin', icon: ProfileOutlined, desc: 'Riwayat pelanggaran dan prestasi santri' },
 ]
 
 const BOARDING_ITEMS: NavItem[] = [
-  { to: '/absensi', label: 'Absensi Santri', icon: SolutionOutlined, desc: 'Kehadiran harian per kelas per bulan' },
+  { to: '/attendance', label: 'Absensi Santri', icon: SolutionOutlined, desc: 'Kehadiran harian per kelas per bulan' },
   { to: '/boarding/dorms', label: 'Asrama', icon: ApartmentOutlined, desc: 'Kamar dan plotting santri asrama' },
-  { to: '/boarding/kesehatan', label: 'Klinik & Kesehatan', icon: HeartOutlined, desc: 'Rekam medis, observasi, stok obat' },
-  { to: '/boarding/bk', label: 'Bimbingan Konseling', icon: ProfileOutlined, desc: 'Sesi BK dan pembinaan santri' },
-  { to: '/boarding/izin-pulang', label: 'Izin Pulang', icon: FileTextOutlined, desc: 'Surat izin keluar pondok' },
-  { to: '/skorsing', label: 'Skorsing', icon: SafetyCertificateOutlined, desc: 'Skorsing & pembinaan di rumah' },
+  { to: '/boarding/health', label: 'Kesehatan', icon: HeartOutlined, desc: 'Rekam medis, observasi, stok obat' },
+  { to: '/boarding/counseling', label: 'Bimbingan Konseling', icon: ProfileOutlined, desc: 'Sesi BK dan pembinaan santri' },
+  { to: '/boarding/leave-permit', label: 'Izin Pulang', icon: FileTextOutlined, desc: 'Surat izin keluar pondok' },
+  { to: '/suspension', label: 'Skorsing', icon: SafetyCertificateOutlined, desc: 'Skorsing & pembinaan di rumah' },
 ]
 
 const GATE_ITEMS: NavItem[] = [
@@ -69,14 +71,15 @@ const GATE_ITEMS: NavItem[] = [
 ]
 
 const RAPORT_ITEMS: NavItem[] = [
-  { to: '/raport', label: 'Raport', icon: FileTextOutlined, desc: 'Input raport bulanan & semester per kelas' },
-  { to: '/raport/arsip', label: 'Arsip Raport', icon: FolderOpenOutlined, desc: 'Riwayat raport per kelas dan periode' },
+  { to: '/report-cards', label: 'Raport', icon: FileTextOutlined, desc: 'Input raport bulanan & semester per kelas' },
+  { to: '/report-cards/archive', label: 'Arsip Raport', icon: FolderOpenOutlined, desc: 'Riwayat raport per kelas dan periode' },
 ]
 
 const SETTINGS_ITEMS: NavItem[] = [
-  { to: '/pengaturan/pengguna', label: 'Pengguna', icon: UsergroupAddOutlined, desc: 'Kelola nama & role akun staff', requireRoles: ['developer', 'admin'] },
-  { to: '/pengaturan/audit-log', label: 'Audit Log', icon: SettingOutlined, desc: 'Jejak perubahan data oleh pengguna', requireRoles: ['developer', 'admin'] },
-  { to: '/pengaturan/sekolah', label: 'Profil Sekolah', icon: SettingOutlined, desc: 'Identitas sekolah untuk kop raport' },
+  { to: '/settings/announcements', label: 'Informasi', icon: NotificationOutlined, desc: 'Pengumuman untuk staf dan wali santri' },
+  { to: '/settings/users', label: 'Pengguna', icon: UsergroupAddOutlined, desc: 'Kelola nama & role akun staff', requireRoles: ['developer', 'admin'] },
+  { to: '/settings/audit-log', label: 'Audit Log', icon: HistoryOutlined, desc: 'Jejak perubahan data oleh pengguna', requireRoles: ['developer', 'admin'] },
+  { to: '/settings/school', label: 'Profil Sekolah', icon: SettingOutlined, desc: 'Identitas sekolah untuk kop raport' },
 ]
 
 export const NAV_GROUPS: NavGroup[] = [

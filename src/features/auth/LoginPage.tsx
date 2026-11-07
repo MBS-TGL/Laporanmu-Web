@@ -1,6 +1,10 @@
-import { Button, Card, Form, Input, Typography } from 'antd'
-import { LockOutlined, MailOutlined } from '@ant-design/icons'
+import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { Button, Form, Input, Typography } from 'antd'
+import { DashboardOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
 import { useLogin } from './hooks'
+import { PublicShell } from '../public/PublicShell'
+import { PortalSplitCard } from '../public/PortalSplitCard'
 
 interface LoginFormValues {
   email: string
@@ -11,50 +15,40 @@ export function LoginPage() {
   const login = useLogin()
   const [form] = Form.useForm<LoginFormValues>()
 
+  useEffect(() => {
+    document.title = 'Masuk · Laporanmu'
+  }, [])
+
   const onFinish = (values: LoginFormValues) => {
     login.mutate(values)
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #f8fafc 100%)',
-        padding: 16,
-      }}
-    >
-      <Card
-        style={{
-          width: 410,
-          borderRadius: 18,
-          boxShadow: '0 8px 32px rgba(15, 23, 42, 0.08)',
-        }}
+    <PublicShell tint="indigo" footerLabel="Portal Staf" hideFooterLinks>
+      <PortalSplitCard
+        tint="indigo"
+        icon={<DashboardOutlined />}
+        title="Aplikasi Staf"
+        description="Satu dasbor untuk mencatat, memantau, dan melaporkan pembinaan santri."
+        bullets={[
+          'Poin, raport & kehadiran terpadu',
+          'Portal wali santri real-time',
+          'Peran guru, pengurus & admin',
+        ]}
       >
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <img
-            src="/favicon.svg"
-            alt="Logo Laporanmu"
-            width={52}
-            height={52}
-            style={{ marginBottom: 12 }}
-          />
-          <Typography.Title level={3} style={{ marginBottom: 2, letterSpacing: '-0.02em' }}>
-            Laporanmu
-          </Typography.Title>
-          <Typography.Text type="secondary" style={{ fontSize: 13.5 }}>
-            Sistem Manajemen Perilaku Siswa
-          </Typography.Text>
-        </div>
-
+        <Typography.Title level={4} style={{ margin: 0, letterSpacing: '-0.02em' }}>
+          Masuk ke Akun
+        </Typography.Title>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 13, marginTop: 4 }}>
+          Gunakan email staf yang terdaftar di sekolah.
+        </Typography.Paragraph>
         <Form<LoginFormValues>
           form={form}
           layout="vertical"
           onFinish={onFinish}
           requiredMark={false}
           disabled={login.isPending}
+          style={{ marginTop: 18 }}
         >
           <Form.Item
             name="email"
@@ -80,7 +74,7 @@ export function LoginPage() {
             />
           </Form.Item>
 
-          <Form.Item style={{ marginBottom: 8, marginTop: 20 }}>
+          <Form.Item style={{ marginBottom: 12, marginTop: 20 }}>
             <Button
               type="primary"
               htmlType="submit"
@@ -92,7 +86,19 @@ export function LoginPage() {
             </Button>
           </Form.Item>
         </Form>
-      </Card>
-    </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <Link to="/" style={{ fontSize: 12.5 }}>
+            ← Kembali ke Beranda
+          </Link>
+          <Typography.Paragraph type="secondary" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
+            Wali santri?{' '}
+            <Link to="/check" style={{ fontWeight: 600 }}>
+              Cek poin anak Anda di sini
+            </Link>
+          </Typography.Paragraph>
+        </div>
+      </PortalSplitCard>
+    </PublicShell>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Alert, DatePicker, Form, Input, Select, Spin } from 'antd'
+import { ProfileOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue'
@@ -69,6 +70,8 @@ export function ReportForm({ open, submitting, onCancel, onSubmit }: ReportFormP
   return (
     <AppModal
       title="Catat Poin"
+      subtitle="Catat pelanggaran atau prestasi santri beserta catatannya"
+      icon={<ProfileOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}

@@ -15,26 +15,50 @@ const REPORT_SELECT =
 // ------------------------------------------------------------
 // Aturan poin
 // ------------------------------------------------------------
-export async function fetchPointRules(
-  filters: PointRuleFilters,
-): Promise<{ data: PointRule[]; total: number }> {
-  const { search, page, pageSize } = filters
-  const from = (page - 1) * pageSize
+
+// Query dasar + filter bersama (dipakai list & ekspor CSV agar konsisten).
+// Search di or() adalah string raw PostgREST, jadi koma/kurung dibersihkan.
+function baseRuleQuery(filters: Partial<PointRuleFilters>) {
+  const { search, category, kind } = filters
+  const term = search?.replace(/[,()\\]/g, ' ').trim()
 
   let query = supabase
     .from('point_rules')
     .select('*', { count: 'exact' })
     .is('deleted_at', null)
 
-  if (search) query = query.ilike('name', `%${search}%`)
+  if (term) query = query.or(`name.ilike.%${term}%,category.ilike.%${term}%`)
+  if (category) query = query.eq('category', category)
+  if (kind === 'negative') query = query.lt('points', 0)
+  if (kind === 'positive') query = query.gt('points', 0)
 
-  const { data, count, error } = await query
-    .order('points', { ascending: true })
+  return query
+}
+
+function sortedRuleQuery(filters: Partial<PointRuleFilters>) {
+  return baseRuleQuery(filters)
+    .order(filters.sort ?? 'points', { ascending: filters.dir !== 'desc' })
     .order('name', { ascending: true })
-    .range(from, from + pageSize - 1)
+}
+
+export async function fetchPointRules(
+  filters: PointRuleFilters,
+): Promise<{ data: PointRule[]; total: number }> {
+  const from = (filters.page - 1) * filters.pageSize
+
+  const { data, count, error } = await sortedRuleQuery(filters).range(from, from + filters.pageSize - 1)
 
   if (error) throw error
   return { data: (data ?? []) as PointRule[], total: count ?? 0 }
+}
+
+// Semua aturan yang lolos filter (tanpa pagination) untuk ekspor CSV
+export async function fetchPointRulesForExport(
+  filters: Omit<PointRuleFilters, 'page' | 'pageSize'>,
+): Promise<PointRule[]> {
+  const { data, error } = await sortedRuleQuery(filters)
+  if (error) throw error
+  return (data ?? []) as PointRule[]
 }
 
 export async function createPointRule(values: PointRuleFormValues): Promise<PointRule> {

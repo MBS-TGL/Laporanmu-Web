@@ -139,12 +139,12 @@ create table public.suspension_token_attempts (
 create or replace function public.is_suspension_task_owner(p_task_id uuid)
 returns boolean
 language sql stable security definer set search_path = public
-as $
+as $$
   select exists (
     select 1 from public.suspension_tasks
     where id = p_task_id and created_by = auth.uid()
   );
-$;
+$$;
 
 -- ------------------------------------------------------------
 -- Index

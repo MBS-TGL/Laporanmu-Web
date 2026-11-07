@@ -155,7 +155,7 @@ export function RaportPage() {
   }, [semesterQuery.data, studentClassMap, classes, classById, semester, semesterType, studentClassesQuery.data])
 
   const openMonthly = (classId: string) => {
-    navigate(`/raport/input/${classId}?jenis=bulanan&bulan=${bulan}&tahun=${tahun}`)
+    navigate(`/report-cards/input/${classId}?jenis=bulanan&bulan=${bulan}&tahun=${tahun}`)
   }
 
   const openSemester = (classId: string) => {
@@ -165,7 +165,7 @@ export function RaportPage() {
       semester: String(semester),
     })
     if (ta) sp.set('ta', ta)
-    navigate(`/raport/input/${classId}?${sp.toString()}`)
+    navigate(`/report-cards/input/${classId}?${sp.toString()}`)
   }
 
   const semesterTaLabel = classes[0]?.academic_year_id

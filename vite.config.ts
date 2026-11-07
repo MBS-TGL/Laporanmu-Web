@@ -12,4 +12,7 @@ export default defineConfig({
       interval: 300,
     },
   },
+  // Catatan: vendor splitting (advancedChunks/manualChunks) sudah dicoba dan
+  // JUSTRU membengkakkan output di rolldown-vite (tree-shaking antd rusak) —
+  // jangan ditambahkan lagi tanpa pengukuran.
 })

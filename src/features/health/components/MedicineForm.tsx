@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Form, Input, InputNumber, Select } from 'antd'
+import { MedicineBoxOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import type { HealthMedicine, HealthMedicineFormValues } from '../types'
 
@@ -51,6 +52,8 @@ export function MedicineForm({ open, medicine, submitting, onCancel, onSubmit }:
   return (
     <AppModal
       title={medicine ? 'Edit Obat' : 'Tambah Obat'}
+      subtitle={medicine ? 'Perbarui data obat' : 'Data stok obat pos kesehatan'}
+      icon={<MedicineBoxOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}

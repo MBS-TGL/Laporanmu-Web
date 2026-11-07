@@ -3,9 +3,22 @@ import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import {
   createStudent,
+  deleteStudentsBulk,
+  fetchArchivedStudents,
+  fetchExistingStudentCodes,
+  fetchStudentStats,
   fetchStudents,
+  fetchWaSettingsStatus,
+  moveStudentsBulk,
+  resetPoints,
+  restoreStudent,
+  restoreStudentsBulk,
+  sendWaBroadcast,
   softDeleteStudent,
   updateStudent,
+  updateStudentPhoto,
+  updateWaSettings,
+  type WaRecipient,
 } from './api'
 import type { StudentFilters, StudentFormValues } from './types'
 
@@ -56,6 +69,29 @@ export function useStudents(filters: StudentFilters) {
   })
 }
 
+export function useStudentStats() {
+  return useQuery({
+    queryKey: ['students', 'stats'],
+    queryFn: fetchStudentStats,
+  })
+}
+
+export function useArchivedStudents(search?: string) {
+  return useQuery({
+    queryKey: ['students', 'archived', search ?? ''],
+    queryFn: () => fetchArchivedStudents(search || undefined),
+  })
+}
+
+/** Pra-cek duplikat untuk modal impor — hanya aktif saat diminta */
+export function useExistingStudentCodes(enabled: boolean) {
+  return useQuery({
+    queryKey: ['students', 'existing-codes'],
+    queryFn: fetchExistingStudentCodes,
+    enabled,
+  })
+}
+
 export function useCreateStudent() {
   const qc = useQueryClient()
   return useMutation({
@@ -88,6 +124,114 @@ export function useDeleteStudent() {
       void logAudit({ action: 'DELETE', source: 'MASTER', tableName: 'students', recordId: variables, newData: { soft_deleted: true } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useBulkDeleteStudents() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => deleteStudentsBulk(ids),
+    onSuccess: (_data, ids) => {
+      void logAudit({ action: 'DELETE', source: 'MASTER', tableName: 'students', newData: { bulk_soft_deleted: ids.length } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useRestoreStudent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => restoreStudent(id),
+    onSuccess: (_data, id) => {
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', recordId: id, newData: { restored: true } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useBulkRestoreStudents() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => restoreStudentsBulk(ids),
+    onSuccess: (_data, ids) => {
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_restored: ids.length } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useBulkMoveClassStudents() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, classId }: { ids: string[]; classId: string }) =>
+      moveStudentsBulk(ids, classId),
+    onSuccess: (_data, { ids, classId }) => {
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_move_class: ids.length, class_id: classId } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useResetPoints() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (classId: string | null) => resetPoints(classId),
+    onSuccess: (count, classId) => {
+      void logAudit({ action: 'UPDATE', source: 'OPERATIONAL', tableName: 'students', newData: { reset_points: true, class_id: classId, affected: count } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useUpdateStudentPhoto() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, photoUrl }: { id: string; photoUrl: string }) => updateStudentPhoto(id, photoUrl),
+    onSuccess: (_data, variables) => {
+      // Nilai foto (base64 besar) tidak di-log — cukup penanda perubahan
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', recordId: variables.id, newData: { photo_url: true } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+    },
+  })
+}
+
+// ------------------------------------------------------------
+// WhatsApp broadcast (Fonnte via Edge Function)
+// ------------------------------------------------------------
+
+export function useWaSettingsStatus() {
+  return useQuery({
+    queryKey: ['wa-settings', 'status'],
+    queryFn: fetchWaSettingsStatus,
+  })
+}
+
+export function useUpdateWaSettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ token, senderName }: { token: string; senderName: string }) =>
+      updateWaSettings(token, senderName),
+    onSuccess: () => {
+      // Token tidak di-log — kredensial akun Fonnte
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'wa_settings', newData: { updated: true } })
+      void qc.invalidateQueries({ queryKey: ['wa-settings'] })
+    },
+  })
+}
+
+export function useSendWaBroadcast() {
+  return useMutation({
+    mutationFn: (recipients: WaRecipient[]) => sendWaBroadcast(recipients),
+    onSuccess: (result, recipients) => {
+      if (result.ok) {
+        void logAudit({ action: 'BROADCAST', source: 'OPERATIONAL', tableName: 'students', newData: { broadcast_wa: recipients.length, via: 'fonnte' } })
+      }
     },
   })
 }

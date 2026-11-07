@@ -19,6 +19,7 @@ import {
   PaperClipOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons'
+import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -534,7 +535,7 @@ function WaliShell({ children }: { children: React.ReactNode }) {
     >
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <img src="/favicon.svg" alt="Logo" width={44} height={44} style={{ marginBottom: 6 }} />
+          <img src="/logo-icon.png" alt="Logo Laporanmu" width={44} height={44} style={{ marginBottom: 6 }} />
           <Typography.Title level={4} style={{ margin: 0 }}>
             Pembinaan di Rumah
           </Typography.Title>
@@ -545,6 +546,11 @@ function WaliShell({ children }: { children: React.ReactNode }) {
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Halaman khusus wali — jangan bagikan tautan ini ke orang lain
           </Typography.Text>
+          <div style={{ marginTop: 4 }}>
+            <Link to="/" style={{ fontSize: 12, color: '#64748b' }}>
+              Laporanmu · Beranda
+            </Link>
+          </div>
         </div>
       </div>
     </div>

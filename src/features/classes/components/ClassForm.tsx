@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Form, Input, Select } from 'antd'
+import { BankOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import type { ClassFormValues, ClassRow } from '../types'
 import { useAcademicYearsBrief, useTeachersBriefForClasses } from '../hooks'
@@ -43,6 +44,8 @@ export function ClassForm({ open, cls, submitting, onCancel, onSubmit }: ClassFo
   return (
     <AppModal
       title={cls ? 'Edit Kelas' : 'Tambah Kelas'}
+      subtitle={cls ? 'Perbarui data kelas' : 'Struktur kelas dan wali kelas'}
+      icon={<BankOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}

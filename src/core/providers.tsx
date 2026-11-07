@@ -22,20 +22,14 @@ const themeConfig: ThemeConfig = {
     borderRadius: 10,
     borderRadiusLG: 14,
     controlHeight: 40,
+    // Animasi lebih cepat dari bawaan antd (0.2s/0.3s) agar klik terasa responsif
+    motionDurationFast: '0.08s',
+    motionDurationMid: '0.12s',
+    motionDurationSlow: '0.16s',
     fontFamily:
       "'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   },
   components: {
-    Menu: {
-      itemHeight: 38,
-      itemBorderRadius: 10,
-      itemMarginInline: 10,
-      itemSelectedBg: '#e0e7ff',
-      itemSelectedColor: '#3730a3',
-      activeBarBorderWidth: 0,
-      subMenuItemBg: 'transparent',
-      popupBg: '#ffffff',
-    },
     Table: {
       headerBg: '#f8fafc',
       headerColor: '#475569',

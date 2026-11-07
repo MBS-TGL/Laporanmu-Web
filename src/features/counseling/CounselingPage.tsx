@@ -237,7 +237,7 @@ export function CounselingPage() {
   return (
     <div>
       <PageHeader
-        title="Bimbingan & Konseling (BK)"
+        title="Bimbingan & Konseling"
         subtitle="Pembinaan karakter, solusi psikososial, dan arahan karir santri"
         extra={
           canWrite ? (

@@ -8,6 +8,7 @@ export type AuditAction =
   | 'LOGOUT'
   | 'EXPORT'
   | 'SYNC'
+  | 'BROADCAST'
 
 export type AuditSource = 'SYSTEM' | 'OPERATIONAL' | 'MASTER' | 'SECURITY' | 'AUTH'
 

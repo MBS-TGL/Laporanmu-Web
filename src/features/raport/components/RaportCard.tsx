@@ -90,7 +90,7 @@ export function RaportCard({
         <tbody>
           <tr>
             <td className="raport-header-logo">
-              <img src="/favicon.svg" alt="Logo" width={56} height={56} />
+              <img src="/logo-icon.png" alt="Logo Laporanmu" width={56} height={56} />
             </td>
             <td className="raport-header-center">
               <div style={{ color: primary, fontWeight: 800, fontSize: 17, letterSpacing: '-0.01em' }}>
@@ -101,7 +101,7 @@ export function RaportCard({
               )}
             </td>
             <td className="raport-header-logo">
-              <img src="/favicon.svg" alt="Logo" width={56} height={56} />
+              <img src="/logo-icon.png" alt="Logo Laporanmu" width={56} height={56} />
             </td>
           </tr>
         </tbody>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Checkbox, DatePicker, Form, Input, Select } from 'antd'
+import { CalendarOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import type { AcademicYear, AcademicYearFormValues, Semester } from '../types'
@@ -62,6 +63,8 @@ export function AcademicYearForm({
   return (
     <AppModal
       title={year ? 'Edit Tahun Akademik' : 'Tambah Tahun Akademik'}
+      subtitle={year ? 'Perbarui data tahun akademik' : 'Periode semester dan kalender akademik'}
+      icon={<CalendarOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}

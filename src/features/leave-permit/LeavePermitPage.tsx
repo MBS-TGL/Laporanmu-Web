@@ -413,7 +413,7 @@ function PermitPrintModal({ permit, onClose }: { permit: LeavePermit | null; onC
       <div className="permit-print-root">
         <div className="permit-letter">
           <div className="permit-letter-head">
-            <img src="/favicon.svg" alt="Logo" width={44} height={44} />
+            <img src="/logo-icon.png" alt="Logo Laporanmu" width={44} height={44} />
             <div>
               <div style={{ fontWeight: 800, fontSize: 13, color: '#1a5c35' }}>PENGASUHAN SANTRI</div>
               <div style={{ fontSize: 11, color: '#475569' }}>Laporanmu Boarding School — Jember</div>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Col, DatePicker, Form, Input, Row, Select } from 'antd'
+import { UserOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import { SectionDivider } from '../../../shared/components/SectionDivider'
@@ -77,6 +78,8 @@ export function StudentForm({ open, student, submitting, onCancel, onSubmit }: S
   return (
     <AppModal
       title={student ? 'Edit Siswa' : 'Tambah Siswa'}
+      subtitle={student ? 'Perbarui data siswa' : 'Data lengkap siswa baru'}
+      icon={<UserOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}

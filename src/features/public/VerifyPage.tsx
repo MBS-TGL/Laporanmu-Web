@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Empty, Form, Input, Spin, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Form, Input, Tag, Typography } from 'antd'
 import { SafetyCertificateOutlined, SearchOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getGradePredicateBulanan } from '../raport/constants'
+import { PublicShell } from './PublicShell'
+import { PortalSplitCard } from './PortalSplitCard'
 
 interface VerifyResult {
   student: {
@@ -66,6 +68,10 @@ export function VerifyPage() {
   const paramStudent = searchParams.get('s') ?? searchParams.get('id') ?? ''
   const paramNo = searchParams.get('no') ?? ''
 
+  useEffect(() => {
+    document.title = 'Verifikasi Rapor · Laporanmu'
+  }, [])
+
   // Periode dari nomor rapor pada deep-link (?no=RPT/.../NOV2026/1)
   const deepPeriod = useMemo(() => parseReportNo(paramNo), [paramNo])
 
@@ -103,138 +109,134 @@ export function VerifyPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(160deg, #ecfdf5 0%, #f8fafc 45%, #f8fafc 100%)',
-        padding: '24px 16px',
-      }}
-    >
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <SafetyCertificateOutlined style={{ fontSize: 42, color: '#059669' }} />
-          <Typography.Title level={3} style={{ margin: '8px 0 2px', letterSpacing: '-0.02em' }}>
-            Verifikasi Rapor
+    <PublicShell tint="green" footerLabel="Portal Verifikasi Publik">
+      {/* Form tetap ter-mount saat loading agar tidak ada layout jump */}
+      {!result && (
+        <PortalSplitCard
+          tint="green"
+          icon={<SafetyCertificateOutlined />}
+          title="Verifikasi Rapor"
+          description="Pastikan rapor yang Anda terima benar-benar berasal dari arsip resmi sekolah."
+          bullets={[
+            'Cocok dengan arsip resmi sekolah',
+            'Nilai karakter & presensi lengkap',
+            'Hasil dapat dicetak sebagai bukti',
+          ]}
+          footnote="ID santri tertera pada QR / dokumen rapor."
+        >
+          <Typography.Title level={4} style={{ margin: 0, letterSpacing: '-0.02em' }}>
+            Periksa Dokumen
           </Typography.Title>
-          <Typography.Text type="secondary">
-            Periksa keaslian dokumen rapor bulanan santri
-          </Typography.Text>
-        </div>
-
-        {!result && !loading && (
-          <Card style={{ maxWidth: 460, margin: '0 auto' }}>
-            <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ studentId: paramStudent }}>
-              <Form.Item
-                name="studentId"
-                label="ID Santri (dari QR / tautan rapor)"
-                rules={[{ required: true, message: 'ID santri wajib diisi' }]}
-              >
-                <Input placeholder="Tempel ID santri di sini" />
-              </Form.Item>
-              {error && (
-                <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />
-              )}
-              <Button type="primary" htmlType="submit" block size="large" icon={<SearchOutlined />}>
-                Verifikasi
-              </Button>
-            </Form>
-          </Card>
-        )}
-
-        {loading && (
-          <div style={{ textAlign: 'center', padding: 48 }}>
-            <Spin size="large" />
-          </div>
-        )}
-
-        {result && !loading && (
-          <Card>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <Tag color="green" style={{ fontSize: 13, padding: '4px 14px', borderRadius: 999 }}>
-                ✓ Dokumen Raport Sah & Terdaftar
-              </Tag>
-              <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
-                Data berikut sesuai dengan arsip resmi sekolah
-              </Typography.Paragraph>
-            </div>
-
-            <Typography.Title level={4} style={{ textAlign: 'center', margin: 0 }}>
-              {result.student.name}
-            </Typography.Title>
-            <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
-              {result.student.class_name ?? '—'} · {result.student.registration_code}
-              {result.student.nisn ? ` · NISN ${result.student.nisn}` : ''}
-            </Typography.Paragraph>
-
-            <Typography.Text strong style={{ display: 'block', margin: '16px 0 4px' }}>
-              Penilaian Aspek Karakter — {MONTH_NAMES[result.report.month - 1]} {result.report.year}
-            </Typography.Text>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <tbody>
-                {(
-                  [
-                    ['Akhlak', result.report.nilai_akhlak],
-                    ['Ibadah', result.report.nilai_ibadah],
-                    ['Kebersihan', result.report.nilai_kebersihan],
-                    ["Al-Qur'an", result.report.nilai_quran],
-                    ['Bahasa', result.report.nilai_bahasa],
-                  ] as const
-                ).map(([label, v]) => (
-                  <tr key={label} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '6px 4px', color: '#64748b' }}>{label}</td>
-                    <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{v ?? '—'}</td>
-                    <td style={{ padding: '6px 4px', textAlign: 'right', color: '#64748b', width: 120 }}>
-                      {getGradePredicateBulanan(v)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <Typography.Text strong style={{ display: 'block', margin: '16px 0 4px' }}>
-              Presensi & Fisik
-            </Typography.Text>
-            <Typography.Paragraph style={{ fontSize: 13 }}>
-              Sakit {result.report.hari_sakit} hari · Izin {result.report.hari_izin} hari · Alpa{' '}
-              {result.report.hari_alpa} hari · Pulang {result.report.hari_pulang} hari
-              <br />
-              {result.report.berat_badan ? `BB ${result.report.berat_badan} kg · ` : ''}
-              {result.report.tinggi_badan ? `TB ${result.report.tinggi_badan} cm · ` : ''}
-              {result.report.total_hafalan ? `Hafalan ${result.report.total_hafalan}` : ''}
-            </Typography.Paragraph>
-
-            {result.report.catatan && (
-              <>
-                <Typography.Text strong style={{ display: 'block', margin: '8px 0 4px' }}>
-                  Catatan Pembina
-                </Typography.Text>
-                <Typography.Paragraph italic style={{ fontSize: 13 }}>
-                  “{result.report.catatan}”
-                </Typography.Paragraph>
-              </>
+          <Typography.Paragraph type="secondary" style={{ fontSize: 13, marginTop: 4 }}>
+            Tempel ID santri yang tertera pada QR atau tautan rapor.
+          </Typography.Paragraph>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleSubmit}
+            initialValues={{ studentId: paramStudent }}
+            style={{ marginTop: 18 }}
+          >
+            <Form.Item
+              name="studentId"
+              label="ID Santri"
+              rules={[{ required: true, message: 'ID santri wajib diisi' }]}
+            >
+              <Input placeholder="Tempel ID santri di sini" disabled={loading} allowClear size="large" />
+            </Form.Item>
+            {error && (
+              <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />
             )}
+            <Button
+              color="green"
+              variant="solid"
+              htmlType="submit"
+              block
+              size="large"
+              icon={<SearchOutlined />}
+              loading={loading}
+            >
+              Verifikasi
+            </Button>
+          </Form>
+        </PortalSplitCard>
+      )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Musyrif: {result.report.musyrif_name ?? '—'}
-              </Typography.Text>
-              <Button onClick={() => window.print()}>Cetak Halaman Ini</Button>
-            </div>
-          </Card>
-        )}
+      {result && (
+        <Card style={{ borderRadius: 16 }}>
+          <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
+            <Tag color="green" style={{ fontSize: 13, padding: '4px 14px', borderRadius: 999 }}>
+              ✓ Dokumen Raport Sah & Terdaftar
+            </Tag>
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
+              Data berikut sesuai dengan arsip resmi sekolah
+            </Typography.Paragraph>
+          </div>
 
-        {!result && !loading && !paramStudent && !error && (
-          <Card style={{ maxWidth: 460, margin: '16px auto 0' }}>
-            <Empty description="Masukkan ID santri untuk memverifikasi dokumen rapor" />
-          </Card>
-        )}
+          <Typography.Title level={4} style={{ textAlign: 'center', margin: 0 }}>
+            {result.student.name}
+          </Typography.Title>
+          <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
+            {result.student.class_name ?? '—'} · {result.student.registration_code}
+            {result.student.nisn ? ` · NISN ${result.student.nisn}` : ''}
+          </Typography.Paragraph>
 
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Laporanmu · Portal Verifikasi Publik
+          <Typography.Text strong style={{ display: 'block', margin: '16px 0 4px' }}>
+            Penilaian Aspek Karakter — {MONTH_NAMES[result.report.month - 1]} {result.report.year}
           </Typography.Text>
-        </div>
-      </div>
-    </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <tbody>
+              {(
+                [
+                  ['Akhlak', result.report.nilai_akhlak],
+                  ['Ibadah', result.report.nilai_ibadah],
+                  ['Kebersihan', result.report.nilai_kebersihan],
+                  ["Al-Qur'an", result.report.nilai_quran],
+                  ['Bahasa', result.report.nilai_bahasa],
+                ] as const
+              ).map(([label, v]) => (
+                <tr key={label} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '6px 4px', color: '#64748b' }}>{label}</td>
+                  <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{v ?? '—'}</td>
+                  <td style={{ padding: '6px 4px', textAlign: 'right', color: '#64748b', width: 120 }}>
+                    {getGradePredicateBulanan(v)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <Typography.Text strong style={{ display: 'block', margin: '16px 0 4px' }}>
+            Presensi & Fisik
+          </Typography.Text>
+          <Typography.Paragraph style={{ fontSize: 13 }}>
+            Sakit {result.report.hari_sakit} hari · Izin {result.report.hari_izin} hari · Alpa{' '}
+            {result.report.hari_alpa} hari · Pulang {result.report.hari_pulang} hari
+            <br />
+            {result.report.berat_badan ? `BB ${result.report.berat_badan} kg · ` : ''}
+            {result.report.tinggi_badan ? `TB ${result.report.tinggi_badan} cm · ` : ''}
+            {result.report.total_hafalan ? `Hafalan ${result.report.total_hafalan}` : ''}
+          </Typography.Paragraph>
+
+          {result.report.catatan && (
+            <>
+              <Typography.Text strong style={{ display: 'block', margin: '8px 0 4px' }}>
+                Catatan Pembina
+              </Typography.Text>
+              <Typography.Paragraph italic style={{ fontSize: 13 }}>
+                “{result.report.catatan}”
+              </Typography.Paragraph>
+            </>
+          )}
+
+          <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Musyrif: {result.report.musyrif_name ?? '—'}
+            </Typography.Text>
+            <Button onClick={() => window.print()}>Cetak Halaman Ini</Button>
+          </div>
+        </Card>
+      )}
+    </PublicShell>
   )
 }

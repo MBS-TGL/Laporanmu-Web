@@ -167,12 +167,12 @@ export function RaportArchivePage() {
           <Button
             type="text"
             icon={<EditOutlined />}
-            onClick={() => navigate(`/raport/input/${r.classId}?${r.navigateParams}`)}
+            onClick={() => navigate(`/report-cards/input/${r.classId}?${r.navigateParams}`)}
           />
           <Button
             type="text"
             icon={<PrinterOutlined />}
-            onClick={() => navigate(`/raport/preview/${r.classId}?${r.navigateParams}`)}
+            onClick={() => navigate(`/report-cards/preview/${r.classId}?${r.navigateParams}`)}
           />
           {canDelete && (
             <Popconfirm

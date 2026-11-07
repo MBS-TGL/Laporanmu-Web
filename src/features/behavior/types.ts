@@ -15,8 +15,14 @@ export interface PointRuleFormValues {
   category?: string
 }
 
+export type PointRuleSort = 'name' | 'points'
+
 export interface PointRuleFilters {
   search?: string
+  category?: string
+  kind?: ReportKind
+  sort?: PointRuleSort
+  dir?: 'asc' | 'desc'
   page: number
   pageSize: number
 }

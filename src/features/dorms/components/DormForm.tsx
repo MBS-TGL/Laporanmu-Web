@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Form, Input, InputNumber, Select } from 'antd'
+import { ApartmentOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import type { Dorm, DormFormValues } from '../types'
 import { useMusyrifBrief } from '../hooks'
@@ -47,6 +48,8 @@ export function DormForm({ open, dorm, submitting, onCancel, onSubmit }: DormFor
   return (
     <AppModal
       title={dorm ? 'Edit Kamar' : 'Tambah Kamar'}
+      subtitle={dorm ? 'Perbarui kamar & musyrif' : 'Kamar asrama dan plotting santri'}
+      icon={<ApartmentOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}

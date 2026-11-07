@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { DatePicker, Form, Input, Select } from 'antd'
+import { ReadOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import type { Teacher, TeacherFormValues } from '../types'
@@ -59,6 +60,8 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
   return (
     <AppModal
       title={teacher ? 'Edit Guru' : 'Tambah Guru'}
+      subtitle={teacher ? 'Perbarui data guru & musyrif' : 'Data pengajar, musyrif, dan staf'}
+      icon={<ReadOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}

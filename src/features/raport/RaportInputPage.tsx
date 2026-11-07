@@ -67,6 +67,12 @@ const BULANAN_KEYS = [
   'nilai_bahasa',
 ] as const
 
+const omitKeys = <T,>(obj: Record<string, T>, keys: string[]): Record<string, T> => {
+  const next = { ...obj }
+  for (const k of keys) delete next[k]
+  return next
+}
+
 export function RaportInputPage() {
   const { message } = App.useApp()
   const { classId = '' } = useParams()
@@ -228,12 +234,17 @@ export function RaportInputPage() {
   }
 
   const handleSaveAll = async () => {
+    // cegah klik ganda selama proses simpan
+    if (saveMonthly.isPending || saveSemester.isPending) return
+
     if (isBulanan) {
       const payloads: MonthlyReportPayload[] = []
+      const skippedIds: string[] = []
+
       for (const student of students) {
         const draft = drafts[student.id]
+        if (!draft || Object.keys(draft).length === 0) continue
         const saved = savedMonthlyById.get(student.id)
-        if (!draft) continue
         const merged = {
           nilai_akhlak: saved?.nilai_akhlak ?? null,
           nilai_ibadah: saved?.nilai_ibadah ?? null,
@@ -255,10 +266,28 @@ export function RaportInputPage() {
           prestasi: saved?.prestasi ?? null,
           ...draft,
         }
+        // data pendukung (fisik, kehadiran) juga dihitung sebagai isi
         const hasAny =
           BULANAN_KEYS.some((k) => typeof merged[k] === 'number') ||
-          Boolean(merged.catatan || merged.ziyadah || merged.murojaah || merged.total_hafalan)
-        if (!hasAny) continue
+          Boolean(
+            merged.catatan ||
+              merged.ziyadah ||
+              merged.murojaah ||
+              merged.total_hafalan ||
+              merged.berat_badan ||
+              merged.tinggi_badan ||
+              merged.sholat ||
+              merged.hari_sakit ||
+              merged.hari_izin ||
+              merged.hari_alpa ||
+              merged.hari_pulang,
+          )
+        // lewati hanya jika belum ada baris tersimpan DAN memang kosong.
+        // Jika baris sudah ada, tetap disimpan agar pengosongan nilai ikut tersimpan.
+        if (!saved && !hasAny) {
+          skippedIds.push(student.id)
+          continue
+        }
         payloads.push({
           student_id: student.id,
           month: bulan,
@@ -268,10 +297,14 @@ export function RaportInputPage() {
           updated_by: null,
         })
       }
+
       if (payloads.length === 0) {
+        // bersihkan draf kosong agar badge "belum disimpan" tidak menggantung
+        if (skippedIds.length) setDrafts((prev) => omitKeys(prev, skippedIds))
         message.info('Tidak ada perubahan untuk disimpan')
         return
       }
+
       const incomplete = payloads.filter(
         (p) => !BULANAN_KEYS.every((k) => typeof p[k] === 'number'),
       ).length
@@ -281,17 +314,19 @@ export function RaportInputPage() {
           4,
         )
       }
-      const { data: userData } = await supabase.auth.getUser()
-      saveMonthly.mutate(
-        payloads.map((p) => ({ ...p, updated_by: userData.user?.id ?? null })),
-        {
-          onSuccess: () => {
-            message.success(`${payloads.length} raport tersimpan`)
-            setDrafts({})
-          },
-          onError: (err: Error) => message.error(err.message || 'Gagal menyimpan'),
-        },
-      )
+
+      try {
+        const { data: userData } = await supabase.auth.getUser()
+        await saveMonthly.mutateAsync(
+          payloads.map((p) => ({ ...p, updated_by: userData.user?.id ?? null })),
+        )
+        message.success(`${payloads.length} raport tersimpan`)
+        // hapus hanya draf yang benar-benar tersimpan (ketikan baru tidak ikut hilang)
+        const doneIds = [...payloads.map((p) => p.student_id), ...skippedIds]
+        setDrafts((prev) => omitKeys(prev, doneIds))
+      } catch (err) {
+        message.error((err as Error).message || 'Gagal menyimpan')
+      }
     } else {
       // Semester
       if (!ta) {
@@ -299,48 +334,68 @@ export function RaportInputPage() {
         return
       }
       const payloads: SemesterReportPayload[] = []
+      const skippedIds: string[] = []
+
       for (const student of students) {
         const draft = semesterDrafts[student.id]
         if (!draft) continue
         const saved = savedSemesterById.get(student.id)
         const scores = { ...(saved?.scores ?? {}), ...draft.scores }
-        const hasAny = Object.values(scores).some((v) => typeof v === 'number')
-        if (!hasAny) continue
+        const extras = {
+          berat_badan: draft.berat_badan ?? saved?.extras?.berat_badan ?? null,
+          tinggi_badan: draft.tinggi_badan ?? saved?.extras?.tinggi_badan ?? null,
+          sholat: draft.sholat ?? saved?.extras?.sholat ?? null,
+          hari_sakit: draft.hari_sakit ?? saved?.extras?.hari_sakit ?? 0,
+          hari_izin: draft.hari_izin ?? saved?.extras?.hari_izin ?? 0,
+          hari_alpa: draft.hari_alpa ?? saved?.extras?.hari_alpa ?? 0,
+          hari_pulang: draft.hari_pulang ?? saved?.extras?.hari_pulang ?? 0,
+          catatan: draft.catatan ?? saved?.extras?.catatan ?? null,
+        }
+        const hasAny =
+          Object.values(scores).some((v) => typeof v === 'number') ||
+          Boolean(
+            extras.catatan ||
+              extras.berat_badan ||
+              extras.tinggi_badan ||
+              extras.sholat ||
+              extras.hari_sakit ||
+              extras.hari_izin ||
+              extras.hari_alpa ||
+              extras.hari_pulang,
+          )
+        if (!saved && !hasAny) {
+          skippedIds.push(student.id)
+          continue
+        }
         payloads.push({
           student_id: student.id,
           report_type: jenis as SemesterType,
           semester,
           academic_year_id: ta,
           scores,
-          extras: {
-            berat_badan: draft.berat_badan ?? saved?.extras?.berat_badan ?? null,
-            tinggi_badan: draft.tinggi_badan ?? saved?.extras?.tinggi_badan ?? null,
-            sholat: draft.sholat ?? saved?.extras?.sholat ?? null,
-            hari_sakit: draft.hari_sakit ?? saved?.extras?.hari_sakit ?? 0,
-            hari_izin: draft.hari_izin ?? saved?.extras?.hari_izin ?? 0,
-            hari_alpa: draft.hari_alpa ?? saved?.extras?.hari_alpa ?? 0,
-            hari_pulang: draft.hari_pulang ?? saved?.extras?.hari_pulang ?? 0,
-            catatan: draft.catatan ?? saved?.extras?.catatan ?? null,
-          },
+          extras,
           musyrif_name: musyrif || classRow?.homeroom_teacher?.name || null,
           updated_by: null,
         })
       }
+
       if (payloads.length === 0) {
+        if (skippedIds.length) setSemesterDrafts((prev) => omitKeys(prev, skippedIds))
         message.info('Tidak ada perubahan untuk disimpan')
         return
       }
-      const { data: userData } = await supabase.auth.getUser()
-      saveSemester.mutate(
-        payloads.map((p) => ({ ...p, updated_by: userData.user?.id ?? null })),
-        {
-          onSuccess: () => {
-            message.success(`${payloads.length} raport tersimpan`)
-            setSemesterDrafts({})
-          },
-          onError: (err: Error) => message.error(err.message || 'Gagal menyimpan'),
-        },
-      )
+
+      try {
+        const { data: userData } = await supabase.auth.getUser()
+        await saveSemester.mutateAsync(
+          payloads.map((p) => ({ ...p, updated_by: userData.user?.id ?? null })),
+        )
+        message.success(`${payloads.length} raport tersimpan`)
+        const doneIds = [...payloads.map((p) => p.student_id), ...skippedIds]
+        setSemesterDrafts((prev) => omitKeys(prev, doneIds))
+      } catch (err) {
+        message.error((err as Error).message || 'Gagal menyimpan')
+      }
     }
   }
 
@@ -506,7 +561,7 @@ export function RaportInputPage() {
   ]
 
   const previewSp = new URLSearchParams(searchParams)
-  const previewPath = `/raport/preview/${classId}?${previewSp.toString()}`
+  const previewPath = `/report-cards/preview/${classId}?${previewSp.toString()}`
 
   return (
     <div>

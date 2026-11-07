@@ -50,11 +50,28 @@ export interface StudentFormValues {
   tags?: string[]
 }
 
+export type SortOption =
+  | 'name_asc'
+  | 'name_desc'
+  | 'class_asc'
+  | 'class_desc'
+  | 'status_asc'
+  | 'status_desc'
+  | 'points_desc'
+  | 'points_asc'
+  | 'updated_desc'
+
+export type MissingField = 'photo' | 'phone' | 'nisn' | 'any'
+export type PointMode = 'negative' | 'positive'
+
 export interface StudentFilters {
   search?: string
   classId?: string
   gender?: Gender
   status?: StudentStatus
+  sortBy?: SortOption
+  missing?: MissingField
+  pointMode?: PointMode
   page: number
   pageSize: number
 }
@@ -63,4 +80,29 @@ export interface StudentBrief {
   id: string
   name: string
   registration_code: string
+}
+
+export interface StudentTopPerformer {
+  name: string
+  points: number
+}
+
+export interface StudentWorstClass {
+  id: string
+  name: string
+  avg: number
+  count: number
+}
+
+export interface StudentStats {
+  total: number
+  putra: number
+  putri: number
+  avgPoints: number
+  riskCount: number
+  incompleteCount: number
+  /** rata-rata poin dari laporan 7 hari terakhir, null bila tidak ada siswa */
+  trend7d: number | null
+  topPerformer: StudentTopPerformer | null
+  worstClass: StudentWorstClass | null
 }

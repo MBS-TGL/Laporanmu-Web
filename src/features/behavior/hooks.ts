@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { searchStudents } from '../students/api'
@@ -25,6 +25,8 @@ export function usePointRules(filters: PointRuleFilters) {
   return useQuery({
     queryKey: ['point-rules', filters],
     queryFn: () => fetchPointRules(filters),
+    // Data lama tetap tampil saat ganti halaman/filter, tanpa kedip spinner
+    placeholderData: keepPreviousData,
   })
 }
 

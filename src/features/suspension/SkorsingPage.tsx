@@ -60,7 +60,7 @@ export function SkorsingPage() {
       title: 'Santri',
       key: 'student',
       render: (_, s) => (
-        <Link to={`/skorsing/detail/${s.id}`} style={{ fontWeight: 600 }}>
+        <Link to={`/suspension/detail/${s.id}`} style={{ fontWeight: 600 }}>
           {s.student?.name ?? '—'}
         </Link>
       ),
@@ -104,7 +104,7 @@ export function SkorsingPage() {
       title: 'Aksi',
       key: 'actions',
       width: 90,
-      render: (_, s) => <Link to={`/skorsing/detail/${s.id}`}>Detail</Link>,
+      render: (_, s) => <Link to={`/suspension/detail/${s.id}`}>Detail</Link>,
     },
   ]
 
@@ -133,7 +133,7 @@ export function SkorsingPage() {
               end_date: created.end_date,
             },
           })
-          navigate(`/skorsing/detail/${created.id}`)
+          navigate(`/suspension/detail/${created.id}`)
         },
         onError: (err: Error) => message.error(err.message || 'Gagal menerbitkan skorsing'),
       },

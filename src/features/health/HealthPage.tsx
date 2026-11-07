@@ -3,21 +3,19 @@ import {
   App,
   Button,
   Card,
-  Col,
   Empty,
   Input,
   Popconfirm,
-  Row,
   Space,
-  Statistic,
   Table,
   Tabs,
   Tag,
   Typography,
   type TableColumnsType,
 } from 'antd'
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, WarningOutlined } from '@ant-design/icons'
 import { PageHeader } from '../../shared/components/PageHeader'
+import { StatChip } from '../../shared/components/StatChip'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { logAudit } from '../../shared/utils/auditLogger'
@@ -302,7 +300,7 @@ export function HealthPage() {
   return (
     <div>
       <PageHeader
-        title="Klinik & Kesehatan"
+        title="Kesehatan"
         subtitle="Rekam medis santri, observasi, dan stok obat poskestren"
         extra={
           canWrite ? (
@@ -323,31 +321,33 @@ export function HealthPage() {
         }
       />
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={8} xl={6}>
-          <Card>
-            <Statistic title="Total Rekam Medis" value={logs.length} loading={logsQuery.isPending} />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} xl={6}>
-          <Card>
-            <Statistic
-              title="Sedang Observasi"
-              value={resting.length}
-              valueStyle={{ color: resting.length > 0 ? '#d97706' : undefined }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} xl={6}>
-          <Card>
-            <Statistic
-              title="Stok Obat Kritis"
-              value={lowStock.length}
-              valueStyle={{ color: lowStock.length > 0 ? '#dc2626' : undefined }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+        <StatChip
+          icon={<FileTextOutlined />}
+          label="Total Rekam Medis"
+          value={logs.length}
+          color="indigo"
+          loading={logsQuery.isPending}
+          active={tab === 'rekam'}
+          onClick={() => setTab('rekam')}
+        />
+        <StatChip
+          icon={<EyeOutlined />}
+          label="Sedang Observasi"
+          value={resting.length}
+          color="amber"
+          active={tab === 'observasi'}
+          onClick={() => setTab('observasi')}
+        />
+        <StatChip
+          icon={<WarningOutlined />}
+          label="Stok Obat Kritis"
+          value={lowStock.length}
+          color="rose"
+          active={tab === 'stok'}
+          onClick={() => setTab('stok')}
+        />
+      </div>
 
       <Tabs
         activeKey={tab}

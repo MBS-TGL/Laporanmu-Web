@@ -1,8 +1,31 @@
-import { useEffect } from 'react'
-import { Form, Input, InputNumber } from 'antd'
+import { useEffect, useMemo } from 'react'
+import { AutoComplete, Form, Input, InputNumber, Segmented } from 'antd'
+import { FallOutlined, FileDoneOutlined, RiseOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { StatusTag } from '../../../shared/components/StatusTag'
+import { usePointRulesBrief } from '../hooks'
 import type { PointRule, PointRuleFormValues } from '../types'
 import { pointRuleNameExists } from '../api'
+
+// Kategori bawaan (sesuai seed) — digabung dengan kategori yang sudah dipakai
+const PRESET_CATEGORIES = [
+  'Kedisiplinan',
+  'Kehadiran',
+  'Perilaku',
+  'Kesehatan',
+  'Kejujuran',
+  'Kerapian',
+  'Kebaikan',
+  'Prestasi',
+]
+
+// Nilai mentah form: tipe & besaran dipisah, tanda poin diturunkan saat submit
+interface RuleFormState {
+  name: string
+  kind: 'negative' | 'positive'
+  magnitude: number
+  category?: string
+}
 
 interface PointRuleFormProps {
   open: boolean
@@ -13,14 +36,22 @@ interface PointRuleFormProps {
 }
 
 export function PointRuleForm({ open, rule, submitting, onCancel, onSubmit }: PointRuleFormProps) {
-  const [form] = Form.useForm<PointRuleFormValues>()
+  const [form] = Form.useForm<RuleFormState>()
+  const { data: brief } = usePointRulesBrief()
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set(PRESET_CATEGORIES)
+    for (const r of brief ?? []) if (r.category) set.add(r.category)
+    return [...set].sort((a, b) => a.localeCompare(b)).map((c) => ({ value: c }))
+  }, [brief])
 
   useEffect(() => {
     if (!open) return
     if (rule) {
       form.setFieldsValue({
         name: rule.name,
-        points: rule.points,
+        kind: rule.points < 0 ? 'negative' : 'positive',
+        magnitude: Math.abs(rule.points),
         category: rule.category ?? undefined,
       })
     } else {
@@ -28,9 +59,17 @@ export function PointRuleForm({ open, rule, submitting, onCancel, onSubmit }: Po
     }
   }, [open, rule, form])
 
+  const handleFinish = (values: RuleFormState) => {
+    const points =
+      values.kind === 'negative' ? -Math.abs(values.magnitude) : Math.abs(values.magnitude)
+    onSubmit({ name: values.name, points, category: values.category })
+  }
+
   return (
     <AppModal
       title={rule ? 'Edit Aturan Poin' : 'Tambah Aturan Poin'}
+      subtitle={rule ? 'Perbarui detail aturan poin' : 'Aturan pelanggaran atau prestasi beserta bobot poinnya'}
+      icon={<FileDoneOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}
@@ -38,7 +77,13 @@ export function PointRuleForm({ open, rule, submitting, onCancel, onSubmit }: Po
       width={480}
       destroyOnHidden
     >
-      <Form<PointRuleFormValues> form={form} layout="vertical" onFinish={onSubmit} disabled={submitting}>
+      <Form<RuleFormState>
+        form={form}
+        layout="vertical"
+        onFinish={handleFinish}
+        disabled={submitting}
+        initialValues={{ kind: 'negative' }}
+      >
         <Form.Item
           name="name"
           label="Nama Aturan"
@@ -57,16 +102,58 @@ export function PointRuleForm({ open, rule, submitting, onCancel, onSubmit }: Po
           <Input placeholder="Contoh: Terlambat masuk kelas" maxLength={100} />
         </Form.Item>
 
-        <Form.Item
-          name="points"
-          label="Poin (negatif = pelanggaran, positif = prestasi)"
-          rules={[{ required: true, message: 'Poin wajib diisi' }]}
-        >
-          <InputNumber style={{ width: '100%' }} min={-200} max={200} precision={0} placeholder="Contoh: -10" />
+        <Form.Item name="kind" label="Tipe">
+          <Segmented
+            block
+            options={[
+              { label: 'Pelanggaran', value: 'negative', icon: <FallOutlined /> },
+              { label: 'Prestasi', value: 'positive', icon: <RiseOutlined /> },
+            ]}
+          />
+        </Form.Item>
+
+        {/* Tanda poin mengikuti tipe — user hanya mengisi besarannya */}
+        <Form.Item noStyle shouldUpdate={() => true}>
+          {({ getFieldValue }) => {
+            const kind = (getFieldValue('kind') as RuleFormState['kind']) ?? 'negative'
+            const magnitude = (getFieldValue('magnitude') as number | undefined) ?? 0
+            return (
+              <Form.Item
+                name="magnitude"
+                label="Jumlah Poin"
+                rules={[{ required: true, message: 'Jumlah poin wajib diisi' }]}
+                extra={
+                  magnitude > 0 ? (
+                    <StatusTag
+                      color={kind === 'negative' ? 'red' : 'green'}
+                      icon={kind === 'negative' ? <FallOutlined /> : <RiseOutlined />}
+                    >
+                      {`${kind === 'negative' ? '−' : '+'}${magnitude} poin`}
+                    </StatusTag>
+                  ) : undefined
+                }
+              >
+                <InputNumber
+                  style={{ width: '100%' }}
+                  min={1}
+                  max={200}
+                  precision={0}
+                  placeholder="Contoh: 10"
+                  addonBefore={kind === 'negative' ? '−' : '+'}
+                />
+              </Form.Item>
+            )
+          }}
         </Form.Item>
 
         <Form.Item name="category" label="Kategori">
-          <Input placeholder="Contoh: Kedisiplinan" maxLength={50} />
+          <AutoComplete
+            options={categoryOptions}
+            filterOption={(input, option) =>
+              String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            placeholder="Contoh: Kedisiplinan"
+          />
         </Form.Item>
       </Form>
     </AppModal>

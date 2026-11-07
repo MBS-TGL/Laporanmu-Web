@@ -128,7 +128,7 @@ export function RaportPreviewPage() {
   ]
 
   const backSp = new URLSearchParams(searchParams)
-  const backPath = `/raport/input/${classId}?${backSp.toString()}`
+  const backPath = `/report-cards/input/${classId}?${backSp.toString()}`
 
   return (
     <div>

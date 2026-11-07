@@ -13,6 +13,8 @@ interface StudentDetailDrawerProps {
   student: Student | null
   onClose: () => void
   onEdit: (student: Student) => void
+  /** mode privasi: sembunyikan kode / NISN / nomor telepon */
+  isPrivacyMode?: boolean
 }
 
 function initials(name: string): string {
@@ -23,8 +25,17 @@ function initials(name: string): string {
     .join('')
 }
 
-export function StudentDetailDrawer({ open, student, onClose, onEdit }: StudentDetailDrawerProps) {
+const MASK = '••••••'
+
+export function StudentDetailDrawer({
+  open,
+  student,
+  onClose,
+  onEdit,
+  isPrivacyMode = false,
+}: StudentDetailDrawerProps) {
   const { canWrite } = usePermissions()
+  const mask = (value: string | null) => (isPrivacyMode && value ? MASK : (value ?? '—'))
 
   const reportsQuery = useQuery({
     queryKey: ['behavior-reports', 'student', student?.id],
@@ -50,6 +61,7 @@ export function StudentDetailDrawer({ open, student, onClose, onEdit }: StudentD
       onClose={onClose}
       size="min(480px, 94vw)"
       destroyOnHidden
+      styles={{ body: { scrollbarWidth: 'none' } }}
       footer={
         canWrite ? (
           <Space style={{ float: 'right' }}>
@@ -74,7 +86,7 @@ export function StudentDetailDrawer({ open, student, onClose, onEdit }: StudentD
           </Typography.Title>
           <Space size={8} style={{ marginTop: 4 }}>
             <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-              {student.registration_code}
+              {mask(student.registration_code)}
             </Typography.Text>
             <StatusTag color={statusMeta.color} icon={statusMeta.icon}>
               {statusMeta.label}
@@ -125,8 +137,8 @@ export function StudentDetailDrawer({ open, student, onClose, onEdit }: StudentD
         style={{ marginBottom: 8 }}
       >
         <Descriptions.Item label="Gender">{student.gender ? GENDER_LABEL[student.gender] : '—'}</Descriptions.Item>
-        <Descriptions.Item label="NISN">{student.nisn ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="NIS">{student.nis ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="NISN">{mask(student.nisn)}</Descriptions.Item>
+        <Descriptions.Item label="NIS">{mask(student.nis)}</Descriptions.Item>
         <Descriptions.Item label="TTL">
           {student.birth_place || student.birth_date
             ? [student.birth_place, student.birth_date ? dayjs(student.birth_date).format('DD MMM YYYY') : null]
@@ -135,7 +147,7 @@ export function StudentDetailDrawer({ open, student, onClose, onEdit }: StudentD
             : '—'}
         </Descriptions.Item>
         <Descriptions.Item label="Agama">{student.religion ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="Telepon">{student.phone ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="Telepon">{mask(student.phone)}</Descriptions.Item>
         <Descriptions.Item label="Wali">
           {student.guardian_name
             ? student.guardian_relation

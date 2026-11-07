@@ -1,8 +1,32 @@
-import { useState } from 'react'
-import { Alert, Button, Card, Col, Empty, Form, Input, Row, Space, Statistic, Tabs, Tag, Typography } from 'antd'
-import { KeyOutlined, NumberOutlined, SearchOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import {
+  Alert,
+  Avatar,
+  Button,
+  Card,
+  Col,
+  Empty,
+  Form,
+  Input,
+  Row,
+  Space,
+  Tabs,
+  Tag,
+  Typography,
+} from 'antd'
+import {
+  KeyOutlined,
+  NotificationOutlined,
+  NumberOutlined,
+  SearchOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { fetchPublicAnnouncements, type PublicAnnouncement } from '../announcements/api'
+import { CATEGORY_COLORS } from '../announcements/types'
+import { PublicShell } from './PublicShell'
+import { PortalSplitCard } from './PortalSplitCard'
 
 // Struktur respons RPC check_student
 interface CheckStudentResult {
@@ -58,15 +82,55 @@ function avgOf(r: CheckStudentResult['raports'][number]): number | null {
   return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
 }
 
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('')
+}
+
+function StatBox({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px', height: '100%' }}>
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
 export function ParentCheckPage() {
   const [searchParams] = useSearchParams()
   const [form] = Form.useForm<{ code: string; pin: string }>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CheckStudentResult | null>(null)
+  const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>([])
+
+  useEffect(() => {
+    document.title = 'Cek Wali Santri · Laporanmu'
+  }, [])
+
+  // Pengumuman publik untuk wali santri — gagal fetch diabaikan
+  // (bukan data kritis; form cek tetap harus berfungsi)
+  useEffect(() => {
+    let cancelled = false
+    fetchPublicAnnouncements()
+      .then((rows) => {
+        if (!cancelled) setAnnouncements(rows)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const deepCode = searchParams.get('code') ?? ''
   const deepPin = searchParams.get('pin') ?? ''
+  const hasDeepLink = Boolean(deepCode || deepPin)
 
   const [rateLimited, setRateLimited] = useState(false)
 
@@ -93,10 +157,10 @@ export function ParentCheckPage() {
     if (rpcError || !res || 'error' in res) {
       // catat percobaan gagal
       const attempts = readAttempts()
-    const next =
-      Date.now() > attempts.until || attempts.count + 1 >= RATE_MAX
-        ? { count: attempts.count + 1, until: Date.now() + RATE_COOLDOWN_MS }
-        : { count: attempts.count + 1, until: attempts.until }
+      const next =
+        Date.now() > attempts.until || attempts.count + 1 >= RATE_MAX
+          ? { count: attempts.count + 1, until: Date.now() + RATE_COOLDOWN_MS }
+          : { count: attempts.count + 1, until: attempts.until }
       sessionStorage.setItem('laporanmu_check_attempts', JSON.stringify(next))
       setError(
         res && 'error' in res
@@ -121,28 +185,18 @@ export function ParentCheckPage() {
   const achievements = result?.reports.filter((r) => r.points >= 0) ?? []
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #f8fafc 100%)',
-        padding: '24px 16px',
-      }}
-    >
-      <div style={{ maxWidth: 760, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <img src="/favicon.svg" alt="Logo" width={48} height={48} style={{ marginBottom: 8 }} />
-          <Typography.Title level={3} style={{ margin: 0, letterSpacing: '-0.02em' }}>
-            Cek Wali Santri
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            Pantau poin perilaku & raport bulanan anak Anda
-          </Typography.Text>
-        </div>
-
-        {result ? (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Card>
-              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+    <PublicShell tint="indigo" footerLabel="Portal Wali Santri">
+      {result ? (
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Card style={{ borderRadius: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Avatar
+                  size={44}
+                  style={{ background: '#4f46e5', fontSize: 16, fontWeight: 600, flexShrink: 0 }}
+                >
+                  {getInitials(result.student.name)}
+                </Avatar>
                 <div>
                   <Typography.Title level={4} style={{ margin: 0 }}>
                     {result.student.name}
@@ -151,205 +205,261 @@ export function ParentCheckPage() {
                     {result.student.class_name ?? '—'} · {result.student.registration_code}
                   </Typography.Text>
                 </div>
-                <Button onClick={() => setResult(null)}>Cek Santri Lain</Button>
               </div>
-              <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
-                <Col xs={12} sm={8}>
-                  <Statistic
-                    title="Total Poin"
-                    value={result.student.total_points}
-                    valueStyle={{ color: result.student.total_points < 0 ? '#dc2626' : '#16a34a' }}
-                  />
-                </Col>
-                <Col xs={12} sm={8}>
-                  <Statistic title="Pelanggaran" value={violations.length} />
-                </Col>
-                <Col xs={12} sm={8}>
-                  <Statistic title="Prestasi" value={achievements.length} />
-                </Col>
-              </Row>
-            </Card>
+              <Button onClick={() => setResult(null)}>Cek Santri Lain</Button>
+            </div>
+            <Row gutter={[12, 12]} style={{ marginTop: 18 }}>
+              <Col xs={12} sm={8}>
+                <StatBox
+                  label="Total Poin"
+                  value={result.student.total_points}
+                  color={result.student.total_points < 0 ? '#dc2626' : '#16a34a'}
+                />
+              </Col>
+              <Col xs={12} sm={8}>
+                <StatBox label="Pelanggaran" value={violations.length} color="#0f172a" />
+              </Col>
+              <Col xs={12} sm={8}>
+                <StatBox label="Prestasi" value={achievements.length} color="#16a34a" />
+              </Col>
+            </Row>
+          </Card>
 
-            <Card>
-              <Tabs
-                items={[
-                  {
-                    key: 'perilaku',
-                    label: 'Perilaku',
-                    children: (
-                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                        {result.reports.length === 0 && (
-                          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada catatan perilaku" />
-                        )}
-                        {result.reports.slice(0, 30).map((r) => (
-                          <div
-                            key={r.id}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              gap: 8,
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              background: r.points < 0 ? '#fff1f0' : '#f0fdf4',
-                            }}
-                          >
+          <Card style={{ borderRadius: 16 }}>
+            <Tabs
+              items={[
+                {
+                  key: 'perilaku',
+                  label: 'Perilaku',
+                  children: (
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      {result.reports.length === 0 && (
+                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada catatan perilaku" />
+                      )}
+                      {result.reports.slice(0, 30).map((r) => (
+                        <div
+                          key={r.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            background: r.points < 0 ? '#fff1f0' : '#f0fdf4',
+                          }}
+                        >
+                          <div>
+                            <Typography.Text strong style={{ fontSize: 13 }}>
+                              {r.rule_name ?? '—'}
+                            </Typography.Text>
                             <div>
-                              <Typography.Text strong style={{ fontSize: 13 }}>
-                                {r.rule_name ?? '—'}
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                {new Date(r.reported_at).toLocaleDateString('id-ID', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                                {r.notes ? ` · ${r.notes}` : ''}
                               </Typography.Text>
-                              <div>
-                                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                  {new Date(r.reported_at).toLocaleDateString('id-ID', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  })}
-                                  {r.notes ? ` · ${r.notes}` : ''}
-                                </Typography.Text>
-                              </div>
                             </div>
-                            <Tag color={r.points < 0 ? 'red' : 'green'} style={{ height: 'fit-content' }}>
-                              {r.points > 0 ? `+${r.points}` : r.points}
-                            </Tag>
                           </div>
-                        ))}
-                      </Space>
-                    ),
-                  },
-                  {
-                    key: 'raport',
-                    label: 'Raport Bulanan',
-                    children: (
-                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                        {result.raports.length === 0 && (
-                          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada raport bulanan" />
-                        )}
-                        {result.raports.map((r, i) => {
-                          const avg = avgOf(r)
-                          return (
-                            <Card key={`${r.year}-${r.month}-${i}`} size="small">
-                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography.Text strong>
-                                  {MONTH_NAMES[r.month - 1]} {r.year}
+                          <Tag color={r.points < 0 ? 'red' : 'green'} style={{ height: 'fit-content' }}>
+                            {r.points > 0 ? `+${r.points}` : r.points}
+                          </Tag>
+                        </div>
+                      ))}
+                    </Space>
+                  ),
+                },
+                {
+                  key: 'raport',
+                  label: 'Raport Bulanan',
+                  children: (
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      {result.raports.length === 0 && (
+                        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada raport bulanan" />
+                      )}
+                      {result.raports.map((r, i) => {
+                        const avg = avgOf(r)
+                        return (
+                          <Card key={`${r.year}-${r.month}-${i}`} size="small" style={{ borderRadius: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography.Text strong>
+                                {MONTH_NAMES[r.month - 1]} {r.year}
+                              </Typography.Text>
+                              {avg !== null && <Tag color="blue">Rata-rata {avg}</Tag>}
+                              {i === 0 && <Tag color="green">Terbaru</Tag>}
+                            </div>
+                            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
+                              {(
+                                [
+                                  ['Akhlak', r.nilai_akhlak],
+                                  ['Ibadah', r.nilai_ibadah],
+                                  ['Kebersihan', r.nilai_kebersihan],
+                                  ["Al-Qur'an", r.nilai_quran],
+                                  ['Bahasa', r.nilai_bahasa],
+                                ] as const
+                              ).map(([label, v]) => (
+                                <Typography.Text key={label} style={{ fontSize: 12.5 }}>
+                                  {label}: <b>{v ?? '—'}</b>
                                 </Typography.Text>
-                                {avg !== null && <Tag color="blue">Rata-rata {avg}</Tag>}
-                                {i === 0 && <Tag color="green">Terbaru</Tag>}
-                              </div>
-                              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
-                                {(
-                                  [
-                                    ['Akhlak', r.nilai_akhlak],
-                                    ['Ibadah', r.nilai_ibadah],
-                                    ['Kebersihan', r.nilai_kebersihan],
-                                    ["Al-Qur'an", r.nilai_quran],
-                                    ['Bahasa', r.nilai_bahasa],
-                                  ] as const
-                                ).map(([label, v]) => (
-                                  <Typography.Text key={label} style={{ fontSize: 12.5 }}>
-                                    {label}: <b>{v ?? '—'}</b>
-                                  </Typography.Text>
-                                ))}
-                              </div>
-                              {r.catatan && (
-                                <Typography.Paragraph
-                                  type="secondary"
-                                  style={{ fontSize: 12, margin: '8px 0 0', fontStyle: 'italic' }}
-                                >
-                                  “{r.catatan}”
-                                </Typography.Paragraph>
-                              )}
-                            </Card>
-                          )
-                        })}
-                      </Space>
-                    ),
-                  },
-                ]}
-              />
-            </Card>
+                              ))}
+                            </div>
+                            {r.catatan && (
+                              <Typography.Paragraph
+                                type="secondary"
+                                style={{ fontSize: 12, margin: '8px 0 0', fontStyle: 'italic' }}
+                              >
+                                “{r.catatan}”
+                              </Typography.Paragraph>
+                            )}
+                          </Card>
+                        )
+                      })}
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </Card>
 
+          {hasDeepLink && (
             <Alert
               type="warning"
               showIcon
               message="Tautan halaman ini mengandung PIN pribadi. Jangan sebarkan ke orang lain."
             />
-          </Space>
-        ) : (
-          <Card style={{ maxWidth: 460, margin: '0 auto' }}>
-            <Form
-              form={form}
-              layout="vertical"
-              onFinish={handleSubmit}
-              initialValues={{ code: deepCode, pin: deepPin }}
+          )}
+        </Space>
+      ) : (
+        <PortalSplitCard
+          tint="indigo"
+          icon={<UserOutlined />}
+          title="Portal Wali Santri"
+          description="Pantau pembinaan putra/putri Anda kapan saja — tanpa perlu membuat akun."
+          bullets={[
+            'Poin pelanggaran & prestasi terkini',
+            'Raport bulanan & catatan musyrif',
+            'Data hanya bisa dibuka dengan PIN santri',
+          ]}
+          footnote="Kode registrasi & PIN diberikan oleh pihak sekolah."
+        >
+          <Typography.Title level={4} style={{ margin: 0, letterSpacing: '-0.02em' }}>
+            Cek Data Santri
+          </Typography.Title>
+          <Typography.Paragraph type="secondary" style={{ fontSize: 13, marginTop: 4 }}>
+            Masukkan kode registrasi dan PIN rahasia santri.
+          </Typography.Paragraph>
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={handleSubmit}
+            initialValues={{ code: deepCode, pin: deepPin }}
+            style={{ marginTop: 18 }}
+          >
+            <Form.Item
+              name="code"
+              label="Kode Registrasi"
+              rules={[{ required: true, message: 'Kode registrasi wajib diisi' }]}
             >
-              <Form.Item
-                name="code"
-                label="Kode Registrasi"
-                rules={[{ required: true, message: 'Kode registrasi wajib diisi' }]}
-                extra="Tertera pada kartu santri / informasi penerimaan"
-              >
-                <Input
-                  prefix={<NumberOutlined />}
-                  placeholder="SPR-2026-001"
-                  onChange={(e) => {
-                    const formatted = formatCode(e.target.value)
-                    form.setFieldValue('code', formatted)
-                  }}
-                  size="large"
-                />
-              </Form.Item>
-
-              <Form.Item
-                name="pin"
-                label="PIN Rahasia"
-                rules={[
-                  { required: true, message: 'PIN wajib diisi' },
-                  { len: 4, message: 'PIN harus 4 digit' },
-                ]}
-                extra="4 digit angka — tanyakan pada musyrif / pengasuhan"
-              >
-                <Input.Password
-                  prefix={<KeyOutlined />}
-                  placeholder="****"
-                  inputMode="numeric"
-                  maxLength={4}
-                  size="large"
-                />
-              </Form.Item>
-
-              {error && (
-                <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />
-              )}
-              {rateLimited && (
-                <Alert
-                  type="warning"
-                  showIcon
-                  message="Terlalu banyak percobaan gagal. Tunggu 30 detik lalu coba lagi."
-                  style={{ marginBottom: 16 }}
-                />
-              )}
-
-              <Button
-                type="primary"
-                htmlType="submit"
-                block
+              <Input
+                prefix={<NumberOutlined />}
+                placeholder="SPR-2026-001"
+                onChange={(e) => {
+                  const formatted = formatCode(e.target.value)
+                  form.setFieldValue('code', formatted)
+                }}
                 size="large"
-                icon={<SearchOutlined />}
-                loading={loading}
-                disabled={rateLimited}
-              >
-                Lihat Data Santri
-              </Button>
-            </Form>
-          </Card>
-        )}
+              />
+            </Form.Item>
 
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Laporanmu · Portal Wali Santri
-          </Typography.Text>
-        </div>
-      </div>
-    </div>
+            <Form.Item
+              name="pin"
+              label="PIN Rahasia"
+              rules={[
+                { required: true, message: 'PIN wajib diisi' },
+                { len: 4, message: 'PIN harus 4 digit' },
+              ]}
+            >
+              <Input.Password
+                prefix={<KeyOutlined />}
+                placeholder="****"
+                inputMode="numeric"
+                maxLength={4}
+                size="large"
+              />
+            </Form.Item>
+
+            {error && (
+              <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />
+            )}
+            {rateLimited && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Terlalu banyak percobaan gagal. Tunggu 30 detik lalu coba lagi."
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              size="large"
+              icon={<SearchOutlined />}
+              loading={loading}
+              disabled={rateLimited}
+            >
+              Lihat Data Santri
+            </Button>
+          </Form>
+        </PortalSplitCard>
+      )}
+
+      {announcements.length > 0 && (
+        <Card style={{ marginTop: 20, borderRadius: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 12,
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            <NotificationOutlined style={{ color: '#4f46e5' }} />
+            Pengumuman
+          </div>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            {announcements.map((a) => (
+              <div key={a.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Typography.Text strong style={{ fontSize: 13.5 }}>
+                    {a.title}
+                  </Typography.Text>
+                  <Tag color={CATEGORY_COLORS[a.category as keyof typeof CATEGORY_COLORS] ?? 'default'}>
+                    {a.category}
+                  </Tag>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {new Date(a.published_at).toLocaleDateString('id-ID', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </Typography.Text>
+                </div>
+                <Typography.Paragraph
+                  style={{ whiteSpace: 'pre-line', fontSize: 13, marginBottom: 0, marginTop: 4 }}
+                >
+                  {a.body}
+                </Typography.Paragraph>
+              </div>
+            ))}
+          </Space>
+        </Card>
+      )}
+    </PublicShell>
   )
 }

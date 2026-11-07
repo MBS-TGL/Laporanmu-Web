@@ -57,6 +57,7 @@ export function ExtrasDrawer({
       onClose={onClose}
       size="min(520px, 94vw)"
       destroyOnHidden
+      styles={{ body: { scrollbarWidth: 'none' } }}
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose}>Batal</Button>

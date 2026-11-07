@@ -78,7 +78,7 @@ export function SkorsingDetailPage() {
         }
         extra={
           <Space>
-            <Link to="/skorsing">
+            <Link to="/suspension">
               <Button icon={<ArrowLeftOutlined />}>Daftar</Button>
             </Link>
             {isAdmin && detail?.status === 'aktif' && (
@@ -216,11 +216,11 @@ function TokenPanel({ suspensionId }: { suspensionId: string }) {
             message="Tautan wali (salin sekarang — tidak akan ditampilkan lagi):"
             description={
               <Space.Compact style={{ width: '100%', marginTop: 4 }}>
-                <Input readOnly value={`${window.location.origin}/skorsing/${freshToken}`} />
+                <Input readOnly value={`${window.location.origin}/suspension/${freshToken}`} />
                 <Button
                   icon={<CopyOutlined />}
                   onClick={() => {
-                    void navigator.clipboard.writeText(`${window.location.origin}/skorsing/${freshToken}`)
+                    void navigator.clipboard.writeText(`${window.location.origin}/suspension/${freshToken}`)
                     message.success('Tautan disalin')
                   }}
                 />

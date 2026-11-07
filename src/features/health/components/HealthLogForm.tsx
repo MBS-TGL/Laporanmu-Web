@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Col, DatePicker, Form, Input, InputNumber, Row, Segmented, Select, TimePicker } from 'antd'
+import { HeartOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue'
@@ -72,6 +73,8 @@ export function HealthLogForm({ open, medicines, submitting, onCancel, onSubmit 
   return (
     <AppModal
       title="Tambah Catatan Kunjungan"
+      subtitle="Rekam kunjungan & observasi kesehatan santri"
+      icon={<HeartOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => form.submit()}
