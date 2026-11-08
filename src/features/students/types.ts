@@ -24,11 +24,17 @@ export interface Student {
   birth_date: string | null
   religion: string | null
   address: string | null
+  /** diisi saat siswa diluluskan */
+  graduated_at: string | null
+  graduation_year: number | null
+  /** snapshot kelas terakhir sebelum kelulusan (class_id dikosongkan) */
+  last_class_id: string | null
   deleted_at: string | null
   created_at?: string
   updated_at?: string
   classes?: { name: string } | null
   dorms?: { name: string } | null
+  last_class?: { name: string } | null
 }
 
 export interface StudentFormValues {
@@ -60,6 +66,7 @@ export type SortOption =
   | 'points_desc'
   | 'points_asc'
   | 'updated_desc'
+  | 'graduated_desc'
 
 export type MissingField = 'photo' | 'phone' | 'nisn' | 'any'
 export type PointMode = 'negative' | 'positive'

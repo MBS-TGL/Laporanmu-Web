@@ -9,10 +9,12 @@ import {
   fetchStudentStats,
   fetchStudents,
   fetchWaSettingsStatus,
+  graduateStudentsBulk,
   moveStudentsBulk,
   resetPoints,
   restoreStudent,
   restoreStudentsBulk,
+  revertGraduation,
   sendWaBroadcast,
   softDeleteStudent,
   updateStudent,
@@ -27,8 +29,24 @@ export interface ClassBrief {
   name: string
 }
 
-export function useClassesBrief() {
+/** Daftar alumni (siswa berstatus lulus) untuk halaman Alumni */
+export function useAlumni(search: string) {
   return useQuery({
+    queryKey: ['students', 'alumni', search],
+    queryFn: async () => {
+      const { data } = await fetchStudents({
+        status: 'lulus',
+        search: search || undefined,
+        sortBy: 'graduated_desc',
+        page: 1,
+        pageSize: 500,
+      })
+      return data
+    },
+  })
+}
+
+export function useClassesBrief() {  return useQuery({
     queryKey: ['classes', 'brief'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -171,6 +189,31 @@ export function useBulkMoveClassStudents() {
       moveStudentsBulk(ids, classId),
     onSuccess: (_data, { ids, classId }) => {
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_move_class: ids.length, class_id: classId } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useGraduateStudentsBulk() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, graduationYear }: { ids: string[]; graduationYear: number }) =>
+      graduateStudentsBulk(ids, graduationYear),
+    onSuccess: (_data, { ids, graduationYear }) => {
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_graduated: ids.length, graduation_year: graduationYear } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useRevertGraduation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => revertGraduation(id),
+    onSuccess: (_data, id) => {
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', recordId: id, newData: { graduation_reverted: true } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
     },

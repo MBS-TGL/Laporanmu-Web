@@ -46,6 +46,7 @@ import {
   MoreOutlined,
   PlusOutlined,
   RiseOutlined,
+  SafetyCertificateOutlined,
   SearchOutlined,
   SlidersOutlined,
   SwapOutlined,
@@ -57,8 +58,8 @@ import {
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { Kbd, ShortcutsModal } from '../../shared/components/ShortcutsModal'
-import { usePageShortcuts, type ShortcutItem } from '../../shared/hooks/usePageShortcuts'
-import { useDebouncedValue } from '../../shared/hooks/useDebouncedValue'
+import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
+import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import {
   useBulkDeleteStudents,
@@ -71,17 +72,18 @@ import {
   useUpdateStudent,
 } from './hooks'
 import { StudentForm } from './components/StudentForm'
-import { StudentImportModal } from './components/StudentImportModal'
-import { StudentDetailDrawer } from './components/StudentDetailDrawer'
-import { StudentStatsRow } from './components/StudentStatsRow'
-import { ResetPointsModal } from './components/ResetPointsModal'
-import { BulkPhotoModal } from './components/BulkPhotoModal'
-import { ExportStudentsModal } from './components/ExportStudentsModal'
-import { BulkMoveClassModal } from './components/BulkMoveClassModal'
-import { WaBroadcastModal } from './components/WaBroadcastModal'
-import { WaSettingsModal } from './components/WaSettingsModal'
-import { StudentCardModal } from './components/StudentCardModal'
-import { StudentBulkCardModal } from './components/StudentBulkCardModal'
+import { ImportModal } from './components/ImportModal'
+import { DetailDrawer } from './components/DetailDrawer'
+import { StatsRow } from './components/StatsRow'
+import { ResetModal } from './components/ResetModal'
+import { PhotoModal } from './components/PhotoModal'
+import { ExportModal } from './components/ExportModal'
+import { MoveModal } from './components/MoveModal'
+import { GraduateModal } from './components/GraduateModal'
+import { BroadcastModal } from './components/BroadcastModal'
+import { GatewayModal } from './components/GatewayModal'
+import { CardModal } from './components/CardModal'
+import { CardsModal } from './components/CardsModal'
 import { RISK_THRESHOLD } from './api'
 import { waLink } from './wa'
 import { STUDENT_STATUS_META, GENDER_LABEL } from './status'
@@ -145,7 +147,7 @@ export function StudentsPage() {
   const { canWrite, canDelete } = usePermissions()
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search, 350)
+  const debouncedSearch = useDebounce(search, 350)
   const [classId, setClassId] = useState<string | undefined>()
   const [gender, setGender] = useState<Gender | undefined>()
   const [status, setStatus] = useState<StudentStatus | ''>('')
@@ -166,6 +168,7 @@ export function StudentsPage() {
   const [exportOpen, setExportOpen] = useState(false)
   const [exportScope, setExportScope] = useState<'filtered' | 'selected'>('filtered')
   const [moveOpen, setMoveOpen] = useState(false)
+  const [graduateOpen, setGraduateOpen] = useState(false)
   const [waOpen, setWaOpen] = useState(false)
   const [waSettingsOpen, setWaSettingsOpen] = useState(false)
   /** 'selection' = kartu untuk semua siswa terpilih; Student = kartu satu siswa dari aksi baris */
@@ -576,6 +579,7 @@ export function StudentsPage() {
     bulkPhotoOpen ||
     exportOpen ||
     moveOpen ||
+    graduateOpen ||
     waOpen ||
     waSettingsOpen ||
     cardStudents !== null ||
@@ -649,7 +653,7 @@ export function StudentsPage() {
     },
   ]
 
-  const shortcuts = usePageShortcuts({ items: shortcutItems, isBlocked })
+  const shortcuts = useShortcuts({ items: shortcutItems, isBlocked })
 
   // -------------------------------------------------------------------------
   // Kolom tabel
@@ -927,7 +931,7 @@ export function StudentsPage() {
         }
       />
 
-      <StudentStatsRow
+      <StatsRow
         stats={stats}
         loading={statsQuery.isPending}
         gender={gender}
@@ -1157,7 +1161,7 @@ export function StudentsPage() {
           <Tag color="processing" style={{ borderRadius: 999, fontWeight: 700, marginInlineEnd: 2 }}>
             {selectedIds.length}
           </Tag>
-          <span style={{ color: token.colorTextSecondary, fontSize: 13 }}>dipilih</span>
+          <span style={{ color: token.colorTextSecondary, fontSize: 13 }}>Dipilih</span>
           <Button size="small" icon={<ExportOutlined />} onClick={() => openExport('selected')}>
             Ekspor
           </Button>
@@ -1167,6 +1171,11 @@ export function StudentsPage() {
           {canWrite && (
             <Button size="small" icon={<SwapOutlined />} onClick={() => setMoveOpen(true)}>
               Kelas
+            </Button>
+          )}
+          {canWrite && (
+            <Button size="small" icon={<SafetyCertificateOutlined style={{ color: token.colorPrimary }} />} onClick={() => setGraduateOpen(true)}>
+              Luluskan
             </Button>
           )}
           {canWrite && (
@@ -1191,9 +1200,9 @@ export function StudentsPage() {
         onSubmit={handleSubmit}
       />
 
-      <StudentImportModal open={importOpen} onClose={() => setImportOpen(false)} initialSource={importSource} />
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} initialSource={importSource} />
 
-      <ExportStudentsModal
+      <ExportModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
         filters={{
@@ -1210,7 +1219,7 @@ export function StudentsPage() {
         filteredCount={rows.length}
       />
 
-      <BulkMoveClassModal
+      <MoveModal
         open={moveOpen}
         onClose={() => setMoveOpen(false)}
         students={selectedStudents}
@@ -1218,17 +1227,24 @@ export function StudentsPage() {
         onMoved={() => setSelectedIds([])}
       />
 
-      <WaBroadcastModal open={waOpen} onClose={() => setWaOpen(false)} students={selectedStudents} />
+      <GraduateModal
+        open={graduateOpen}
+        onClose={() => setGraduateOpen(false)}
+        students={selectedStudents}
+        onGraduated={() => setSelectedIds([])}
+      />
 
-      <WaSettingsModal open={waSettingsOpen} onClose={() => setWaSettingsOpen(false)} />
+      <BroadcastModal open={waOpen} onClose={() => setWaOpen(false)} students={selectedStudents} />
 
-      <StudentCardModal
+      <GatewayModal open={waSettingsOpen} onClose={() => setWaSettingsOpen(false)} />
+
+      <CardModal
         open={cardStudents !== null}
         onClose={() => setCardStudents(null)}
         students={cardStudents ?? []}
       />
 
-      <StudentBulkCardModal
+      <CardsModal
         open={bulkCardOpen}
         onClose={() => setBulkCardOpen(false)}
         allStudents={allStudents}
@@ -1240,11 +1256,11 @@ export function StudentsPage() {
         }}
       />
 
-      <ResetPointsModal open={resetOpen} onClose={() => setResetOpen(false)} defaultClassId={classId} />
+      <ResetModal open={resetOpen} onClose={() => setResetOpen(false)} defaultClassId={classId} />
 
-      <BulkPhotoModal open={bulkPhotoOpen} onClose={() => setBulkPhotoOpen(false)} />
+      <PhotoModal open={bulkPhotoOpen} onClose={() => setBulkPhotoOpen(false)} />
 
-      <StudentDetailDrawer
+      <DetailDrawer
         open={!!detail}
         student={detail}
         isPrivacyMode={privacy}

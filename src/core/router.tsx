@@ -17,8 +17,11 @@ const LandingPage = lazy(() =>
 const StudentsPage = lazy(() =>
   import('../features/students/StudentsPage').then((m) => ({ default: m.StudentsPage })),
 )
-const StudentArchivePage = lazy(() =>
-  import('../features/students/StudentArchivePage').then((m) => ({ default: m.StudentArchivePage })),
+const StudentArchive = lazy(() =>
+  import('../features/students/ArchivePage').then((m) => ({ default: m.ArchivePage })),
+)
+const AlumniPage = lazy(() =>
+  import('../features/students/AlumniPage').then((m) => ({ default: m.AlumniPage })),
 )
 const TeachersPage = lazy(() =>
   import('../features/teachers/TeachersPage').then((m) => ({ default: m.TeachersPage })),
@@ -29,32 +32,32 @@ const ClassesPage = lazy(() =>
 const DormsPage = lazy(() =>
   import('../features/dorms/DormsPage').then((m) => ({ default: m.DormsPage })),
 )
-const AcademicYearsPage = lazy(() =>
-  import('../features/academic-years/AcademicYearsPage').then((m) => ({ default: m.AcademicYearsPage })),
+const YearsPage = lazy(() =>
+  import('../features/academic-years/YearsPage').then((m) => ({ default: m.YearsPage })),
 )
-const PointRulesPage = lazy(() =>
-  import('../features/behavior/PointRulesPage').then((m) => ({ default: m.PointRulesPage })),
+const RulesPage = lazy(() =>
+  import('../features/behavior/RulesPage').then((m) => ({ default: m.RulesPage })),
 )
-const BehaviorReportsPage = lazy(() =>
-  import('../features/behavior/BehaviorReportsPage').then((m) => ({ default: m.BehaviorReportsPage })),
+const ReportsPage = lazy(() =>
+  import('../features/behavior/ReportsPage').then((m) => ({ default: m.ReportsPage })),
 )
-const GateLogsPage = lazy(() =>
-  import('../features/gate/GateLogsPage').then((m) => ({ default: m.GateLogsPage })),
+const LogsPage = lazy(() =>
+  import('../features/gate/LogsPage').then((m) => ({ default: m.LogsPage })),
 )
 const RaportPage = lazy(() =>
   import('../features/raport/RaportPage').then((m) => ({ default: m.RaportPage })),
 )
-const RaportInputPage = lazy(() =>
-  import('../features/raport/RaportInputPage').then((m) => ({ default: m.RaportInputPage })),
+const InputPage = lazy(() =>
+  import('../features/raport/InputPage').then((m) => ({ default: m.InputPage })),
 )
-const RaportPreviewPage = lazy(() =>
-  import('../features/raport/RaportPreviewPage').then((m) => ({ default: m.RaportPreviewPage })),
+const PreviewPage = lazy(() =>
+  import('../features/raport/PreviewPage').then((m) => ({ default: m.PreviewPage })),
 )
-const RaportArchivePage = lazy(() =>
-  import('../features/raport/RaportArchivePage').then((m) => ({ default: m.RaportArchivePage })),
+const RaportArchive = lazy(() =>
+  import('../features/raport/ArchivePage').then((m) => ({ default: m.ArchivePage })),
 )
-const SchoolSettingsPage = lazy(() =>
-  import('../features/settings/SchoolSettingsPage').then((m) => ({ default: m.SchoolSettingsPage })),
+const SettingsPage = lazy(() =>
+  import('../features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
 const AttendancePage = lazy(() =>
   import('../features/attendance/AttendancePage').then((m) => ({ default: m.AttendancePage })),
@@ -65,20 +68,20 @@ const HealthPage = lazy(() =>
 const CounselingPage = lazy(() =>
   import('../features/counseling/CounselingPage').then((m) => ({ default: m.CounselingPage })),
 )
-const LeavePermitPage = lazy(() =>
-  import('../features/leave-permit/LeavePermitPage').then((m) => ({ default: m.LeavePermitPage })),
+const PermitPage = lazy(() =>
+  import('../features/leave-permit/PermitPage').then((m) => ({ default: m.PermitPage })),
 )
 const UsersPage = lazy(() =>
   import('../features/admin/UsersPage').then((m) => ({ default: m.UsersPage })),
 )
-const AuditLogPage = lazy(() =>
-  import('../features/admin/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
+const AuditPage = lazy(() =>
+  import('../features/admin/AuditPage').then((m) => ({ default: m.AuditPage })),
 )
 const AnnouncementsPage = lazy(() =>
   import('../features/announcements/AnnouncementsPage').then((m) => ({ default: m.AnnouncementsPage })),
 )
-const ParentCheckPage = lazy(() =>
-  import('../features/public/ParentCheckPage').then((m) => ({ default: m.ParentCheckPage })),
+const CheckPage = lazy(() =>
+  import('../features/public/CheckPage').then((m) => ({ default: m.CheckPage })),
 )
 const VerifyPage = lazy(() =>
   import('../features/public/VerifyPage').then((m) => ({ default: m.VerifyPage })),
@@ -86,11 +89,11 @@ const VerifyPage = lazy(() =>
 const SkorsingPage = lazy(() =>
   import('../features/suspension/SkorsingPage').then((m) => ({ default: m.SkorsingPage })),
 )
-const SkorsingDetailPage = lazy(() =>
-  import('../features/suspension/SkorsingDetailPage').then((m) => ({ default: m.SkorsingDetailPage })),
+const DetailPage = lazy(() =>
+  import('../features/suspension/DetailPage').then((m) => ({ default: m.DetailPage })),
 )
-const SuspensionWaliPage = lazy(() =>
-  import('../features/suspension/SuspensionWaliPage').then((m) => ({ default: m.SuspensionWaliPage })),
+const WaliPage = lazy(() =>
+  import('../features/suspension/WaliPage').then((m) => ({ default: m.WaliPage })),
 )
 
 function PageFallback() {
@@ -142,9 +145,9 @@ function NotFoundPage() {
 export const appRouter = createBrowserRouter([
   // Halaman publik (tanpa login)
   { path: '/', element: <LandingPage /> },
-  { path: '/check', element: <ParentCheckPage /> },
+  { path: '/check', element: <CheckPage /> },
   { path: '/verify', element: <VerifyPage /> },
-  { path: '/suspension/:token', element: <SuspensionWaliPage /> },
+  { path: '/suspension/:token', element: <WaliPage /> },
   {
     path: '/login',
     element: <PublicRoute />,
@@ -169,7 +172,15 @@ export const appRouter = createBrowserRouter([
             path: 'master/students/archive',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <StudentArchivePage />
+                <StudentArchive />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'master/students/alumni',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <AlumniPage />
               </Suspense>
             ),
           },
@@ -193,7 +204,7 @@ export const appRouter = createBrowserRouter([
             path: 'master/academic-years',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <AcademicYearsPage />
+                <YearsPage />
               </Suspense>
             ),
           },
@@ -209,7 +220,7 @@ export const appRouter = createBrowserRouter([
             path: 'points/rules',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <PointRulesPage />
+                <RulesPage />
               </Suspense>
             ),
           },
@@ -217,7 +228,7 @@ export const appRouter = createBrowserRouter([
             path: 'points/reports',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <BehaviorReportsPage />
+                <ReportsPage />
               </Suspense>
             ),
           },
@@ -225,7 +236,7 @@ export const appRouter = createBrowserRouter([
             path: 'gate/logs',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <GateLogsPage />
+                <LogsPage />
               </Suspense>
             ),
           },
@@ -241,7 +252,7 @@ export const appRouter = createBrowserRouter([
             path: 'report-cards/archive',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <RaportArchivePage />
+                <RaportArchive />
               </Suspense>
             ),
           },
@@ -249,7 +260,7 @@ export const appRouter = createBrowserRouter([
             path: 'report-cards/input/:classId',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <RaportInputPage />
+                <InputPage />
               </Suspense>
             ),
           },
@@ -257,7 +268,7 @@ export const appRouter = createBrowserRouter([
             path: 'report-cards/preview/:classId',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <RaportPreviewPage />
+                <PreviewPage />
               </Suspense>
             ),
           },
@@ -265,7 +276,7 @@ export const appRouter = createBrowserRouter([
             path: 'settings/school',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <SchoolSettingsPage />
+                <SettingsPage />
               </Suspense>
             ),
           },
@@ -297,7 +308,7 @@ export const appRouter = createBrowserRouter([
             path: 'boarding/leave-permit',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <LeavePermitPage />
+                <PermitPage />
               </Suspense>
             ),
           },
@@ -313,7 +324,7 @@ export const appRouter = createBrowserRouter([
             path: 'suspension/detail/:id',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <SkorsingDetailPage />
+                <DetailPage />
               </Suspense>
             ),
           },
@@ -337,7 +348,7 @@ export const appRouter = createBrowserRouter([
             path: 'settings/audit-log',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <AuditLogPage />
+                <AuditPage />
               </Suspense>
             ),
           },

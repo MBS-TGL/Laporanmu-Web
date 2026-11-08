@@ -10,7 +10,8 @@ import type {
   StudentStats,
 } from './types'
 
-const SELECT_STR = '*, classes(name), dorms(name)'
+const SELECT_STR =
+  '*, classes!students_class_id_fkey(name), dorms(name), last_class:classes!students_last_class_id_fkey(name)'
 
 /** Siswa dianggap berisiko bila poinnya mencapai batas ini */
 export const RISK_THRESHOLD = -30
@@ -55,6 +56,10 @@ function applySort(query: StudentQuery, sortBy?: SortOption): StudentQuery {
       return query.order('total_points', { ascending: true }).order('name', { ascending: true })
     case 'updated_desc':
       return query.order('updated_at', { ascending: false })
+    case 'graduated_desc':
+      return query
+        .order('graduated_at', { ascending: false, nullsLast: true })
+        .order('name', { ascending: true })
     default:
       return query.order('name', { ascending: true })
   }
@@ -160,9 +165,48 @@ export async function createStudent(values: StudentFormValues): Promise<Student>
 }
 
 export async function updateStudent(id: string, values: StudentFormValues): Promise<Student> {
+  // Jalur kelulusan manual via form: isi jejak kelulusan saat status jadi 'lulus',
+  // kosongkan saat status berubah dari 'lulus' ke selain itu.
+  let extra: Partial<Pick<Student, 'graduated_at' | 'graduation_year' | 'last_class_id'>> = {}
+  if (values.status === 'lulus') {
+    const { data: existing } = await supabase
+      .from('students')
+      .select('graduated_at, graduation_year, class_id')
+      .eq('id', id)
+      .maybeSingle()
+    const row = existing as { graduated_at: string | null; graduation_year: number | null; class_id: string | null } | null
+    extra = {
+      graduated_at: row?.graduated_at ?? new Date().toISOString(),
+      graduation_year: row?.graduation_year ?? new Date().getFullYear(),
+      last_class_id: row?.class_id ?? null,
+    }
+  } else {
+    const { data: existing } = await supabase
+      .from('students')
+      .select('status')
+      .eq('id', id)
+      .maybeSingle()
+    if ((existing as { status: string } | null)?.status === 'lulus') {
+      extra = { graduated_at: null, graduation_year: null, last_class_id: null }
+    }
+  }
+
   const { data, error } = await supabase
     .from('students')
-    .update(payload(values))
+    .update({ ...payload(values), ...extra })
+    .eq('id', id)
+    .select(SELECT_STR)
+    .single()
+
+  if (error) throw error
+  return data as Student
+}
+
+/** Update tags/label siswa saja (dipakai popover Label di drawer detail) */
+export async function updateStudentTags(id: string, tags: string[]): Promise<Student> {
+  const { data, error } = await supabase
+    .from('students')
+    .update({ tags })
     .eq('id', id)
     .select(SELECT_STR)
     .single()
@@ -264,7 +308,10 @@ export async function fetchStudentStats(): Promise<StudentStats> {
   const [studentsRes, reportsRes] = await Promise.all([
     supabase
       .from('students')
-      .select('id, name, gender, total_points, class_id, photo_url, phone, nisn, classes(name)')
+      // hint FK wajib sejak 0018 — students punya 2 FK ke classes (class_id & last_class_id)
+      .select(
+        'id, name, gender, total_points, class_id, photo_url, phone, nisn, classes!students_class_id_fkey(name)',
+      )
       .is('deleted_at', null),
     supabase.from('reports').select('points').gte('created_at', weekAgo),
   ])
@@ -278,7 +325,7 @@ export async function fetchStudentStats(): Promise<StudentStats> {
     photo_url: string | null
     phone: string | null
     nisn: string | null
-    classes?: { name: string }[] | null
+    classes?: { name: string } | null
   }
   const rows = (studentsRes.data ?? []) as unknown as Row[]
   const total = rows.length
@@ -299,7 +346,7 @@ export async function fetchStudentStats(): Promise<StudentStats> {
 
     if (row.class_id) {
       const bucket = classBuckets.get(row.class_id) ?? {
-        name: row.classes?.[0]?.name ?? 'Tanpa nama',
+        name: row.classes?.name ?? 'Tanpa nama',
         sum: 0,
         count: 0,
       }
@@ -393,6 +440,27 @@ export async function deleteStudentsBulk(ids: string[]): Promise<void> {
 export async function moveStudentsBulk(ids: string[], classId: string): Promise<void> {
   if (ids.length === 0) return
   const { error } = await supabase.from('students').update({ class_id: classId }).in('id', ids)
+  if (error) throw error
+}
+
+// ------------------------------------------------------------
+// Kelulusan massal (RPC di supabase/migrations/0018_kelulusan.sql)
+// ------------------------------------------------------------
+export async function graduateStudentsBulk(ids: string[], graduationYear: number): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await supabase.rpc('graduate_students', {
+    p_ids: ids,
+    p_graduation_year: graduationYear,
+  })
+  if (error) throw error
+}
+
+/** Batalkan kelulusan: kembali jadi siswa aktif tanpa jejak kelulusan */
+export async function revertGraduation(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('students')
+    .update({ status: 'aktif', graduated_at: null, graduation_year: null, last_class_id: null })
+    .eq('id', id)
   if (error) throw error
 }
 

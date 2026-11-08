@@ -47,6 +47,7 @@ export const DASHBOARD_ITEM: NavItem = {
 
 const MASTER_ITEMS: NavItem[] = [
   { to: '/master/students', label: 'Data Siswa', icon: TeamOutlined, desc: 'Pusat database seluruh santri aktif' },
+  { to: '/master/students/alumni', label: 'Alumni', icon: SafetyCertificateOutlined, desc: 'Jejak siswa yang telah lulus' },
   { to: '/master/teachers', label: 'Data Guru', icon: ReadOutlined, desc: 'Data pengajar, musyrif, dan staf' },
   { to: '/master/classes', label: 'Data Kelas', icon: BankOutlined, desc: 'Struktur kelas dan wali kelas' },
   { to: '/master/academic-years', label: 'Tahun Akademik', icon: CalendarOutlined, desc: 'Periode semester dan kalender akademik' },
