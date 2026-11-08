@@ -65,7 +65,8 @@ export function waMergeFields(student: Student): Record<string, string> {
     wali: student.guardian_name ?? 'Bpk/Ibu',
     kode: student.registration_code,
     pin: student.pin ?? 'belum diatur',
-    portal: `${window.location.origin}/check`,
+    // window tak tersedia di luar browser (test/non-DOM) — fallback path relatif
+    portal: `${typeof window !== 'undefined' ? window.location.origin : ''}/check`,
   }
 }
 

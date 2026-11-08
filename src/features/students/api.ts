@@ -58,7 +58,7 @@ function applySort(query: StudentQuery, sortBy?: SortOption): StudentQuery {
       return query.order('updated_at', { ascending: false })
     case 'graduated_desc':
       return query
-        .order('graduated_at', { ascending: false, nullsLast: true })
+        .order('graduated_at', { ascending: false, nullsFirst: false })
         .order('name', { ascending: true })
     default:
       return query.order('name', { ascending: true })

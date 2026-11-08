@@ -58,6 +58,22 @@ interface CheckStudentResult {
     nilai_bahasa: number | null
     catatan: string | null
   }[]
+  attendance: {
+    year: number
+    month: number
+    hadir: number
+    sakit: number
+    izin: number
+    alpa: number
+    pulang: number
+  }[]
+  suspensions: {
+    id: string
+    jenjang: 'SMP' | 'SMA'
+    start_date: string
+    end_date: string
+    status: 'aktif' | 'selesai' | 'dibatalkan'
+  }[]
 }
 
 const MONTH_NAMES = [
@@ -80,6 +96,20 @@ function avgOf(r: CheckStudentResult['raports'][number]): number | null {
   )
   if (values.length === 0) return null
   return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
+}
+
+const SUSPENSION_STATUS_LABEL: Record<CheckStudentResult['suspensions'][number]['status'], string> = {
+  aktif: 'Aktif',
+  selesai: 'Selesai',
+  dibatalkan: 'Dibatalkan',
+}
+
+function formatDateID(iso: string): string {
+  return new Date(iso).toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 function getInitials(name: string): string {
@@ -225,6 +255,16 @@ export function CheckPage() {
             </Row>
           </Card>
 
+          {result.suspensions.some((s) => s.status === 'aktif') && (
+            <Alert
+              type="error"
+              showIcon
+              message="Santri sedang menjalani skorsing"
+              description="Silakan hubungi pihak pondok/sekolah untuk informasi lebih lanjut."
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           <Card style={{ borderRadius: 16 }}>
             <Tabs
               items={[
@@ -318,6 +358,97 @@ export function CheckPage() {
                       })}
                     </Space>
                   ),
+                },
+                {
+                  key: 'kehadiran',
+                  label: 'Kehadiran',
+                  children:
+                    result.attendance.length === 0 ? (
+                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada data kehadiran" />
+                    ) : (
+                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                        {result.attendance.map((a) => (
+                          <Card key={`${a.year}-${a.month}`} size="small" style={{ borderRadius: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography.Text strong>
+                                {MONTH_NAMES[a.month - 1]} {a.year}
+                              </Typography.Text>
+                              {a.alpa > 0 && <Tag color="red">{a.alpa} alpa</Tag>}
+                            </div>
+                            <Row gutter={[8, 8]} style={{ marginTop: 10 }}>
+                              <Col xs={12} sm={8} md={4}>
+                                <StatBox label="Hadir" value={a.hadir} color="#16a34a" />
+                              </Col>
+                              <Col xs={12} sm={8} md={4}>
+                                <StatBox label="Sakit" value={a.sakit} color="#f59e0b" />
+                              </Col>
+                              <Col xs={12} sm={8} md={4}>
+                                <StatBox label="Izin" value={a.izin} color="#3b82f6" />
+                              </Col>
+                              <Col xs={12} sm={8} md={4}>
+                                <StatBox label="Alpa" value={a.alpa} color="#dc2626" />
+                              </Col>
+                              <Col xs={12} sm={8} md={4}>
+                                <StatBox label="Pulang Awal" value={a.pulang} color="#8b5cf6" />
+                              </Col>
+                            </Row>
+                          </Card>
+                        ))}
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          Rekap 3 bulan terakhir
+                        </Typography.Text>
+                      </Space>
+                    ),
+                },
+                {
+                  key: 'skorsing',
+                  label: 'Skorsing',
+                  children:
+                    result.suspensions.length === 0 ? (
+                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Tidak ada riwayat skorsing" />
+                    ) : (
+                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                        {result.suspensions.map((s) => {
+                          const active = s.status === 'aktif'
+                          return (
+                            <Card
+                              key={s.id}
+                              size="small"
+                              style={{ borderRadius: 12, borderColor: active ? '#fca5a5' : undefined }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  flexWrap: 'wrap',
+                                }}
+                              >
+                                <Typography.Text strong style={{ fontSize: 13 }}>
+                                  Skorsing {s.jenjang}
+                                </Typography.Text>
+                                <Tag color={active ? 'red' : s.status === 'selesai' ? 'green' : 'default'}>
+                                  {SUSPENSION_STATUS_LABEL[s.status]}
+                                </Tag>
+                              </div>
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                {formatDateID(s.start_date)} – {formatDateID(s.end_date)}
+                              </Typography.Text>
+                              {active && (
+                                <Typography.Paragraph
+                                  type="danger"
+                                  style={{ fontSize: 12, margin: '8px 0 0' }}
+                                >
+                                  Santri sedang menjalani skorsing. Detail tugas dikirim melalui tautan
+                                  khusus di WhatsApp.
+                                </Typography.Paragraph>
+                              )}
+                            </Card>
+                          )
+                        })}
+                      </Space>
+                    ),
                 },
               ]}
             />

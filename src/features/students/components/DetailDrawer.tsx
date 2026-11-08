@@ -28,7 +28,6 @@ import {
   BookOutlined,
   CheckOutlined,
   EditOutlined,
-  EnvironmentOutlined,
   FileDoneOutlined,
   HistoryOutlined,
   HomeOutlined,
@@ -37,7 +36,6 @@ import {
   LogoutOutlined,
   TagsOutlined,
   ThunderboltOutlined,
-  UserOutlined,
   WhatsAppOutlined,
 } from '@ant-design/icons'
 import { StatusTag } from '../../../shared/components/StatusTag'
@@ -102,7 +100,7 @@ function auditActionMeta(action: string): { label: string; color: string; bg: st
 /** Judul section memakai Divider bawaan AntD (orientasi kiri) */
 function SectionTitle({ children, extra }: { children: ReactNode; extra?: ReactNode }) {
   return (
-    <Divider orientation="left" orientationMargin={0} style={{ margin: '24px 0 14px', borderColor: '#eef2f7' }}>
+    <Divider titlePlacement="left" orientationMargin={0} style={{ margin: '24px 0 14px', borderColor: '#eef2f7' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 14.5, fontWeight: 700, color: '#0f172a' }}>{children}</span>
         {extra}

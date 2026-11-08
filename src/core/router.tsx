@@ -3,6 +3,7 @@ import { createBrowserRouter, Link } from 'react-router-dom'
 import { Button, Space, Spin, Typography } from 'antd'
 import { MainLayout } from '../layouts/MainLayout'
 import { ProtectedRoute, PublicRoute } from '../shared/components/ProtectedRoute'
+import { RouteErrorBoundary } from '../shared/components/RouteErrorBoundary'
 import { LoginPage } from '../features/auth/LoginPage'
 
 // Dashboard & landing juga lazy — recharts dan halaman publik tidak
@@ -144,10 +145,10 @@ function NotFoundPage() {
 
 export const appRouter = createBrowserRouter([
   // Halaman publik (tanpa login)
-  { path: '/', element: <LandingPage /> },
-  { path: '/check', element: <CheckPage /> },
-  { path: '/verify', element: <VerifyPage /> },
-  { path: '/suspension/:token', element: <WaliPage /> },
+  { path: '/', element: <RouteErrorBoundary><LandingPage /></RouteErrorBoundary> },
+  { path: '/check', element: <RouteErrorBoundary><CheckPage /></RouteErrorBoundary> },
+  { path: '/verify', element: <RouteErrorBoundary><VerifyPage /></RouteErrorBoundary> },
+  { path: '/suspension/:token', element: <RouteErrorBoundary><WaliPage /></RouteErrorBoundary> },
   {
     path: '/login',
     element: <PublicRoute />,
@@ -157,7 +158,11 @@ export const appRouter = createBrowserRouter([
     element: <ProtectedRoute />,
     children: [
       {
-        element: <MainLayout />,
+        element: (
+          <RouteErrorBoundary>
+            <MainLayout />
+          </RouteErrorBoundary>
+        ),
         children: [
           { path: 'dashboard', element: <DashboardPage /> },
           {

@@ -71,7 +71,7 @@ export function GraduateModal({ open, onClose, students, onGraduated }: Graduate
             value={graduationYear}
             onChange={(v) => setGraduationYear(v)}
             formatter={(v) => (v ? String(v).replace(/\D/g, '') : '')}
-            parser={(v) => (v ? Number(v.replace(/\D/g, '')) : null)}
+            parser={(v) => (v ? Number(v.replace(/\D/g, '')) : 0)}
           />
         </div>
 

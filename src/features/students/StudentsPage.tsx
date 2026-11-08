@@ -252,6 +252,8 @@ export function StudentsPage() {
       points_asc: cmpPoints,
       points_desc: (a, b) => cmpPoints(b, a),
       updated_desc: cmpUpdated,
+      graduated_desc: (a, b) =>
+        (b.graduated_at ?? '').localeCompare(a.graduated_at ?? '') || cmpName(a, b),
     }
     return [...data].sort(comparators[sortBy ?? 'name_asc'])
   }, [allStudents, debouncedSearch, classId, gender, status, missing, pointMode, sortBy])
