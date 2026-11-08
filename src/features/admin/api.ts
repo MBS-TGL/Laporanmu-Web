@@ -25,6 +25,7 @@ export interface AuditFilters {
   source?: string
   action?: string
   tableName?: string
+  recordId?: string
   search?: string
   from?: string
   to?: string
@@ -43,6 +44,7 @@ export async function fetchAuditLogs(
   if (filters.source) query = query.eq('source', filters.source)
   if (filters.action) query = query.eq('action', filters.action)
   if (filters.tableName) query = query.eq('table_name', filters.tableName)
+  if (filters.recordId) query = query.eq('record_id', filters.recordId)
   if (filters.from) query = query.gte('created_at', `${filters.from}T00:00:00Z`)
   if (filters.to) query = query.lte('created_at', `${filters.to}T23:59:59Z`)
   if (filters.search) {

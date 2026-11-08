@@ -4,7 +4,7 @@ import { Button, Form, Input, Typography } from 'antd'
 import { DashboardOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
 import { useLogin } from './hooks'
 import { PublicShell } from '../public/PublicShell'
-import { PortalSplitCard } from '../public/PortalSplitCard'
+import { PortalCard } from '../public/PortalCard'
 
 interface LoginFormValues {
   email: string
@@ -25,7 +25,7 @@ export function LoginPage() {
 
   return (
     <PublicShell tint="indigo" footerLabel="Portal Staf" hideFooterLinks>
-      <PortalSplitCard
+      <PortalCard
         tint="indigo"
         icon={<DashboardOutlined />}
         title="Aplikasi Staf"
@@ -98,7 +98,7 @@ export function LoginPage() {
             </Link>
           </Typography.Paragraph>
         </div>
-      </PortalSplitCard>
+      </PortalCard>
     </PublicShell>
   )
 }

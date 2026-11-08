@@ -9,7 +9,7 @@ export interface PointRule {
   updated_at?: string
 }
 
-export interface PointRuleFormValues {
+export interface RuleFormValues {
   name: string
   points: number
   category?: string

@@ -34,7 +34,7 @@ import { StatusTag } from '../../shared/components/StatusTag'
 import { StatChip } from '../../shared/components/StatChip'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { usePermissions } from '../../shared/hooks/useProfile'
-import { usePageShortcuts, type ShortcutItem } from '../../shared/hooks/usePageShortcuts'
+import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import {
   useAssignStudents,
   useCreateDorm,
@@ -44,8 +44,8 @@ import {
   useUpdateDorm,
 } from './hooks'
 import { DormForm } from './components/DormForm'
-import { AssignStudentsModal } from './components/AssignStudentsModal'
-import { DormDetailDrawer } from './components/DormDetailDrawer'
+import { AssignModal } from './components/AssignModal'
+import { DetailDrawer } from './components/DetailDrawer'
 import { TabPlacements } from './components/TabPlacements'
 import type { Dorm, DormFormValues, DormGender, DormStatus } from './types'
 
@@ -276,7 +276,7 @@ export function DormsPage() {
     [canWrite],
   )
 
-  const { isOpen, close, toggle, sections } = usePageShortcuts({
+  const { isOpen, close, toggle, sections } = useShortcuts({
     items: [
       ...shortcutItems,
       {
@@ -553,7 +553,7 @@ export function DormsPage() {
         onSubmit={handleSubmit}
       />
 
-      <DormDetailDrawer
+      <DetailDrawer
         dorm={drawerDorm}
         occupied={drawerDorm ? (occupancyMap.get(drawerDorm.id) ?? 0) : 0}
         onClose={() => setDrawerDorm(null)}
@@ -562,7 +562,7 @@ export function DormsPage() {
         onEvict={(studentId) => handleEvict([studentId])}
       />
 
-      <AssignStudentsModal
+      <AssignModal
         open={!!assignState}
         initialStudentIds={assignState?.studentIds}
         fixedDormId={assignState?.fixedDormId}

@@ -21,7 +21,7 @@ import {
   useDeleteAnnouncement,
   useUpdateAnnouncement,
 } from './hooks'
-import { AnnouncementFormModal, type AnnouncementFormValues } from './components/AnnouncementFormModal'
+import { AnnouncementModal, type AnnouncementFormValues } from './components/AnnouncementModal'
 import { CATEGORY_COLORS, type Announcement } from './types'
 
 type StatusFilter = 'all' | 'published' | 'draft'
@@ -294,7 +294,7 @@ export function AnnouncementsPage() {
         />
       </Card>
 
-      <AnnouncementFormModal
+      <AnnouncementModal
         open={formOpen}
         announcement={editing}
         submitting={submitting}

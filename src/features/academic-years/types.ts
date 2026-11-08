@@ -15,7 +15,7 @@ export interface AcademicYear {
   created_at?: string
 }
 
-export interface AcademicYearFormValues {
+export interface YearFormValues {
   name: string
   semester: Semester
   start_date?: string

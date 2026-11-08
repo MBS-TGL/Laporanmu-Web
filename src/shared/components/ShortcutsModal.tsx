@@ -3,7 +3,7 @@ import { Empty, Input, theme } from 'antd'
 import { SearchOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { AppModal } from './AppModal'
 import { IconBox } from './IconBox'
-import type { ShortcutSection } from '../hooks/usePageShortcuts'
+import type { ShortcutSection } from '../hooks/useShortcuts'
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
 

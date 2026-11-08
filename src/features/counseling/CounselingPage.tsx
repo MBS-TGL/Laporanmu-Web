@@ -27,7 +27,7 @@ import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { supabase } from '../../lib/supabase'
-import { useDebouncedValue } from '../../shared/hooks/useDebouncedValue'
+import { useDebounce } from '../../shared/hooks/useDebounce'
 import { searchStudents } from '../students/api'
 import { useProfile } from '../../shared/hooks/useProfile'
 import {
@@ -80,7 +80,7 @@ export function CounselingPage() {
   const { profile } = useProfile()
   const { canWrite, canDelete } = usePermissions()
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search)
+  const debouncedSearch = useDebounce(search)
   const [category, setCategory] = useState<CounselingCategory | undefined>()
   const [urgency, setUrgency] = useState<CounselingUrgency | undefined>()
   const [status, setStatus] = useState<CounselingStatus | undefined>()
@@ -101,7 +101,8 @@ export function CounselingPage() {
     // ambil nama & kelas santri (snapshot historis)
     const { data: student } = await supabase
       .from('students')
-      .select('name, class_id, classes(name)')
+      // hint FK wajib sejak 0018 — students punya 2 FK ke classes
+      .select('name, class_id, classes!students_class_id_fkey(name)')
       .eq('id', values.student_id)
       .single()
     const studentName = (student as { name: string } | null)?.name ?? '—'
@@ -344,7 +345,7 @@ function CounselingFormModal({
 }) {
   const [form] = Form.useForm<CounselingFormShape>()
   const [studentSearch, setStudentSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(studentSearch)
+  const debouncedSearch = useDebounce(studentSearch)
   const studentsQuery = useStudentsQuery(debouncedSearch)
 
   useEffect(() => {

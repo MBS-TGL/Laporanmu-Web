@@ -77,7 +77,8 @@ interface LowPointStudent {
 async function fetchLowestPoints(): Promise<LowPointStudent[]> {
   const { data, error } = await supabase
     .from('students')
-    .select('id, name, total_points, classes(name)')
+    // hint FK wajib sejak 0018 — students punya 2 FK ke classes
+    .select('id, name, total_points, classes!students_class_id_fkey(name)')
     .is('deleted_at', null)
     .order('total_points', { ascending: true })
     .limit(5)

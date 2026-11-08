@@ -98,7 +98,9 @@ export async function fetchDormRooms(): Promise<DormRoom[]> {
 // ------------------------------------------------------------
 // Penempatan santri (join kelas & asrama)
 // ------------------------------------------------------------
-const PLACEMENT_SELECT = 'id, name, gender, class_id, classes(name), dorm_id, dorms(name)'
+// hint FK wajib sejak 0018 — students punya 2 FK ke classes (class_id & last_class_id)
+const PLACEMENT_SELECT =
+  'id, name, gender, class_id, classes!students_class_id_fkey(name), dorm_id, dorms(name)'
 
 export async function fetchPlacements(
   filters: PlacementFilters,
@@ -122,7 +124,7 @@ export async function fetchPlacements(
   return { data: (data ?? []) as unknown as Placement[], total: count ?? 0 }
 }
 
-/** Semua santri aktif — opsi modal penempatan (pola BulkPhotoModal) */
+/** Semua santri aktif — opsi modal penempatan (pola PhotoModal) */
 export async function fetchPlacementOptions(): Promise<Placement[]> {
   const { data, error } = await supabase
     .from('students')

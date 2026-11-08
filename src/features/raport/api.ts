@@ -64,6 +64,19 @@ export async function fetchMonthlyRows(studentIds: string[], month: number, year
   return (data ?? []) as MonthlyReport[]
 }
 
+/** Semua raport bulanan satu siswa (dipakai drawer detail siswa) */
+export async function fetchMonthlyRowsByStudent(studentId: string): Promise<MonthlyReport[]> {
+  const { data, error } = await supabase
+    .from('student_monthly_reports')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as MonthlyReport[]
+}
+
 export async function upsertMonthlyRows(payload: MonthlyReportPayload[]): Promise<void> {
   if (payload.length === 0) return
   const { error } = await supabase

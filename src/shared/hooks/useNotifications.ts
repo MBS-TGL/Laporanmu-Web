@@ -79,6 +79,7 @@ async function checkMonthlyRaport(
     const { data: allStudents } = await supabase
       .from('students')
       .select('id, class_id')
+      .eq('status', 'aktif')
       .is('deleted_at', null)
     if (!allStudents?.length) return null
 
@@ -161,6 +162,7 @@ export function useNotifications() {
           supabase
             .from('students')
             .select('id', { count: 'exact', head: true })
+            .eq('status', 'aktif')
             .is('class_id', null)
             .is('deleted_at', null),
           supabase

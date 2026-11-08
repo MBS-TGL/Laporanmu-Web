@@ -6,7 +6,7 @@ import {
   softDeleteAcademicYear,
   updateAcademicYear,
 } from './api'
-import type { AcademicYearFilters, AcademicYearFormValues } from './types'
+import type { AcademicYearFilters, YearFormValues } from './types'
 
 export function useAcademicYears(filters: AcademicYearFilters) {
   return useQuery({
@@ -18,7 +18,7 @@ export function useAcademicYears(filters: AcademicYearFilters) {
 export function useCreateAcademicYear() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (values: AcademicYearFormValues) => createAcademicYear(values),
+    mutationFn: (values: YearFormValues) => createAcademicYear(values),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['academic-years'] })
     },
@@ -28,7 +28,7 @@ export function useCreateAcademicYear() {
 export function useUpdateAcademicYear() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, values }: { id: string; values: AcademicYearFormValues }) =>
+    mutationFn: ({ id, values }: { id: string; values: YearFormValues }) =>
       updateAcademicYear(id, values),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['academic-years'] })

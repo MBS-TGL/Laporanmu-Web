@@ -8,5 +8,5 @@
 
 ## Konteks proyek
 - React 19 + Vite + AntD v6 + Supabase + TanStack Query, tanpa Tailwind (inline style + `src/index.css`).
-- Halaman publik: `/` (landing), `/check`, `/verify`, `/suspension/:token`, `/login` — shell bersama di `src/features/public/PublicShell.tsx`, kartu portal di `PortalSplitCard.tsx`.
+- Halaman publik: `/` (landing), `/check`, `/verify`, `/suspension/:token`, `/login` — shell bersama di `src/features/public/PublicShell.tsx`, kartu portal di `PortalCard.tsx`.
 - Semua copy UI berbahasa Indonesia.

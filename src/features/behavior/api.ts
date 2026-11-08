@@ -3,7 +3,7 @@ import type {
   BehaviorReport,
   PointRule,
   PointRuleFilters,
-  PointRuleFormValues,
+  RuleFormValues,
   ReportFilters,
   ReportFormValues,
 } from './types'
@@ -61,7 +61,7 @@ export async function fetchPointRulesForExport(
   return (data ?? []) as PointRule[]
 }
 
-export async function createPointRule(values: PointRuleFormValues): Promise<PointRule> {
+export async function createPointRule(values: RuleFormValues): Promise<PointRule> {
   const { data, error } = await supabase
     .from('point_rules')
     .insert({
@@ -76,7 +76,7 @@ export async function createPointRule(values: PointRuleFormValues): Promise<Poin
   return data as PointRule
 }
 
-export async function updatePointRule(id: string, values: PointRuleFormValues): Promise<PointRule> {
+export async function updatePointRule(id: string, values: RuleFormValues): Promise<PointRule> {
   const { data, error } = await supabase
     .from('point_rules')
     .update({

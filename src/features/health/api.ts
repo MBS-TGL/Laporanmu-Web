@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { HealthLog, HealthLogFormValues, HealthMedicine, HealthMedicineFormValues } from './types'
+import type { HealthLog, HealthFormValues, HealthMedicine, HealthMedicineFormValues } from './types'
 
 // ------------------------------------------------------------
 // Obat
@@ -70,7 +70,7 @@ export async function fetchHealthLogs(): Promise<HealthLog[]> {
 }
 
 export interface CreateHealthLogInput {
-  values: HealthLogFormValues
+  values: HealthFormValues
   studentName: string
   className: string | null
   medicine: HealthMedicine | null

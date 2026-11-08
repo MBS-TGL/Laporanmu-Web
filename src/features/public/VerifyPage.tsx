@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getGradePredicateBulanan } from '../raport/constants'
 import { PublicShell } from './PublicShell'
-import { PortalSplitCard } from './PortalSplitCard'
+import { PortalCard } from './PortalCard'
 
 interface VerifyResult {
   student: {
@@ -112,7 +112,7 @@ export function VerifyPage() {
     <PublicShell tint="green" footerLabel="Portal Verifikasi Publik">
       {/* Form tetap ter-mount saat loading agar tidak ada layout jump */}
       {!result && (
-        <PortalSplitCard
+        <PortalCard
           tint="green"
           icon={<SafetyCertificateOutlined />}
           title="Verifikasi Rapor"
@@ -159,7 +159,7 @@ export function VerifyPage() {
               Verifikasi
             </Button>
           </Form>
-        </PortalSplitCard>
+        </PortalCard>
       )}
 
       {result && (

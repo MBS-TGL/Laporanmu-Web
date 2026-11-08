@@ -39,7 +39,7 @@ export interface HealthLog {
   updated_at?: string
 }
 
-export interface HealthLogFormValues {
+export interface HealthFormValues {
   student_id: string
   date: string
   time: string

@@ -3,7 +3,7 @@ import { Alert, DatePicker, Form, Input, Select, Spin } from 'antd'
 import { ProfileOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
-import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue'
+import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { usePointRulesBrief, useStudentsSearch } from '../hooks'
 import type { ReportFormValues } from '../types'
 
@@ -25,7 +25,7 @@ interface ReportFormShape {
 // saat modal ditutup (destroyOnHidden meng-unmount isinya)
 function StudentSelect(props: { value?: string; onChange?: (v: string) => void }) {
   const [search, setSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(search)
+  const debouncedSearch = useDebounce(search)
   const studentsQuery = useStudentsSearch(debouncedSearch)
 
   return (

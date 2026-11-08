@@ -10,7 +10,7 @@ import {
   updateMedicine,
   type CreateHealthLogInput,
 } from './api'
-import type { HealthLogFormValues, HealthMedicineFormValues, HealthStatus } from './types'
+import type { HealthFormValues, HealthMedicineFormValues, HealthStatus } from './types'
 
 export function useMedicines() {
   return useQuery({
@@ -88,4 +88,4 @@ export function useDeleteHealthLog() {
   })
 }
 
-export type { HealthLogFormValues }
+export type { HealthFormValues }

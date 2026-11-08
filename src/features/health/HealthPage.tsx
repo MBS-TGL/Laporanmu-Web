@@ -32,12 +32,12 @@ import {
 } from './hooks'
 import type {
   HealthLog,
-  HealthLogFormValues,
+  HealthFormValues,
   HealthMedicine,
   HealthMedicineFormValues,
   HealthStatus,
 } from './types'
-import { HealthLogForm } from './components/HealthLogForm'
+import { HealthForm } from './components/HealthForm'
 import { MedicineForm } from './components/MedicineForm'
 
 const STATUS_LABEL: Record<HealthStatus, string> = {
@@ -86,11 +86,12 @@ export function HealthPage() {
     )
   }, [logs, search])
 
-  const handleCreateLog = async (values: HealthLogFormValues) => {
+  const handleCreateLog = async (values: HealthFormValues) => {
     // ambil nama & kelas santri dari DB (snapshot historis)
     const { data: student } = await supabase
       .from('students')
-      .select('name, class_id, classes(name)')
+      // hint FK wajib sejak 0018 — students punya 2 FK ke classes
+      .select('name, class_id, classes!students_class_id_fkey(name)')
       .eq('id', values.student_id)
       .single()
     const studentName = (student as { name: string } | null)?.name ?? '—'
@@ -452,7 +453,7 @@ export function HealthPage() {
         ]}
       />
 
-      <HealthLogForm
+      <HealthForm
         open={logOpen}
         medicines={medicines}
         submitting={createLogMutation.isPending}

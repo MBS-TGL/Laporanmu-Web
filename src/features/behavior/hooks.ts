@@ -13,7 +13,7 @@ import {
 } from './api'
 import type {
   PointRuleFilters,
-  PointRuleFormValues,
+  RuleFormValues,
   ReportFilters,
   ReportFormValues,
 } from './types'
@@ -55,7 +55,7 @@ export function usePointRulesBrief() {
 export function useCreatePointRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (values: PointRuleFormValues) => createPointRule(values),
+    mutationFn: (values: RuleFormValues) => createPointRule(values),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['point-rules'] })
     },
@@ -65,7 +65,7 @@ export function useCreatePointRule() {
 export function useUpdatePointRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, values }: { id: string; values: PointRuleFormValues }) =>
+    mutationFn: ({ id, values }: { id: string; values: RuleFormValues }) =>
       updatePointRule(id, values),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['point-rules'] })

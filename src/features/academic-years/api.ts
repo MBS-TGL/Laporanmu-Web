@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { AcademicYear, AcademicYearFilters, AcademicYearFormValues } from './types'
+import type { AcademicYear, AcademicYearFilters, YearFormValues } from './types'
 
 export async function fetchAcademicYears(
   filters: AcademicYearFilters,
@@ -22,7 +22,7 @@ export async function fetchAcademicYears(
   return { data: (data ?? []) as AcademicYear[], total: count ?? 0 }
 }
 
-export async function createAcademicYear(values: AcademicYearFormValues): Promise<AcademicYear> {
+export async function createAcademicYear(values: YearFormValues): Promise<AcademicYear> {
   const { data, error } = await supabase
     .from('academic_years')
     .insert({
@@ -42,7 +42,7 @@ export async function createAcademicYear(values: AcademicYearFormValues): Promis
 
 export async function updateAcademicYear(
   id: string,
-  values: AcademicYearFormValues,
+  values: YearFormValues,
 ): Promise<AcademicYear> {
   const { data, error } = await supabase
     .from('academic_years')

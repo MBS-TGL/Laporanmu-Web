@@ -23,7 +23,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
-import { useDebouncedValue } from '../../shared/hooks/useDebouncedValue'
+import { useDebounce } from '../../shared/hooks/useDebounce'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { supabase } from '../../lib/supabase'
@@ -220,7 +220,7 @@ function SuspensionFormModal({
 }) {
   const [form] = Form.useForm<SuspensionFormShape>()
   const [studentSearch, setStudentSearch] = useState('')
-  const debouncedSearch = useDebouncedValue(studentSearch)
+  const debouncedSearch = useDebounce(studentSearch)
   const studentsQuery = useQuery({
     queryKey: ['students', 'search', debouncedSearch],
     queryFn: () => searchStudents(debouncedSearch),
@@ -232,7 +232,8 @@ function SuspensionFormModal({
     // jenjang ditentukan dari tingkat kelas santri
     const { data: student } = await supabase
       .from('students')
-      .select('id, class_id, classes(grade)')
+      // hint FK wajib sejak 0018 — students punya 2 FK ke classes
+      .select('id, class_id, classes!students_class_id_fkey(grade)')
       .eq('id', values.student_id)
       .single()
     const grade = (student as { classes?: { grade: string | null } | null } | null)?.classes?.grade ?? null
