@@ -1,8 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Link } from 'react-router-dom'
+import { createBrowserRouter, Link, Navigate } from 'react-router-dom'
 import { Button, Space, Spin, Typography } from 'antd'
 import { MainLayout } from '../layouts/MainLayout'
 import { ProtectedRoute, PublicRoute } from '../shared/components/ProtectedRoute'
+import { RoleRoute } from '../shared/components/RoleRoute'
 import { RouteErrorBoundary } from '../shared/components/RouteErrorBoundary'
 import { LoginPage } from '../features/auth/LoginPage'
 
@@ -77,6 +78,21 @@ const UsersPage = lazy(() =>
 )
 const AuditPage = lazy(() =>
   import('../features/admin/AuditPage').then((m) => ({ default: m.AuditPage })),
+)
+const AdminDashboardPage = lazy(() =>
+  import('../features/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
+)
+const AdminDatabasePage = lazy(() =>
+  import('../features/admin/DatabasePage').then((m) => ({ default: m.DatabasePage })),
+)
+const AdminStoragePage = lazy(() =>
+  import('../features/admin/StoragePage').then((m) => ({ default: m.StoragePage })),
+)
+const AdminTasksPage = lazy(() =>
+  import('../features/admin/TasksPage').then((m) => ({ default: m.TasksPage })),
+)
+const DeveloperSettingsPage = lazy(() =>
+  import('../features/admin/DeveloperSettingsPage').then((m) => ({ default: m.DeveloperSettingsPage })),
 )
 const AnnouncementsPage = lazy(() =>
   import('../features/announcements/AnnouncementsPage').then((m) => ({ default: m.AnnouncementsPage })),
@@ -342,21 +358,71 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
-            path: 'settings/users',
-            element: (
-              <Suspense fallback={<PageFallback />}>
-                <UsersPage />
-              </Suspense>
-            ),
+            // ─── Admin & developer tools (dev/admin saja) ───
+            path: 'admin',
+            element: <RoleRoute roles={['developer', 'admin']} />,
+            children: [
+              {
+                index: true,
+                element: (
+                  <Suspense fallback={<PageFallback />}>
+                    <AdminDashboardPage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'database',
+                element: (
+                  <Suspense fallback={<PageFallback />}>
+                    <AdminDatabasePage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'storage',
+                element: (
+                  <Suspense fallback={<PageFallback />}>
+                    <AdminStoragePage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'tasks',
+                element: (
+                  <Suspense fallback={<PageFallback />}>
+                    <AdminTasksPage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'settings',
+                element: (
+                  <Suspense fallback={<PageFallback />}>
+                    <DeveloperSettingsPage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'users',
+                element: (
+                  <Suspense fallback={<PageFallback />}>
+                    <UsersPage />
+                  </Suspense>
+                ),
+              },
+              {
+                path: 'audit-log',
+                element: (
+                  <Suspense fallback={<PageFallback />}>
+                    <AuditPage />
+                  </Suspense>
+                ),
+              },
+            ],
           },
-          {
-            path: 'settings/audit-log',
-            element: (
-              <Suspense fallback={<PageFallback />}>
-                <AuditPage />
-              </Suspense>
-            ),
-          },
+          // Alias lama — biarkan tautan/bookmark lama tetap berfungsi
+          { path: 'settings/users', element: <Navigate to="/admin/users" replace /> },
+          { path: 'settings/audit-log', element: <Navigate to="/admin/audit-log" replace /> },
         ],
       },
     ],

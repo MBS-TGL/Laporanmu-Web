@@ -6,6 +6,7 @@ export type AuditAction =
   | 'DELETE'
   | 'LOGIN'
   | 'LOGOUT'
+  | 'EXECUTE'
   | 'EXPORT'
   | 'SYNC'
   | 'BROADCAST'

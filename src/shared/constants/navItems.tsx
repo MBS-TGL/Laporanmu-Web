@@ -1,22 +1,28 @@
 import type { ComponentProps, ComponentType } from 'react'
 import {
   ApartmentOutlined,
+  AppstoreOutlined,
   BankOutlined,
   CalendarOutlined,
   DashboardOutlined,
+  DatabaseOutlined,
   FileDoneOutlined,
   FileTextOutlined,
   FolderOpenOutlined,
   GatewayOutlined,
+  HddOutlined,
   HeartOutlined,
   HistoryOutlined,
   NotificationOutlined,
   ProfileOutlined,
   ReadOutlined,
   SafetyCertificateOutlined,
+  SafetyOutlined,
   SettingOutlined,
   SolutionOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
+  ToolOutlined,
   UsergroupAddOutlined,
 } from '@ant-design/icons'
 
@@ -78,9 +84,17 @@ const RAPORT_ITEMS: NavItem[] = [
 
 const SETTINGS_ITEMS: NavItem[] = [
   { to: '/settings/announcements', label: 'Informasi', icon: NotificationOutlined, desc: 'Pengumuman untuk staf dan wali santri' },
-  { to: '/settings/users', label: 'Pengguna', icon: UsergroupAddOutlined, desc: 'Kelola nama & role akun staff', requireRoles: ['developer', 'admin'] },
-  { to: '/settings/audit-log', label: 'Audit Log', icon: HistoryOutlined, desc: 'Jejak perubahan data oleh pengguna', requireRoles: ['developer', 'admin'] },
   { to: '/settings/school', label: 'Profil Sekolah', icon: SettingOutlined, desc: 'Identitas sekolah untuk kop raport' },
+]
+
+const ADMIN_ITEMS: NavItem[] = [
+  { to: '/admin', label: 'Dashboard Admin', icon: AppstoreOutlined, desc: 'Pusat pantauan teknis sistem', requireRoles: ['developer', 'admin'] },
+  { to: '/admin/database', label: 'Database', icon: DatabaseOutlined, desc: 'Kesehatan database & cek integritas', requireRoles: ['developer', 'admin'] },
+  { to: '/admin/storage', label: 'Penyimpanan', icon: HddOutlined, desc: 'Bucket storage & pembersihan file', requireRoles: ['developer', 'admin'] },
+  { to: '/admin/tasks', label: 'Otomasi', icon: ThunderboltOutlined, desc: 'Tugas pemeliharaan manual', requireRoles: ['developer', 'admin'] },
+  { to: '/admin/settings', label: 'Pengaturan', icon: ToolOutlined, desc: 'Feature flags & mode maintenance', requireRoles: ['developer', 'admin'] },
+  { to: '/admin/users', label: 'Pengguna', icon: UsergroupAddOutlined, desc: 'Kelola nama & role akun staff', requireRoles: ['developer', 'admin'] },
+  { to: '/admin/audit-log', label: 'Audit Log', icon: HistoryOutlined, desc: 'Jejak perubahan data oleh pengguna', requireRoles: ['developer', 'admin'] },
 ]
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -90,6 +104,7 @@ export const NAV_GROUPS: NavGroup[] = [
   { key: 'raport', label: 'Raport', icon: FileTextOutlined, items: RAPORT_ITEMS },
   { key: 'gate', label: 'Gerbang', icon: GatewayOutlined, items: GATE_ITEMS },
   { key: 'settings', label: 'Pengaturan', icon: SettingOutlined, items: SETTINGS_ITEMS },
+  { key: 'admin', label: 'Admin', icon: SafetyOutlined, items: ADMIN_ITEMS },
 ]
 
 const STAFF_ROLES = ['developer', 'admin', 'pengurus', 'guru']

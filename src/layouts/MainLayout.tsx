@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Drawer, Grid, Layout } from 'antd'
-import { Outlet } from 'react-router-dom'
+import { MaintenanceGate } from '../shared/components/MaintenanceGate'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
@@ -49,7 +49,7 @@ export function MainLayout() {
 
         <Content style={{ padding: isMobile ? 12 : 20 }}>
           <div style={{ maxWidth: 1800, margin: '0 auto' }}>
-            <Outlet />
+            <MaintenanceGate />
           </div>
         </Content>
       </Layout>

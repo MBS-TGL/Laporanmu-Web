@@ -41,6 +41,8 @@ const ACTION_COLOR: Record<string, string> = {
   EXPORT: 'orange',
   LOGIN: 'geekblue',
   LOGOUT: 'default',
+  EXECUTE: 'geekblue',
+  BROADCAST: 'cyan',
 }
 
 const TABLE_LABELS: Record<string, string> = {
@@ -60,6 +62,11 @@ const TABLE_LABELS: Record<string, string> = {
   health_medicines: 'Stok Obat',
   counseling_logs: 'BK',
   leave_permits: 'Izin Pulang',
+  suspensions: 'Skorsing',
+  announcements: 'Informasi',
+  feature_flags: 'Feature Flags',
+  tasks: 'Tugas Otomasi',
+  'storage.objects': 'Penyimpanan',
 }
 
 function fmtTime(iso: string): string {
