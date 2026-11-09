@@ -1,32 +1,32 @@
 import { useRef, useState } from 'react'
 import { Card, Col, Input, InputNumber, Row, Select, Space, Typography } from 'antd'
 import { useSearchParams } from 'react-router-dom'
-import { useRaportClasses } from '../hooks'
-import { MONTH_NAMES, RAPORT_TYPE_LABEL } from '../constants'
-import type { RaportType } from '../types'
+import { useReportCardClasses } from '../hooks'
+import { MONTH_NAMES, REPORT_CARD_TYPE_LABEL } from '../constants'
+import type { ReportCardType } from '../types'
 import { useAcademicYearsBrief } from '../../classes/hooks'
 
 interface PeriodParams {
-  jenis: RaportType
-  bulan: number
-  tahun: number
+  type: ReportCardType
+  month: number
+  year: number
   semester: 1 | 2
-  ta: string
+  ay: string
   musyrif: string
 }
 
 function readParams(sp: URLSearchParams): PeriodParams {
   const now = new Date()
-  const jenisRaw = sp.get('jenis') as RaportType | null
-  const jenis: RaportType =
-    jenisRaw && jenisRaw in RAPORT_TYPE_LABEL ? jenisRaw : 'bulanan'
-  const bulan = Number(sp.get('bulan')) || now.getMonth() + 1
-  const tahun = Number(sp.get('tahun')) || now.getFullYear()
+  const typeRaw = sp.get('type') as ReportCardType | null
+  const type: ReportCardType =
+    typeRaw && typeRaw in REPORT_CARD_TYPE_LABEL ? typeRaw : 'monthly'
+  const month = Number(sp.get('month')) || now.getMonth() + 1
+  const year = Number(sp.get('year')) || now.getFullYear()
   const semesterRaw = Number(sp.get('semester'))
   const semester: 1 | 2 = semesterRaw === 2 ? 2 : 1
-  const ta = sp.get('ta') ?? ''
+  const ay = sp.get('ay') ?? ''
   const musyrif = sp.get('musyrif') ?? ''
-  return { jenis, bulan, tahun, semester, ta, musyrif }
+  return { type, month, year, semester, ay, musyrif }
 }
 
 interface SetupBarProps {
@@ -39,7 +39,7 @@ interface SetupBarProps {
 export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const params = readParams(searchParams)
-  const classesQuery = useRaportClasses()
+  const classesQuery = useReportCardClasses()
   const yearsQuery = useAcademicYearsBrief()
 
   // Nama musyrif diketik ke state lokal agar input tidak lag;
@@ -54,13 +54,13 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
   const buildSp = (updates: Partial<PeriodParams>) => {
     const next = { ...params, musyrif: musyrifRef.current, ...updates }
     const sp = new URLSearchParams()
-    sp.set('jenis', next.jenis)
-    if (next.jenis === 'bulanan') {
-      sp.set('bulan', String(next.bulan))
-      sp.set('tahun', String(next.tahun))
+    sp.set('type', next.type)
+    if (next.type === 'monthly') {
+      sp.set('month', String(next.month))
+      sp.set('year', String(next.year))
     } else {
       sp.set('semester', String(next.semester))
-      if (next.ta) sp.set('ta', next.ta)
+      if (next.ay) sp.set('ay', next.ay)
     }
     if (next.musyrif) sp.set('musyrif', next.musyrif)
     return sp
@@ -91,11 +91,11 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
 
   const className = (classesQuery.data ?? []).find((c) => c.id === classId)?.name ?? '...'
 
-  // Tahun ajaran efektif: pilihan user, atau tahun yang aktif
-  const effectiveTa = params.ta || activeYear?.id || ''
+  // Tahun ajaran efektif: pilihan user, atau year yang aktif
+  const effectiveTa = params.ay || activeYear?.id || ''
 
   const yearOptions = (yearsQuery.data ?? []).map((y) => ({ value: y.id, label: y.name }))
-  const isBulanan = params.jenis === 'bulanan'
+  const isMonthly = params.type === 'monthly'
 
   return (
     <Card style={{ marginBottom: 16 }}>
@@ -112,13 +112,13 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
           </Typography.Text>
           <Select
             style={{ width: '100%' }}
-            value={params.jenis}
-            onChange={(v) => patch({ jenis: v as RaportType })}
-            options={Object.entries(RAPORT_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
+            value={params.type}
+            onChange={(v) => patch({ type: v as ReportCardType })}
+            options={Object.entries(REPORT_CARD_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
           />
         </Col>
 
-        {isBulanan ? (
+        {isMonthly ? (
           <>
             <Col xs={12} sm={8} md={5}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -126,8 +126,8 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
               </Typography.Text>
               <Select
                 style={{ width: '100%' }}
-                value={params.bulan}
-                onChange={(v) => patch({ bulan: v as number })}
+                value={params.month}
+                onChange={(v) => patch({ month: v as number })}
                 options={MONTH_NAMES.map((m, i) => ({ value: i + 1, label: m }))}
               />
             </Col>
@@ -139,8 +139,8 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
                 style={{ width: '100%' }}
                 min={2020}
                 max={2100}
-                value={params.tahun}
-                onChange={(v) => v && patch({ tahun: v })}
+                value={params.year}
+                onChange={(v) => v && patch({ year: v })}
               />
             </Col>
           </>
@@ -166,10 +166,10 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
               </Typography.Text>
               <Select
                 style={{ width: '100%' }}
-                placeholder="Pilih tahun ajaran"
+                placeholder="Pilih year ajaran"
                 loading={yearsQuery.isPending}
                 value={effectiveTa || undefined}
-                onChange={(v) => patch({ ta: v as string })}
+                onChange={(v) => patch({ ay: v as string })}
                 options={yearOptions}
               />
             </Col>

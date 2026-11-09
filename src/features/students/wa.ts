@@ -14,7 +14,7 @@ export function waLink(phone: string, text?: string): string {
     : `https://wa.me/${normalized}`
 }
 
-export type WaTemplateId = 'laporan' | 'portal' | 'custom'
+export type WaTemplateId = 'report' | 'portal' | 'custom'
 
 export interface WaTemplate {
   id: WaTemplateId
@@ -26,7 +26,7 @@ export interface WaTemplate {
 
 export const WA_TEMPLATES: WaTemplate[] = [
   {
-    id: 'laporan',
+    id: 'report',
     label: 'Laporan Perilaku',
     description: 'Ringkasan poin & kelas siswa',
     body:

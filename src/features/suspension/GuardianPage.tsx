@@ -29,7 +29,7 @@ import {
   rpcSubmitTask,
   rpcValidateToken,
 } from './api'
-import type { WaliDayData, WaliEntries, WaliLogEntry, WaliTemplateItem, WaliTokenInfo } from './types'
+import type { GuardianDayData, GuardianEntries, GuardianLogEntry, GuardianTemplateItem, GuardianTokenInfo } from './types'
 
 const BLOCK_LABEL: Record<string, string> = {
   dinihari: '🌙 Dini Hari & Subuh (03.00–06.30)',
@@ -38,9 +38,9 @@ const BLOCK_LABEL: Record<string, string> = {
   malam: '🌙 Malam (19.00–03.00)',
 }
 
-export function WaliPage() {
+export function GuardianPage() {
   const { token = '' } = useParams()
-  const [info, setInfo] = useState<WaliTokenInfo | null>(null)
+  const [info, setInfo] = useState<GuardianTokenInfo | null>(null)
   const [bootError, setBootError] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
@@ -60,7 +60,7 @@ export function WaliPage() {
 
   if (bootError) {
     return (
-      <WaliShell>
+      <GuardianShell>
         <Card style={{ maxWidth: 480, margin: '0 auto' }}>
           <Alert
             type="error"
@@ -69,22 +69,22 @@ export function WaliPage() {
             description={bootError}
           />
         </Card>
-      </WaliShell>
+      </GuardianShell>
     )
   }
 
   if (!info) {
     return (
-      <WaliShell>
+      <GuardianShell>
         <div style={{ textAlign: 'center', padding: 64 }}>
           <Spin size="large" />
         </div>
-      </WaliShell>
+      </GuardianShell>
     )
   }
 
   return (
-    <WaliShell>
+    <GuardianShell>
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <Card>
           <div style={{ textAlign: 'center' }}>
@@ -93,7 +93,7 @@ export function WaliPage() {
               {info.student_name}
             </Typography.Title>
             <Typography.Text type="secondary">
-              {info.class_name ?? '—'} · {info.jenjang}
+              {info.class_name ?? '—'} · {info.level}
             </Typography.Text>
             <div style={{ marginTop: 6 }}>
               <Tag icon={<HomeOutlined />} color="green">
@@ -117,18 +117,18 @@ export function WaliPage() {
           </div>
         </Card>
 
-        {selectedDate && <WaliDayPanel token={token} date={selectedDate} />}
+        {selectedDate && <GuardianDayPanel token={token} date={selectedDate} />}
       </Space>
-    </WaliShell>
+    </GuardianShell>
   )
 }
 
 // ------------------------------------------------------------
 // Isian satu hari: checklist + tugas
 // ------------------------------------------------------------
-function WaliDayPanel({ token, date }: { token: string; date: string }) {
+function GuardianDayPanel({ token, date }: { token: string; date: string }) {
   const dayQuery = useQuery({
-    queryKey: ['wali-day', token, date],
+    queryKey: ['guardian-day', token, date],
     queryFn: () => rpcGetDay(token, date),
     staleTime: 0,
   })
@@ -150,7 +150,7 @@ function WaliDayPanel({ token, date }: { token: string; date: string }) {
     )
   }
 
-  const data = dayQuery.data as WaliDayData
+  const data = dayQuery.data as GuardianDayData
   const refresh = () => void dayQuery.refetch()
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -168,11 +168,11 @@ function ChecklistCard({
 }: {
   token: string
   date: string
-  data: WaliDayData
+  data: GuardianDayData
   onRefresh: () => void
 }) {
   const { message } = App.useApp()
-  const [entries, setEntries] = useState<WaliEntries>({})
+  const [entries, setEntries] = useState<GuardianEntries>({})
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<string | null>(data.log?.updated_at ?? null)
@@ -182,7 +182,7 @@ function ChecklistCard({
   // asinkron agar tidak ada setState sinkron di dalam effect
   useEffect(() => {
     const timer = setTimeout(() => {
-      setEntries((data.log?.entries ?? {}) as WaliEntries)
+      setEntries((data.log?.entries ?? {}) as GuardianEntries)
       setNote(data.log?.note_optional ?? '')
       setSavedAt(hydratedAt ?? null)
     }, 0)
@@ -190,13 +190,13 @@ function ChecklistCard({
   }, [hydratedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const blocks = useMemo(() => {
-    const order: WaliTemplateItem['block_key'][] = ['dinihari', 'pagi', 'sore', 'malam']
+    const order: GuardianTemplateItem['block_key'][] = ['dinihari', 'pagi', 'sore', 'malam']
     return order
       .map((block) => ({ block, items: data.templates.filter((t) => t.block_key === block) }))
       .filter((g) => g.items.length > 0)
   }, [data.templates])
 
-  const setEntry = (key: string, patch: Partial<WaliLogEntry>) =>
+  const setEntry = (key: string, patch: Partial<GuardianLogEntry>) =>
     setEntries((prev) => ({ ...prev, [key]: { ...(prev[key] ?? {}), ...patch } }))
 
   const handleSave = async () => {
@@ -362,7 +362,7 @@ function TasksCard({
   onRefresh,
 }: {
   token: string
-  data: WaliDayData
+  data: GuardianDayData
   onRefresh: () => void
 }) {
   const { message } = App.useApp()
@@ -436,7 +436,7 @@ function TasksCard({
 
               {sub && (
                 <div style={{ margin: '8px 0' }}>
-                  {sub.status === 'dinilai' ? (
+                  {sub.status === 'graded' ? (
                     <Tag color="green">Dinilai: {sub.score}/100</Tag>
                   ) : (
                     <Tag color="orange">Menunggu penilaian ({sub.photo_count} foto)</Tag>
@@ -524,7 +524,7 @@ function TasksCard({
   )
 }
 
-function WaliShell({ children }: { children: React.ReactNode }) {
+function GuardianShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{

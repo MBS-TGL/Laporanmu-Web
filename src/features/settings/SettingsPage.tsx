@@ -3,14 +3,14 @@ import { App, Button, Card, ColorPicker, Form, Input } from 'antd'
 import { SaveOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
 import { PageHeader } from '../../shared/components/PageHeader'
-import { useSaveSchoolSettings, useSchoolSettings } from '../raport/hooks'
-import type { SchoolSettings } from '../raport/types'
+import { useSaveSchoolSettings, useSchoolSettings } from '../report-cards/hooks'
+import type { SchoolSettings } from '../report-cards/types'
 
 interface SchoolSettingsFormValues {
   school_name: string
   school_address?: string
   headmaster_name?: string
-  pengasuh_name?: string
+  caretaker_name?: string
   color_primary: string
   color_secondary: string
 }
@@ -27,7 +27,7 @@ export function SettingsPage() {
       school_name: settingsQuery.data.school_name,
       school_address: settingsQuery.data.school_address ?? undefined,
       headmaster_name: settingsQuery.data.headmaster_name ?? undefined,
-      pengasuh_name: settingsQuery.data.pengasuh_name ?? undefined,
+      caretaker_name: settingsQuery.data.caretaker_name ?? undefined,
       color_primary: settingsQuery.data.color_primary,
       color_secondary: settingsQuery.data.color_secondary,
     })
@@ -39,7 +39,7 @@ export function SettingsPage() {
       school_name: values.school_name,
       school_address: values.school_address || null,
       headmaster_name: values.headmaster_name || null,
-      pengasuh_name: values.pengasuh_name || null,
+      caretaker_name: values.caretaker_name || null,
       color_primary: values.color_primary,
       color_secondary: values.color_secondary,
     }
@@ -82,7 +82,7 @@ export function SettingsPage() {
             <Input maxLength={120} placeholder="Nama lengkap beserta gelar" />
           </Form.Item>
 
-          <Form.Item name="pengasuh_name" label="Nama Pengasuh">
+          <Form.Item name="caretaker_name" label="Nama Pengasuh">
             <Input maxLength={120} placeholder="Nama lengkap beserta gelar" />
           </Form.Item>
 

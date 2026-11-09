@@ -1,4 +1,4 @@
-export type TeacherStatus = 'active' | 'inactive' | 'cuti'
+export type TeacherStatus = 'active' | 'inactive' | 'on_leave'
 export type Gender = 'L' | 'P'
 
 export interface Teacher {

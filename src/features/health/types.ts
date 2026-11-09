@@ -1,4 +1,4 @@
-export type HealthStatus = 'UKS' | 'Asrama' | 'Kembali'
+export type HealthStatus = 'UKS' | 'Dormitory' | 'Returned'
 
 export interface HealthMedicine {
   id: string

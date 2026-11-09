@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchAttendanceRows,
-  syncAttendanceToRaport,
+  syncAttendanceToReportCards,
   upsertAttendance,
   type AttendanceUpsert,
 } from './api'
@@ -40,9 +40,9 @@ export function useSyncAttendance() {
       year: number
       month: number
       updatedBy: string | null
-    }) => syncAttendanceToRaport(rows, classId, year, month, updatedBy),
+    }) => syncAttendanceToReportCards(rows, classId, year, month, updatedBy),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['raport'] })
+      void qc.invalidateQueries({ queryKey: ['report-cards'] })
     },
   })
 }

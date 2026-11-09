@@ -79,7 +79,7 @@ export async function fetchDormRooms(): Promise<DormRoom[]> {
     .from('dorms')
     .select('id, name, gender, capacity')
     .is('deleted_at', null)
-    .neq('status', 'nonaktif')
+    .neq('status', 'inactive')
     .order('name', { ascending: true })
   if (error) throw error
 

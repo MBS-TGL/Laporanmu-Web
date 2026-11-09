@@ -32,9 +32,9 @@ import { useCreateSuspension, useSuspensions } from './hooks'
 import type { Suspension, SuspensionStatus } from './types'
 
 const STATUS_META: Record<SuspensionStatus, { label: string; color: string }> = {
-  aktif: { label: 'Aktif', color: 'orange' },
-  selesai: { label: 'Selesai', color: 'green' },
-  dibatalkan: { label: 'Dibatalkan', color: 'default' },
+  active: { label: 'Aktif', color: 'orange' },
+  completed: { label: 'Selesai', color: 'green' },
+  cancelled: { label: 'Dibatalkan', color: 'default' },
 }
 
 function isSmaGrade(grade: string | null): boolean {
@@ -42,7 +42,7 @@ function isSmaGrade(grade: string | null): boolean {
   return g === 10 || g === 11 || g === 12
 }
 
-export function SkorsingPage() {
+export function SuspensionPage() {
   const { message } = App.useApp()
   const navigate = useNavigate()
   const { canWrite } = usePermissions()
@@ -52,8 +52,8 @@ export function SkorsingPage() {
 
   const [formOpen, setFormOpen] = useState(false)
 
-  const active = suspensions.filter((s) => s.status === 'aktif')
-  const done = suspensions.filter((s) => s.status === 'selesai')
+  const active = suspensions.filter((s) => s.status === 'active')
+  const done = suspensions.filter((s) => s.status === 'completed')
 
   const columns: TableColumnsType<Suspension> = [
     {
@@ -67,8 +67,8 @@ export function SkorsingPage() {
     },
     {
       title: 'Jenjang',
-      dataIndex: 'jenjang',
-      key: 'jenjang',
+      dataIndex: 'level',
+      key: 'level',
       width: 90,
       render: (v: string) => <Tag>{v}</Tag>,
       responsive: ['md'],
@@ -110,7 +110,7 @@ export function SkorsingPage() {
 
   const handleCreate = async (input: {
     student_id: string
-    jenjang: 'SMP' | 'SMA'
+    level: 'SMP' | 'SMA'
     start_date: string
     end_date: string
     reason_summary: string
@@ -212,7 +212,7 @@ function SuspensionFormModal({
   onCancel: () => void
   onSubmit: (values: {
     student_id: string
-    jenjang: 'SMP' | 'SMA'
+    level: 'SMP' | 'SMA'
     start_date: string
     end_date: string
     reason_summary: string
@@ -229,7 +229,7 @@ function SuspensionFormModal({
   })
 
   const handleFinish = async (values: SuspensionFormShape) => {
-    // jenjang ditentukan dari tingkat kelas santri
+    // level ditentukan dari tingkat kelas santri
     const { data: student } = await supabase
       .from('students')
       // hint FK wajib sejak 0018 — students punya 2 FK ke classes
@@ -237,10 +237,10 @@ function SuspensionFormModal({
       .eq('id', values.student_id)
       .single()
     const grade = (student as { classes?: { grade: string | null } | null } | null)?.classes?.grade ?? null
-    const jenjang = isSmaGrade(grade) ? 'SMA' : 'SMP'
+    const level = isSmaGrade(grade) ? 'SMA' : 'SMP'
     onSubmit({
       student_id: values.student_id,
-      jenjang,
+      level,
       start_date: values.start_date.format('YYYY-MM-DD'),
       end_date: values.end_date.format('YYYY-MM-DD'),
       reason_summary: values.reason_summary,

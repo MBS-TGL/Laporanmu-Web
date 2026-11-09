@@ -15,7 +15,7 @@ export function EntryCard() {
   const studentsQuery = useStudentsSearch(debouncedStudentSearch)
   const createMutation = useCreateGateLog()
 
-  const record = (direction: 'keluar' | 'masuk') => {
+  const record = (direction: 'exit' | 'entry') => {
     if (!studentId) {
       message.warning('Pilih siswa terlebih dahulu')
       return
@@ -25,7 +25,7 @@ export function EntryCard() {
       {
         onSuccess: (log) => {
           message.success(
-            `Berhasil dicatat: ${log.student?.name ?? 'siswa'} ${direction === 'keluar' ? 'keluar' : 'masuk'}`,
+            `Berhasil dicatat: ${log.student?.name ?? 'siswa'} ${direction === 'exit' ? 'left' : 'masuk'}`,
           )
           setStudentId(undefined)
           setStudentSearch('')
@@ -65,7 +65,7 @@ export function EntryCard() {
           danger
           icon={<ExportOutlined />}
           loading={createMutation.isPending}
-          onClick={() => record('keluar')}
+          onClick={() => record('exit')}
         >
           Catat Keluar
         </Button>
@@ -73,7 +73,7 @@ export function EntryCard() {
           type="primary"
           icon={<EnterOutlined />}
           loading={createMutation.isPending}
-          onClick={() => record('masuk')}
+          onClick={() => record('entry')}
         >
           Catat Masuk
         </Button>

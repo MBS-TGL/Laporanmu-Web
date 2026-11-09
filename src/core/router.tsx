@@ -46,17 +46,17 @@ const ReportsPage = lazy(() =>
 const LogsPage = lazy(() =>
   import('../features/gate/LogsPage').then((m) => ({ default: m.LogsPage })),
 )
-const RaportPage = lazy(() =>
-  import('../features/raport/RaportPage').then((m) => ({ default: m.RaportPage })),
+const ReportCardsPage = lazy(() =>
+  import('../features/report-cards/ReportCardsPage').then((m) => ({ default: m.ReportCardsPage })),
 )
 const InputPage = lazy(() =>
-  import('../features/raport/InputPage').then((m) => ({ default: m.InputPage })),
+  import('../features/report-cards/InputPage').then((m) => ({ default: m.InputPage })),
 )
 const PreviewPage = lazy(() =>
-  import('../features/raport/PreviewPage').then((m) => ({ default: m.PreviewPage })),
+  import('../features/report-cards/PreviewPage').then((m) => ({ default: m.PreviewPage })),
 )
-const RaportArchive = lazy(() =>
-  import('../features/raport/ArchivePage').then((m) => ({ default: m.ArchivePage })),
+const ReportCardsArchive = lazy(() =>
+  import('../features/report-cards/ArchivePage').then((m) => ({ default: m.ArchivePage })),
 )
 const SettingsPage = lazy(() =>
   import('../features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
@@ -103,14 +103,14 @@ const CheckPage = lazy(() =>
 const VerifyPage = lazy(() =>
   import('../features/public/VerifyPage').then((m) => ({ default: m.VerifyPage })),
 )
-const SkorsingPage = lazy(() =>
-  import('../features/suspension/SkorsingPage').then((m) => ({ default: m.SkorsingPage })),
+const SuspensionPage = lazy(() =>
+  import('../features/suspension/SuspensionPage').then((m) => ({ default: m.SuspensionPage })),
 )
 const DetailPage = lazy(() =>
   import('../features/suspension/DetailPage').then((m) => ({ default: m.DetailPage })),
 )
-const WaliPage = lazy(() =>
-  import('../features/suspension/WaliPage').then((m) => ({ default: m.WaliPage })),
+const GuardianPage = lazy(() =>
+  import('../features/suspension/GuardianPage').then((m) => ({ default: m.GuardianPage })),
 )
 
 function PageFallback() {
@@ -164,7 +164,7 @@ export const appRouter = createBrowserRouter([
   { path: '/', element: <RouteErrorBoundary><LandingPage /></RouteErrorBoundary> },
   { path: '/check', element: <RouteErrorBoundary><CheckPage /></RouteErrorBoundary> },
   { path: '/verify', element: <RouteErrorBoundary><VerifyPage /></RouteErrorBoundary> },
-  { path: '/suspension/:token', element: <RouteErrorBoundary><WaliPage /></RouteErrorBoundary> },
+  { path: '/suspension/:token', element: <RouteErrorBoundary><GuardianPage /></RouteErrorBoundary> },
   {
     path: '/login',
     element: <PublicRoute />,
@@ -265,7 +265,7 @@ export const appRouter = createBrowserRouter([
             path: 'report-cards',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <RaportPage />
+                <ReportCardsPage />
               </Suspense>
             ),
           },
@@ -273,7 +273,7 @@ export const appRouter = createBrowserRouter([
             path: 'report-cards/archive',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <RaportArchive />
+                <ReportCardsArchive />
               </Suspense>
             ),
           },
@@ -337,7 +337,7 @@ export const appRouter = createBrowserRouter([
             path: 'suspension',
             element: (
               <Suspense fallback={<PageFallback />}>
-                <SkorsingPage />
+                <SuspensionPage />
               </Suspense>
             ),
           },

@@ -1,4 +1,4 @@
-export type Semester = 'Ganjil' | 'Genap'
+export type Semester = 'Odd' | 'Even'
 
 export interface AcademicYear {
   id: string

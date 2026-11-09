@@ -77,7 +77,7 @@ const GATE_ITEMS: NavItem[] = [
   { to: '/gate/logs', label: 'Gate Santri', icon: GatewayOutlined, desc: 'Log keluar-masuk santri di gerbang' },
 ]
 
-const RAPORT_ITEMS: NavItem[] = [
+const REPORT_CARD_ITEMS: NavItem[] = [
   { to: '/report-cards', label: 'Raport', icon: FileTextOutlined, desc: 'Input raport bulanan & semester per kelas' },
   { to: '/report-cards/archive', label: 'Arsip Raport', icon: FolderOpenOutlined, desc: 'Riwayat raport per kelas dan periode' },
 ]
@@ -101,7 +101,7 @@ export const NAV_GROUPS: NavGroup[] = [
   { key: 'master', label: 'Master Data', icon: TeamOutlined, items: MASTER_ITEMS },
   { key: 'behavior', label: 'Poin Santri', icon: FileDoneOutlined, items: BEHAVIOR_ITEMS },
   { key: 'boarding', label: 'Kesantrian', icon: ApartmentOutlined, items: BOARDING_ITEMS },
-  { key: 'raport', label: 'Raport', icon: FileTextOutlined, items: RAPORT_ITEMS },
+  { key: 'report-cards', label: 'Raport', icon: FileTextOutlined, items: REPORT_CARD_ITEMS },
   { key: 'gate', label: 'Gerbang', icon: GatewayOutlined, items: GATE_ITEMS },
   { key: 'settings', label: 'Pengaturan', icon: SettingOutlined, items: SETTINGS_ITEMS },
   { key: 'admin', label: 'Admin', icon: SafetyOutlined, items: ADMIN_ITEMS },

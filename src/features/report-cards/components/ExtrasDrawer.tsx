@@ -2,12 +2,12 @@ import { useEffect } from 'react'
 import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space } from 'antd'
 import { SectionDivider } from '../../../shared/components/SectionDivider'
 import { CATATAN_TEMPLATES, HAFALAN_PRESETS } from '../constants'
-import type { MonthlyDraft, RaportStudent, RaportType, SemesterDraft } from '../types'
+import type { MonthlyDraft, ReportCardStudent, ReportCardType, SemesterDraft } from '../types'
 
 interface ExtrasDrawerProps {
   open: boolean
-  student: RaportStudent | null
-  type: RaportType
+  student: ReportCardStudent | null
+  type: ReportCardType
   monthlyInitial?: MonthlyDraft | null
   semesterInitial?: SemesterDraft | null
   onClose: () => void
@@ -30,7 +30,7 @@ export function ExtrasDrawer({
   useEffect(() => {
     if (!open || !student) return
     form.resetFields()
-    if (type === 'bulanan') {
+    if (type === 'monthly') {
       form.setFieldsValue(monthlyInitial ?? {})
     } else {
       form.setFieldsValue(semesterInitial ?? {})
@@ -40,7 +40,7 @@ export function ExtrasDrawer({
   const handleSave = () => {
     if (!student) return
     const values = form.getFieldsValue()
-    if (type === 'bulanan') {
+    if (type === 'monthly') {
       onSaveMonthly(student.id, values as MonthlyDraft)
     } else {
       onSaveSemester(student.id, values as SemesterDraft)
@@ -48,7 +48,7 @@ export function ExtrasDrawer({
     onClose()
   }
 
-  const isBulanan = type === 'bulanan'
+  const isMonthly = type === 'monthly'
 
   return (
     <Drawer
@@ -70,12 +70,12 @@ export function ExtrasDrawer({
       <Form form={form} layout="vertical">
         <Row gutter={12}>
           <Col span={12}>
-            <Form.Item name="berat_badan" label="Berat Badan (kg)">
+            <Form.Item name="weight_kg" label="Berat Badan (kg)">
               <InputNumber style={{ width: '100%' }} min={0} max={300} />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="tinggi_badan" label="Tinggi Badan (cm)">
+            <Form.Item name="height_cm" label="Tinggi Badan (cm)">
               <InputNumber style={{ width: '100%' }} min={0} max={250} />
             </Form.Item>
           </Col>
@@ -86,22 +86,22 @@ export function ExtrasDrawer({
         </SectionDivider></Col>
         <Row gutter={12}>
           <Col span={6}>
-            <Form.Item name="hari_sakit" label="Sakit">
+            <Form.Item name="sick_days" label="Sakit">
               <InputNumber style={{ width: '100%' }} min={0} max={365} precision={0} />
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="hari_izin" label="Izin">
+            <Form.Item name="excused_days" label="Izin">
               <InputNumber style={{ width: '100%' }} min={0} max={365} precision={0} />
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="hari_alpa" label="Alpa">
+            <Form.Item name="absent_days" label="Alpa">
               <InputNumber style={{ width: '100%' }} min={0} max={365} precision={0} />
             </Form.Item>
           </Col>
           <Col span={6}>
-            <Form.Item name="hari_pulang" label="Pulang">
+            <Form.Item name="early_leave_days" label="Pulang">
               <InputNumber style={{ width: '100%' }} min={0} max={365} precision={0} />
             </Form.Item>
           </Col>
@@ -111,7 +111,7 @@ export function ExtrasDrawer({
           <Input placeholder="Contoh: Berjamaah teratur" maxLength={120} />
         </Form.Item>
 
-        {isBulanan && (
+        {isMonthly && (
           <>
             <Col span={24}><SectionDivider>
               Perkembangan Hafalan
@@ -165,7 +165,7 @@ export function ExtrasDrawer({
           name="catatan"
           label="Catatan Utama Musyrif"
           extra={
-            isBulanan ? (
+            isMonthly ? (
               <Space wrap size={4} style={{ marginTop: 6 }}>
                 {CATATAN_TEMPLATES.map((t) => (
                   <Button

@@ -32,7 +32,7 @@ interface BroadcastModalProps {
 export function BroadcastModal({ open, onClose, students }: BroadcastModalProps) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
-  const [templateId, setTemplateId] = useState<WaTemplateId>('laporan')
+  const [templateId, setTemplateId] = useState<WaTemplateId>('report')
   const [customBody, setCustomBody] = useState('')
 
   const statusQuery = useWaSettingsStatus()

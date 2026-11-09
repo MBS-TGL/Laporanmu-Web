@@ -48,15 +48,15 @@ interface CheckStudentResult {
     reported_at: string
     rule_name: string | null
   }[]
-  raports: {
+  report_cards: {
     month: number
     year: number
-    nilai_akhlak: number | null
-    nilai_ibadah: number | null
-    nilai_kebersihan: number | null
-    nilai_quran: number | null
-    nilai_bahasa: number | null
-    catatan: string | null
+    character_score: number | null
+    worship_score: number | null
+    cleanliness_score: number | null
+    quran_score: number | null
+    language_score: number | null
+    notes: string | null
   }[]
   attendance: {
     year: number
@@ -69,10 +69,10 @@ interface CheckStudentResult {
   }[]
   suspensions: {
     id: string
-    jenjang: 'SMP' | 'SMA'
+    level: 'SMP' | 'SMA'
     start_date: string
     end_date: string
-    status: 'aktif' | 'selesai' | 'dibatalkan'
+    status: 'active' | 'completed' | 'cancelled'
   }[]
 }
 
@@ -90,8 +90,8 @@ function formatCode(raw: string): string {
   return parts.join('-')
 }
 
-function avgOf(r: CheckStudentResult['raports'][number]): number | null {
-  const values = [r.nilai_akhlak, r.nilai_ibadah, r.nilai_kebersihan, r.nilai_quran, r.nilai_bahasa].filter(
+function avgOf(r: CheckStudentResult['report_cards'][number]): number | null {
+  const values = [r.character_score, r.worship_score, r.cleanliness_score, r.quran_score, r.language_score].filter(
     (v): v is number => typeof v === 'number',
   )
   if (values.length === 0) return null
@@ -99,9 +99,9 @@ function avgOf(r: CheckStudentResult['raports'][number]): number | null {
 }
 
 const SUSPENSION_STATUS_LABEL: Record<CheckStudentResult['suspensions'][number]['status'], string> = {
-  aktif: 'Aktif',
-  selesai: 'Selesai',
-  dibatalkan: 'Dibatalkan',
+  active: 'Aktif',
+  completed: 'Selesai',
+  cancelled: 'Dibatalkan',
 }
 
 function formatDateID(iso: string): string {
@@ -255,7 +255,7 @@ export function CheckPage() {
             </Row>
           </Card>
 
-          {result.suspensions.some((s) => s.status === 'aktif') && (
+          {result.suspensions.some((s) => s.status === 'active') && (
             <Alert
               type="error"
               showIcon
@@ -312,14 +312,14 @@ export function CheckPage() {
                   ),
                 },
                 {
-                  key: 'raport',
+                  key: 'report-card',
                   label: 'Raport Bulanan',
                   children: (
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      {result.raports.length === 0 && (
+                      {result.report_cards.length === 0 && (
                         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada raport bulanan" />
                       )}
-                      {result.raports.map((r, i) => {
+                      {result.report_cards.map((r, i) => {
                         const avg = avgOf(r)
                         return (
                           <Card key={`${r.year}-${r.month}-${i}`} size="small" style={{ borderRadius: 12 }}>
@@ -333,11 +333,11 @@ export function CheckPage() {
                             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
                               {(
                                 [
-                                  ['Akhlak', r.nilai_akhlak],
-                                  ['Ibadah', r.nilai_ibadah],
-                                  ['Kebersihan', r.nilai_kebersihan],
-                                  ["Al-Qur'an", r.nilai_quran],
-                                  ['Bahasa', r.nilai_bahasa],
+                                  ['Akhlak', r.character_score],
+                                  ['Ibadah', r.worship_score],
+                                  ['Kebersihan', r.cleanliness_score],
+                                  ["Al-Qur'an", r.quran_score],
+                                  ['Bahasa', r.language_score],
                                 ] as const
                               ).map(([label, v]) => (
                                 <Typography.Text key={label} style={{ fontSize: 12.5 }}>
@@ -345,12 +345,12 @@ export function CheckPage() {
                                 </Typography.Text>
                               ))}
                             </div>
-                            {r.catatan && (
+                            {r.notes && (
                               <Typography.Paragraph
                                 type="secondary"
                                 style={{ fontSize: 12, margin: '8px 0 0', fontStyle: 'italic' }}
                               >
-                                “{r.catatan}”
+                                “{r.notes}”
                               </Typography.Paragraph>
                             )}
                           </Card>
@@ -409,7 +409,7 @@ export function CheckPage() {
                     ) : (
                       <Space direction="vertical" size="small" style={{ width: '100%' }}>
                         {result.suspensions.map((s) => {
-                          const active = s.status === 'aktif'
+                          const active = s.status === 'active'
                           return (
                             <Card
                               key={s.id}
@@ -426,9 +426,9 @@ export function CheckPage() {
                                 }}
                               >
                                 <Typography.Text strong style={{ fontSize: 13 }}>
-                                  Skorsing {s.jenjang}
+                                  Skorsing {s.level}
                                 </Typography.Text>
-                                <Tag color={active ? 'red' : s.status === 'selesai' ? 'green' : 'default'}>
+                                <Tag color={active ? 'red' : s.status === 'completed' ? 'green' : 'default'}>
                                   {SUSPENSION_STATUS_LABEL[s.status]}
                                 </Tag>
                               </div>

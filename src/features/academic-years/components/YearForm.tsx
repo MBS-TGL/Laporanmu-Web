@@ -19,8 +19,8 @@ interface FormState extends Omit<YearFormValues, 'start_date' | 'end_date'> {
 }
 
 const SEMESTER_OPTIONS: { value: Semester; label: string }[] = [
-  { value: 'Ganjil', label: 'Ganjil' },
-  { value: 'Genap', label: 'Genap' },
+  { value: 'Odd', label: 'Ganjil' },
+  { value: 'Even', label: 'Genap' },
 ]
 
 export function YearForm({
@@ -37,7 +37,7 @@ export function YearForm({
     if (year) {
       form.setFieldsValue({
         name: year.name,
-        semester: (year.semester as Semester) ?? 'Ganjil',
+        semester: (year.semester as Semester) ?? 'Odd',
         start_date: year.start_date ? dayjs(year.start_date) : undefined,
         end_date: year.end_date ? dayjs(year.end_date) : undefined,
         curriculum: year.curriculum ?? undefined,
@@ -45,7 +45,7 @@ export function YearForm({
       })
     } else {
       form.resetFields()
-      form.setFieldsValue({ semester: 'Ganjil', makeActive: false })
+      form.setFieldsValue({ semester: 'Odd', makeActive: false })
     }
   }, [open, year, form])
 

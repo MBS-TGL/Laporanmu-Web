@@ -3,7 +3,7 @@ import { Alert, Button, Card, Form, Input, Tag, Typography } from 'antd'
 import { SafetyCertificateOutlined, SearchOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { getGradePredicateBulanan } from '../raport/constants'
+import { getGradePredicateMonthly } from '../report-cards/constants'
 import { PublicShell } from './PublicShell'
 import { PortalCard } from './PortalCard'
 
@@ -18,21 +18,21 @@ interface VerifyResult {
   report: {
     month: number
     year: number
-    nilai_akhlak: number | null
-    nilai_ibadah: number | null
-    nilai_kebersihan: number | null
-    nilai_quran: number | null
-    nilai_bahasa: number | null
-    berat_badan: number | null
-    tinggi_badan: number | null
+    character_score: number | null
+    worship_score: number | null
+    cleanliness_score: number | null
+    quran_score: number | null
+    language_score: number | null
+    weight_kg: number | null
+    height_cm: number | null
     ziyadah: string | null
     murojaah: string | null
     total_hafalan: string | null
-    hari_sakit: number
-    hari_izin: number
-    hari_alpa: number
-    hari_pulang: number
-    catatan: string | null
+    sick_days: number
+    excused_days: number
+    absent_days: number
+    early_leave_days: number
+    notes: string | null
     musyrif_name: string | null
   }
 }
@@ -79,7 +79,7 @@ export function VerifyPage() {
     if (!studentId) return
     setLoading(true)
     setError(null)
-    const { data, error: rpcError } = await supabase.rpc('verify_raport', {
+    const { data, error: rpcError } = await supabase.rpc('verify_report', {
       p_student_id: studentId,
       p_month: month,
       p_year: year,
@@ -188,18 +188,18 @@ export function VerifyPage() {
             <tbody>
               {(
                 [
-                  ['Akhlak', result.report.nilai_akhlak],
-                  ['Ibadah', result.report.nilai_ibadah],
-                  ['Kebersihan', result.report.nilai_kebersihan],
-                  ["Al-Qur'an", result.report.nilai_quran],
-                  ['Bahasa', result.report.nilai_bahasa],
+                  ['Akhlak', result.report.character_score],
+                  ['Ibadah', result.report.worship_score],
+                  ['Kebersihan', result.report.cleanliness_score],
+                  ["Al-Qur'an", result.report.quran_score],
+                  ['Bahasa', result.report.language_score],
                 ] as const
               ).map(([label, v]) => (
                 <tr key={label} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '6px 4px', color: '#64748b' }}>{label}</td>
                   <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>{v ?? '—'}</td>
                   <td style={{ padding: '6px 4px', textAlign: 'right', color: '#64748b', width: 120 }}>
-                    {getGradePredicateBulanan(v)}
+                    {getGradePredicateMonthly(v)}
                   </td>
                 </tr>
               ))}
@@ -210,21 +210,21 @@ export function VerifyPage() {
             Presensi & Fisik
           </Typography.Text>
           <Typography.Paragraph style={{ fontSize: 13 }}>
-            Sakit {result.report.hari_sakit} hari · Izin {result.report.hari_izin} hari · Alpa{' '}
-            {result.report.hari_alpa} hari · Pulang {result.report.hari_pulang} hari
+            Sakit {result.report.sick_days} hari · Izin {result.report.excused_days} hari · Alpa{' '}
+            {result.report.absent_days} hari · Pulang {result.report.early_leave_days} hari
             <br />
-            {result.report.berat_badan ? `BB ${result.report.berat_badan} kg · ` : ''}
-            {result.report.tinggi_badan ? `TB ${result.report.tinggi_badan} cm · ` : ''}
+            {result.report.weight_kg ? `BB ${result.report.weight_kg} kg · ` : ''}
+            {result.report.height_cm ? `TB ${result.report.height_cm} cm · ` : ''}
             {result.report.total_hafalan ? `Hafalan ${result.report.total_hafalan}` : ''}
           </Typography.Paragraph>
 
-          {result.report.catatan && (
+          {result.report.notes && (
             <>
               <Typography.Text strong style={{ display: 'block', margin: '8px 0 4px' }}>
                 Catatan Pembina
               </Typography.Text>
               <Typography.Paragraph italic style={{ fontSize: 13 }}>
-                “{result.report.catatan}”
+                “{result.report.notes}”
               </Typography.Paragraph>
             </>
           )}

@@ -1,5 +1,5 @@
-export type DormGender = 'putra' | 'putri' | 'campur'
-export type DormStatus = 'aktif' | 'penuh' | 'nonaktif'
+export type DormGender = 'male' | 'female' | 'mixed'
+export type DormStatus = 'active' | 'full' | 'inactive'
 
 export interface Dorm {
   id: string

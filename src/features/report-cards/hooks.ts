@@ -8,8 +8,8 @@ import {
   fetchBehaviorForMonth,
   fetchMonthlyRows,
   fetchMonthlyRowsForMonth,
-  fetchRaportClasses,
-  fetchRaportStudents,
+  fetchReportCardClasses,
+  fetchReportCardStudents,
   fetchSchoolSettings,
   fetchSemesterRows,
   upsertMonthlyRows,
@@ -23,25 +23,25 @@ import type {
   SemesterType,
 } from './types'
 
-export function useRaportClasses() {
+export function useReportCardClasses() {
   return useQuery({
-    queryKey: ['raport', 'classes'],
-    queryFn: fetchRaportClasses,
+    queryKey: ['report-cards', 'classes'],
+    queryFn: fetchReportCardClasses,
     staleTime: 60_000,
   })
 }
 
-export function useRaportStudents(classId: string | undefined) {
+export function useReportCardStudents(classId: string | undefined) {
   return useQuery({
-    queryKey: ['raport', 'students', classId],
-    queryFn: () => fetchRaportStudents(classId as string),
+    queryKey: ['report-cards', 'students', classId],
+    queryFn: () => fetchReportCardStudents(classId as string),
     enabled: !!classId,
   })
 }
 
 export function useAllStudentClasses() {
   return useQuery({
-    queryKey: ['raport', 'student-classes'],
+    queryKey: ['report-cards', 'student-classes'],
     queryFn: fetchAllStudentClasses,
     staleTime: 60_000,
   })
@@ -49,7 +49,7 @@ export function useAllStudentClasses() {
 
 export function useMonthlyRows(studentIds: string[], month: number, year: number) {
   return useQuery({
-    queryKey: ['raport', 'monthly', year, month, studentIds.length, studentIds[0]],
+    queryKey: ['report-cards', 'monthly', year, month, studentIds.length, studentIds[0]],
     queryFn: () => fetchMonthlyRows(studentIds, month, year),
     enabled: studentIds.length > 0,
   })
@@ -57,14 +57,14 @@ export function useMonthlyRows(studentIds: string[], month: number, year: number
 
 export function useMonthlyRowsForMonth(month: number, year: number) {
   return useQuery({
-    queryKey: ['raport', 'monthly-overview', year, month],
+    queryKey: ['report-cards', 'monthly-overview', year, month],
     queryFn: () => fetchMonthlyRowsForMonth(month, year),
   })
 }
 
 export function useAllMonthlyRows() {
   return useQuery({
-    queryKey: ['raport', 'monthly-all'],
+    queryKey: ['report-cards', 'monthly-all'],
     queryFn: fetchAllMonthlyRows,
   })
 }
@@ -76,7 +76,7 @@ export function useSemesterRows(
   academicYearId: string | undefined,
 ) {
   return useQuery({
-    queryKey: ['raport', 'semester', reportType, semester, academicYearId, studentIds.length, studentIds[0]],
+    queryKey: ['report-cards', 'semester', reportType, semester, academicYearId, studentIds.length, studentIds[0]],
     queryFn: () => fetchSemesterRows(studentIds, reportType, semester, academicYearId as string),
     enabled: studentIds.length > 0 && !!academicYearId,
   })
@@ -84,14 +84,14 @@ export function useSemesterRows(
 
 export function useAllSemesterRows(reportType: SemesterType) {
   return useQuery({
-    queryKey: ['raport', 'semester-overview', reportType],
+    queryKey: ['report-cards', 'semester-overview', reportType],
     queryFn: () => fetchAllSemesterRows(reportType),
   })
 }
 
 export function useBehaviorForMonth(studentIds: string[], startDate: string, endDate: string) {
   return useQuery({
-    queryKey: ['raport', 'behavior', startDate, studentIds.length, studentIds[0]],
+    queryKey: ['report-cards', 'behavior', startDate, studentIds.length, studentIds[0]],
     queryFn: () => fetchBehaviorForMonth(studentIds, startDate, endDate),
     enabled: studentIds.length > 0,
   })
@@ -102,7 +102,7 @@ export function useSaveMonthly() {
   return useMutation({
     mutationFn: (payload: MonthlyReportPayload[]) => upsertMonthlyRows(payload),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['raport'] })
+      void qc.invalidateQueries({ queryKey: ['report-cards'] })
     },
   })
 }
@@ -112,7 +112,7 @@ export function useSaveSemester() {
   return useMutation({
     mutationFn: (payload: SemesterReportPayload[]) => upsertSemesterRows(payload),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['raport'] })
+      void qc.invalidateQueries({ queryKey: ['report-cards'] })
     },
   })
 }
@@ -123,7 +123,7 @@ export function useResetMonthlyPeriod() {
     mutationFn: ({ studentIds, month, year }: { studentIds: string[]; month: number; year: number }) =>
       deleteMonthlyPeriod(studentIds, month, year),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['raport'] })
+      void qc.invalidateQueries({ queryKey: ['report-cards'] })
     },
   })
 }
@@ -143,7 +143,7 @@ export function useResetSemesterPeriod() {
       academicYearId: string
     }) => deleteSemesterPeriod(studentIds, reportType, semester, academicYearId),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['raport'] })
+      void qc.invalidateQueries({ queryKey: ['report-cards'] })
     },
   })
 }

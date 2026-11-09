@@ -45,21 +45,21 @@ import type {
 } from './types'
 
 const CATEGORY_LABEL: Record<CounselingCategory, string> = {
-  pribadi: 'Pribadi',
-  sosial: 'Sosial',
-  akademik: 'Belajar',
-  karir: 'Karir',
+  personal: 'Pribadi',
+  social: 'Sosial',
+  academic: 'Belajar',
+  career: 'Karir',
 }
 
 const URGENCY_META: Record<CounselingUrgency, { label: string; color: string }> = {
-  ringan: { label: 'Ringan', color: 'green' },
-  sedang: { label: 'Sedang', color: 'orange' },
-  tinggi: { label: 'Tinggi', color: 'red' },
+  low: { label: 'Ringan', color: 'green' },
+  medium: { label: 'Sedang', color: 'orange' },
+  high: { label: 'Tinggi', color: 'red' },
 }
 
 const STATUS_META: Record<CounselingStatus, { label: string; color: string }> = {
-  proses: { label: 'Dalam Proses', color: 'gold' },
-  selesai: { label: 'Selesai', color: 'green' },
+  in_progress: { label: 'Dalam Proses', color: 'gold' },
+  completed: { label: 'Selesai', color: 'green' },
 }
 
 interface CounselingFormShape {
@@ -191,11 +191,11 @@ export function CounselingPage() {
             size="small"
             onClick={() =>
               statusMutation.mutate(
-                { id: l.id, status: v === 'proses' ? 'selesai' : 'proses' },
+                { id: l.id, status: v === 'in_progress' ? 'completed' : 'in_progress' },
                 {
                   onSuccess: () =>
                     message.success(
-                      v === 'proses' ? 'Sesi ditandai selesai' : 'Sesi kembali dalam proses',
+                      v === 'in_progress' ? 'Sesi ditandai selesai' : 'Sesi kembali dalam proses',
                     ),
                   onError: (err: Error) => message.error(err.message || 'Gagal memperbarui status'),
                 },
@@ -232,8 +232,8 @@ export function CounselingPage() {
     },
   ]
 
-  const activeCount = logs.filter((l) => l.status === 'proses').length
-  const highUrgency = logs.filter((l) => l.urgency === 'tinggi' && l.status === 'proses').length
+  const activeCount = logs.filter((l) => l.status === 'in_progress').length
+  const highUrgency = logs.filter((l) => l.urgency === 'high' && l.status === 'in_progress').length
 
   return (
     <div>
@@ -355,9 +355,9 @@ function CounselingFormModal({
         counselor_name: defaultCounselor,
         date: dayjs(),
         time: dayjs(),
-        category: 'pribadi',
-        urgency: 'ringan',
-        status: 'proses',
+        category: 'personal',
+        urgency: 'low',
+        status: 'in_progress',
       })
     }
   }, [open, form, defaultCounselor])

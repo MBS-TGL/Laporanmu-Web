@@ -70,7 +70,7 @@ function saveDismissed(records: DismissRecord) {
 }
 
 // ─── Pemeriksa raport bulanan (kelas belum diisi bulan lalu, tgl 1–14) ──────
-async function checkMonthlyRaport(
+async function checkMonthlyReportCards(
   month: number,
   year: number,
   label: string,
@@ -79,7 +79,7 @@ async function checkMonthlyRaport(
     const { data: allStudents } = await supabase
       .from('students')
       .select('id, class_id')
-      .eq('status', 'aktif')
+      .eq('status', 'active')
       .is('deleted_at', null)
     if (!allStudents?.length) return null
 
@@ -154,15 +154,15 @@ export function useNotifications() {
 
     try {
       // Semua pemeriksaan berjalan paralel — saling independen
-      const [raportNotif, noClassRes, activeYearsRes, noTeacherRes, violationRes, noPhoneRes] =
+      const [reportCardNotif, noClassRes, activeYearsRes, noTeacherRes, violationRes, noPhoneRes] =
         await Promise.all([
           day <= 14
-            ? checkMonthlyRaport(prevMonth, prevYear, prevMonthStr)
+            ? checkMonthlyReportCards(prevMonth, prevYear, prevMonthStr)
             : Promise.resolve(null),
           supabase
             .from('students')
             .select('id', { count: 'exact', head: true })
-            .eq('status', 'aktif')
+            .eq('status', 'active')
             .is('class_id', null)
             .is('deleted_at', null),
           supabase
@@ -189,7 +189,7 @@ export function useNotifications() {
 
       const items: AppNotification[] = []
 
-      if (raportNotif) items.push(raportNotif)
+      if (reportCardNotif) items.push(reportCardNotif)
 
       if (noClassRes.count && noClassRes.count > 0) {
         items.push({

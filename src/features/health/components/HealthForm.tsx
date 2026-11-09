@@ -46,7 +46,7 @@ export function HealthForm({ open, medicines, submitting, onCancel, onSubmit }: 
     form.setFieldsValue({
       date: dayjs(),
       time: dayjs(),
-      status: 'Kembali',
+      status: 'Returned',
       useMedicine: false,
       medicine_qty: 1,
     })
@@ -193,8 +193,8 @@ export function HealthForm({ open, medicines, submitting, onCancel, onSubmit }: 
           <Segmented
             options={[
               { label: 'Rawat di UKS', value: 'UKS' },
-              { label: 'Rest di Asrama', value: 'Asrama' },
-              { label: 'Kembali KBM', value: 'Kembali' },
+              { label: 'Rest di Asrama', value: 'Dormitory' },
+              { label: 'Kembali KBM', value: 'Returned' },
             ]}
           />
         </Form.Item>

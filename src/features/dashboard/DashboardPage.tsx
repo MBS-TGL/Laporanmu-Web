@@ -24,12 +24,12 @@ import {
 import { PageHeader } from '../../shared/components/PageHeader'
 import { supabase } from '../../lib/supabase'
 
-const STATUS_ORDER = ['aktif', 'lulus', 'pindah', 'keluar'] as const
+const STATUS_ORDER = ['active', 'graduated', 'transferred', 'left'] as const
 const STATUS_LABEL: Record<string, string> = {
-  aktif: 'Aktif',
-  lulus: 'Lulus',
-  pindah: 'Pindah',
-  keluar: 'Keluar',
+  active: 'Aktif',
+  graduated: 'Lulus',
+  transferred: 'Pindah',
+  left: 'Keluar',
 }
 
 async function fetchActiveCount(table: 'students' | 'teachers' | 'classes' | 'dorms'): Promise<number> {
@@ -88,7 +88,7 @@ async function fetchLowestPoints(): Promise<LowPointStudent[]> {
 
 interface RecentGateLog {
   id: string
-  direction: 'keluar' | 'masuk'
+  direction: 'left' | 'masuk'
   occurred_at: string
   student?: { name: string } | null
 }
@@ -179,18 +179,18 @@ export function DashboardPage() {
   )
 
   const trendData = useMemo(() => {
-    const map = new Map<string, { pelanggaran: number; prestasi: number }>()
+    const map = new Map<string, { violations: number; achievements: number }>()
     for (const report of monthlyQuery.data ?? []) {
       const key = dayjs(report.reported_at).format('YYYY-MM-DD')
-      const entry = map.get(key) ?? { pelanggaran: 0, prestasi: 0 }
-      if (report.points < 0) entry.pelanggaran += 1
-      else entry.prestasi += 1
+      const entry = map.get(key) ?? { violations: 0, achievements: 0 }
+      if (report.points < 0) entry.violations += 1
+      else entry.achievements += 1
       map.set(key, entry)
     }
-    const days: { date: string; pelanggaran: number; prestasi: number }[] = []
+    const days: { date: string; violations: number; achievements: number }[] = []
     for (let i = 29; i >= 0; i--) {
       const date = dayjs().subtract(i, 'day').format('YYYY-MM-DD')
-      days.push({ date, ...(map.get(date) ?? { pelanggaran: 0, prestasi: 0 }) })
+      days.push({ date, ...(map.get(date) ?? { violations: 0, achievements: 0 }) })
     }
     return days
   }, [monthlyQuery.data])
@@ -335,7 +335,7 @@ export function DashboardPage() {
               renderItem={(item) => (
                 <List.Item
                   actions={[
-                    item.direction === 'keluar' ? (
+                    item.direction === 'left' ? (
                       <Tag key="dir" color="orange">Keluar</Tag>
                     ) : (
                       <Tag key="dir" color="green">Masuk</Tag>

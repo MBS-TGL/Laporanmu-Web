@@ -1,8 +1,9 @@
-import { theme } from 'antd'
+import { theme, Tooltip } from 'antd'
 import {
   CrownFilled,
   ExclamationCircleOutlined,
   FallOutlined,
+  FileDoneOutlined,
   ManOutlined,
   RiseOutlined,
   TeamOutlined,
@@ -24,6 +25,8 @@ interface StatsRowProps {
   onMissing: (m: MissingField) => void
   /** klik kelas terendah → filter kelas tersebut */
   onWorstClass: (classId: string) => void
+  /** klik kelas dengan kelengkapan terendah → filter kelas + "belum lengkap" */
+  onWorstCompleteness: (classId: string) => void
 }
 
 /** Baris chip statistik + strip insight Terbaik/Terendah */
@@ -37,10 +40,12 @@ export function StatsRow({
   onPointMode,
   onMissing,
   onWorstClass,
+  onWorstCompleteness,
 }: StatsRowProps) {
   const { token } = theme.useToken()
   const trend = stats?.trend7d
   const worst = stats?.worstClass
+  const worstCompl = stats?.worstCompleteness
 
   return (
     <div style={{ marginBottom: 14 }}>
@@ -55,7 +60,7 @@ export function StatsRow({
         <StatChip
           icon={<ManOutlined />}
           label="Putra"
-          value={stats?.putra ?? '–'}
+          value={stats?.male ?? '–'}
           color="sky"
           loading={loading}
           active={gender === 'L'}
@@ -64,7 +69,7 @@ export function StatsRow({
         <StatChip
           icon={<WomanOutlined />}
           label="Putri"
-          value={stats?.putri ?? '–'}
+          value={stats?.female ?? '–'}
           color="rose"
           loading={loading}
           active={gender === 'P'}
@@ -109,7 +114,7 @@ export function StatsRow({
         )}
       </div>
 
-      {(stats?.topPerformer || worst) && (
+      {(stats?.topPerformer || worst || worstCompl) && (
         <div
           style={{
             display: 'flex',
@@ -152,6 +157,46 @@ export function StatsRow({
               <span style={{ fontWeight: 600, color: '#dc2626' }}>{worst.name}</span>
               <span style={{ fontWeight: 700, color: '#dc2626' }}>({worst.avg})</span>
             </button>
+          )}
+          {worstCompl && (
+            <Tooltip
+              title={
+                <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>Kelengkapan data per kelas</div>
+                  {(stats?.classCompleteness ?? []).map((c) => (
+                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                      <span>{c.name}</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {c.percent}% · {c.incomplete}/{c.total} belum lengkap
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 4, opacity: 0.75 }}>Klik untuk filter kelas ini</div>
+                </div>
+              }
+            >
+              <button
+                type="button"
+                onClick={() => onWorstCompleteness(worstCompl.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  font: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                <FileDoneOutlined style={{ color: '#f59e0b' }} />
+                <span style={{ color: token.colorTextSecondary }}>Kelengkapan:</span>
+                <span style={{ fontWeight: 600, color: '#f59e0b' }}>{worstCompl.name}</span>
+                <span style={{ fontWeight: 700, color: '#f59e0b' }}>
+                  {worstCompl.percent}% ({worstCompl.incomplete}/{worstCompl.total})
+                </span>
+              </button>
+            </Tooltip>
           )}
         </div>
       )}

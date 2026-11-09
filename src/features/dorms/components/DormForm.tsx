@@ -14,15 +14,15 @@ interface DormFormProps {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'aktif', label: 'Aktif' },
-  { value: 'penuh', label: 'Penuh' },
-  { value: 'nonaktif', label: 'Nonaktif' },
+  { value: 'active', label: 'Aktif' },
+  { value: 'full', label: 'Penuh' },
+  { value: 'inactive', label: 'Nonaktif' },
 ]
 
 const GENDER_OPTIONS = [
-  { value: 'putra', label: 'Putra' },
-  { value: 'putri', label: 'Putri' },
-  { value: 'campur', label: 'Campur' },
+  { value: 'male', label: 'Putra' },
+  { value: 'female', label: 'Putri' },
+  { value: 'mixed', label: 'Campur' },
 ]
 
 export function DormForm({ open, dorm, submitting, onCancel, onSubmit }: DormFormProps) {
@@ -37,11 +37,11 @@ export function DormForm({ open, dorm, submitting, onCancel, onSubmit }: DormFor
         gender: dorm.gender ?? undefined,
         capacity: dorm.capacity,
         musyrif_id: dorm.musyrif_id ?? undefined,
-        status: dorm.status ?? 'aktif',
+        status: dorm.status ?? 'active',
       })
     } else {
       form.resetFields()
-      form.setFieldsValue({ status: 'aktif', capacity: 1, gender: undefined })
+      form.setFieldsValue({ status: 'active', capacity: 1, gender: undefined })
     }
   }, [open, dorm, form])
 

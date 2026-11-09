@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Alert, App, Button, Typography } from 'antd'
-import { IdcardOutlined, PrinterOutlined } from '@ant-design/icons'
+import { Alert, App, Button, Popconfirm, Typography } from 'antd'
+import { IdcardOutlined, KeyOutlined, PrinterOutlined } from '@ant-design/icons'
 import { QRCodeCanvas } from 'qrcode.react'
 import { AppModal } from '../../../shared/components/AppModal'
+import { useGenerateStudentPins } from '../hooks'
 import { GENDER_LABEL } from '../status'
 import type { Student } from '../types'
 
@@ -53,9 +54,46 @@ interface CardModalProps {
 
 export function CardModal({ open, onClose, students }: CardModalProps) {
   const { message } = App.useApp()
-  const visible = students.slice(0, MAX_CARDS)
+  const generatePins = useGenerateStudentPins()
+  // PIN hasil generate ditempelkan lokal agar kartu langsung menampilkan
+  // PIN baru tanpa menunggu refetch daftar siswa di halaman
+  const [pinOverrides, setPinOverrides] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    // reset hanya saat modal dibuka — JANGAN bergantung pada students:
+    // refetch daftar siswa (invalidasi query) membuat array props baru
+    // dan akan menghapus override PIN yang baru dibuat
+    if (open) setPinOverrides(new Map())
+  }, [open])
+
+  const visible = students.slice(0, MAX_CARDS).map((s) => {
+    const override = pinOverrides.get(s.id)
+    return override ? { ...s, pin: override } : s
+  })
   const overflow = students.length - visible.length
-  const missingPin = visible.filter((s) => !s.pin).length
+  const missingPinStudents = visible.filter((s) => !s.pin)
+  const missingPin = missingPinStudents.length
+  const hasPinCount = visible.length - missingPin
+
+  const handleGenerate = (targets: Student[]) => {
+    if (targets.length === 0) return
+    generatePins.mutate(
+      targets.map((s) => s.id),
+      {
+        onSuccess: (results) => {
+          setPinOverrides((prev) => {
+            const next = new Map(prev)
+            for (const r of results) next.set(r.student_id, r.new_pin)
+            return next
+          })
+          message.success(
+            results.length === 1 ? 'PIN berhasil dibuat' : `${results.length} PIN berhasil dibuat`,
+          )
+        },
+        onError: (err: Error) => message.error(err.message || 'Gagal membuat PIN'),
+      },
+    )
+  }
 
   // Cetak via portal ke <body>: elemen kartu keluar dari struktur modal sehingga
   // posisi cetak selalu pojok kiri atas halaman (tidak ikut posisi/scroll modal)
@@ -142,14 +180,73 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
         />
       )}
 
+      {students.length === 1 && visible[0] && (
+        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          {visible[0].pin ? (
+            <Popconfirm
+              title="Buat ulang PIN?"
+              description="PIN lama berhenti berlaku — kartu yang sudah tercetak harus dicetak ulang."
+              okText="Buat Ulang"
+              cancelText="Batal"
+              onConfirm={() => handleGenerate([visible[0]])}
+            >
+              <Button icon={<KeyOutlined />} loading={generatePins.isPending}>
+                Buat Ulang PIN
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button
+              type="primary"
+              ghost
+              icon={<KeyOutlined />}
+              loading={generatePins.isPending}
+              onClick={() => handleGenerate([visible[0]])}
+            >
+              Buat PIN
+            </Button>
+          )}
+        </div>
+      )}
+
       {missingPin > 0 && students.length > 1 && (
         <Alert
           type="warning"
           showIcon
+          icon={<KeyOutlined />}
           style={{ marginBottom: 12, borderRadius: 10 }}
           message={`${missingPin} siswa belum memiliki PIN`}
-          description="Wali memakai PIN untuk masuk ke portal. Atur PIN lewat form siswa sebelum kartu dibagikan."
+          description={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span>Wali memakai PIN untuk masuk ke portal — buat PIN sebelum kartu dibagikan.</span>
+              <Button
+                size="small"
+                type="primary"
+                ghost
+                icon={<KeyOutlined />}
+                loading={generatePins.isPending}
+                onClick={() => handleGenerate(missingPinStudents)}
+              >
+                Buat PIN untuk {missingPin} siswa
+              </Button>
+            </div>
+          }
         />
+      )}
+
+      {hasPinCount > 0 && students.length > 1 && (
+        <div style={{ marginBottom: 12, textAlign: 'right' }}>
+          <Popconfirm
+            title="Buat ulang semua PIN?"
+            description={`${hasPinCount} PIN yang sudah ada akan diganti — kartu tercetak harus dicetak ulang.`}
+            okText="Buat Ulang Semua"
+            cancelText="Batal"
+            onConfirm={() => handleGenerate(visible)}
+          >
+            <Button size="small" icon={<KeyOutlined />} loading={generatePins.isPending}>
+              Buat Ulang Semua PIN ({hasPinCount})
+            </Button>
+          </Popconfirm>
+        </div>
       )}
 
       <div className="student-card-print-root">{cards}</div>

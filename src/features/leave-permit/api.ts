@@ -63,7 +63,7 @@ export async function confirmDeparture(
     .from('gate_logs')
     .insert({
       student_id: permit.student_id,
-      direction: 'keluar',
+      direction: 'exit',
       occurred_at: new Date().toISOString(),
       recorded_by: recordedBy,
       note: `Izin pulang: ${permit.destination} — ${permit.purpose}`,
@@ -88,6 +88,6 @@ export async function confirmReturn(permit: import('./types').LeavePermit): Prom
     .eq('id', permit.id)
   if (error) throw error
   if (permit.gate_log_id) {
-    await supabase.from('gate_logs').update({ direction: 'masuk' }).eq('id', permit.gate_log_id)
+    await supabase.from('gate_logs').update({ direction: 'entry' }).eq('id', permit.gate_log_id)
   }
 }

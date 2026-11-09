@@ -1,4 +1,4 @@
-export type GateDirection = 'keluar' | 'masuk'
+export type GateDirection = 'exit' | 'entry'
 
 export interface GateLog {
   id: string

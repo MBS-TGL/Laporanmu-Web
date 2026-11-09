@@ -21,7 +21,7 @@ interface FormState extends Omit<TeacherFormValues, 'join_date'> {
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Aktif' },
   { value: 'inactive', label: 'Nonaktif' },
-  { value: 'cuti', label: 'Cuti' },
+  { value: 'on_leave', label: 'Cuti' },
 ]
 
 export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: TeacherFormProps) {

@@ -49,7 +49,7 @@ export function CardsModal({
 
   const list = useMemo(() => {
     if (scope === 'filter') return filteredRows
-    if (scope === 'active') return allStudents.filter((s) => s.status === 'aktif')
+    if (scope === 'active') return allStudents.filter((s) => s.status === 'active')
     if (!classId) return []
     return allStudents.filter((s) => s.class_id === classId)
   }, [scope, filteredRows, allStudents, classId])
@@ -61,7 +61,7 @@ export function CardsModal({
       value === 'filter'
         ? filteredRows.length
         : value === 'active'
-          ? allStudents.filter((s) => s.status === 'aktif').length
+          ? allStudents.filter((s) => s.status === 'active').length
           : null
     return (
       <span>
@@ -129,7 +129,7 @@ export function CardsModal({
 
       {list.length > 0 && missingPin > 0 && (
         <Text type="warning" style={{ display: 'block', marginTop: 14, fontSize: 12.5 }}>
-          {missingPin} dari {list.length} siswa belum memiliki PIN — atur lewat form siswa sebelum kartu dibagikan.
+          {missingPin} dari {list.length} siswa belum memiliki PIN — PIN bisa dibuat otomatis di layar kartu sebelum dibagikan.
         </Text>
       )}
     </AppModal>

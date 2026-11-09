@@ -23,11 +23,11 @@ interface AssignFormValues {
   dormId: string
 }
 
-const GENDER_OF_ROOM: Record<string, 'L' | 'P'> = { putra: 'L', putri: 'P' }
+const GENDER_OF_ROOM: Record<string, 'L' | 'P'> = { male: 'L', female: 'P' }
 
 /** Gender santri cocok dengan kamar? campur = bebas, santri tanpa gender = bebas */
 function genderMatches(room: DormRoom, student: Placement): boolean {
-  if (room.gender === null || room.gender === 'campur') return true
+  if (room.gender === null || room.gender === 'mixed') return true
   if (!student.gender) return true
   // Santri yang sudah berada di kamar ini tidak dinilai ulang (tidak berubah okupansi)
   if (student.dorm_id === room.id) return true

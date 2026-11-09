@@ -6,15 +6,18 @@ import {
   deleteStudentsBulk,
   fetchArchivedStudents,
   fetchExistingStudentCodes,
+  fetchStudentGuardians,
   fetchStudentStats,
   fetchStudents,
   fetchWaSettingsStatus,
+  generateStudentPins,
   graduateStudentsBulk,
   moveStudentsBulk,
   resetPoints,
   restoreStudent,
   restoreStudentsBulk,
   revertGraduation,
+  saveStudentGuardians,
   sendWaBroadcast,
   softDeleteStudent,
   updateStudent,
@@ -22,7 +25,7 @@ import {
   updateWaSettings,
   type WaRecipient,
 } from './api'
-import type { StudentFilters, StudentFormValues } from './types'
+import type { StudentFilters, StudentFormValues, StudentGuardianInput } from './types'
 
 export interface ClassBrief {
   id: string
@@ -35,7 +38,7 @@ export function useAlumni(search: string) {
     queryKey: ['students', 'alumni', search],
     queryFn: async () => {
       const { data } = await fetchStudents({
-        status: 'lulus',
+        status: 'graduated',
         search: search || undefined,
         sortBy: 'graduated_desc',
         page: 1,
@@ -240,6 +243,54 @@ export function useUpdateStudentPhoto() {
       // Nilai foto (base64 besar) tidak di-log — cukup penanda perubahan
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', recordId: variables.id, newData: { photo_url: true } })
       void qc.invalidateQueries({ queryKey: ['students'] })
+    },
+  })
+}
+
+export function useGenerateStudentPins() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => generateStudentPins(ids),
+    onSuccess: (results) => {
+      // Nilai PIN tidak di-log — cukup jumlah yang dibuat (pola foto)
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'students',
+        newData: { pins_generated: results.length },
+      })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+    },
+  })
+}
+
+// ------------------------------------------------------------
+// Data orang tua/wali (student_guardians — migration 0020)
+// ------------------------------------------------------------
+
+export function useStudentGuardians(studentId: string | null | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['student-guardians', studentId],
+    queryFn: () => fetchStudentGuardians(studentId as string),
+    enabled: enabled && !!studentId,
+  })
+}
+
+export function useSaveStudentGuardians() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ studentId, rows }: { studentId: string; rows: StudentGuardianInput[] }) =>
+      saveStudentGuardians(studentId, rows),
+    onSuccess: (_data, { studentId, rows }) => {
+      // NIK/penghasilan tidak di-log — cukup ringkasan perubahan
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'student_guardians',
+        recordId: studentId,
+        newData: { guardians_saved: rows.length },
+      })
+      void qc.invalidateQueries({ queryKey: ['student-guardians', studentId] })
     },
   })
 }

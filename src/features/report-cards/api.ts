@@ -3,8 +3,8 @@ import type {
   BehaviorItem,
   MonthlyReport,
   MonthlyReportPayload,
-  RaportClass,
-  RaportStudent,
+  ReportCardClass,
+  ReportCardStudent,
   SchoolSettings,
   SemesterReport,
   SemesterReportPayload,
@@ -14,7 +14,7 @@ import type {
 // ------------------------------------------------------------
 // Kelas & siswa
 // ------------------------------------------------------------
-export async function fetchRaportClasses(): Promise<RaportClass[]> {
+export async function fetchReportCardClasses(): Promise<ReportCardClass[]> {
   const { data, error } = await supabase
     .from('classes')
     .select('id, name, grade, homeroom_teacher_id, academic_year_id, homeroom_teacher:teachers!classes_homeroom_teacher_id_fkey(name)')
@@ -22,10 +22,10 @@ export async function fetchRaportClasses(): Promise<RaportClass[]> {
     .order('name')
 
   if (error) throw error
-  return (data ?? []) as unknown as RaportClass[]
+  return (data ?? []) as unknown as ReportCardClass[]
 }
 
-export async function fetchRaportStudents(classId: string): Promise<RaportStudent[]> {
+export async function fetchReportCardStudents(classId: string): Promise<ReportCardStudent[]> {
   const { data, error } = await supabase
     .from('students')
     .select('id, name, registration_code, gender, dorm_id, guardian_name, dorms(name)')
@@ -34,7 +34,7 @@ export async function fetchRaportStudents(classId: string): Promise<RaportStuden
     .order('name')
 
   if (error) throw error
-  return (data ?? []) as unknown as RaportStudent[]
+  return (data ?? []) as unknown as ReportCardStudent[]
 }
 
 // Peta siswa aktif → kelas (untuk agregasi progres dashboard/arsip)
@@ -100,7 +100,7 @@ export async function deleteMonthlyPeriod(studentIds: string[], month: number, y
 export async function fetchMonthlyRowsForMonth(month: number, year: number): Promise<MonthlyReport[]> {
   const { data, error } = await supabase
     .from('student_monthly_reports')
-    .select('student_id, month, year, nilai_akhlak, nilai_ibadah, nilai_kebersihan, nilai_quran, nilai_bahasa')
+    .select('student_id, month, year, character_score, worship_score, cleanliness_score, quran_score, language_score')
     .eq('month', month)
     .eq('year', year)
 
@@ -112,7 +112,7 @@ export async function fetchMonthlyRowsForMonth(month: number, year: number): Pro
 export async function fetchAllMonthlyRows(): Promise<MonthlyReport[]> {
   const { data, error } = await supabase
     .from('student_monthly_reports')
-    .select('student_id, month, year, musyrif_name, nilai_akhlak, nilai_ibadah, nilai_kebersihan, nilai_quran, nilai_bahasa')
+    .select('student_id, month, year, musyrif_name, character_score, worship_score, cleanliness_score, quran_score, language_score')
     .order('year', { ascending: false })
     .order('month', { ascending: false })
 
@@ -219,7 +219,7 @@ export async function fetchBehaviorForMonth(
 export async function fetchSchoolSettings(): Promise<SchoolSettings> {
   const { data, error } = await supabase
     .from('school_settings')
-    .select('school_name, school_address, headmaster_name, pengasuh_name, color_primary, color_secondary')
+    .select('school_name, school_address, headmaster_name, caretaker_name, color_primary, color_secondary')
     .eq('id', true)
     .single()
 

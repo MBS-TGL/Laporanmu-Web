@@ -30,7 +30,7 @@ export function GraduateModal({ open, onClose, students, onGraduated }: Graduate
     return [...counts.entries()].map(([name, count]) => ({ name, count }))
   }, [students])
 
-  const alreadyGraduated = students.filter((s) => s.status === 'lulus').length
+  const alreadyGraduated = students.filter((s) => s.status === 'graduated').length
 
   const handleSubmit = () => {
     if (!graduationYear || students.length === 0) return

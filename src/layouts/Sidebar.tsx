@@ -42,7 +42,7 @@ const DEFAULT_GROUPS_OPEN: Record<string, boolean> = {
   master: true,
   behavior: true,
   boarding: true,
-  raport: true,
+  'report-cards': true,
   gate: true,
   settings: true,
 }

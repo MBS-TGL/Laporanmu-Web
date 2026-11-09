@@ -36,13 +36,13 @@ import {
   calcAverage,
   getCriteria,
   isComplete,
-  RAPORT_TYPE_LABEL,
+  REPORT_CARD_TYPE_LABEL,
 } from './constants'
 import {
   useBehaviorForMonth,
   useMonthlyRows,
-  useRaportClasses,
-  useRaportStudents,
+  useReportCardClasses,
+  useReportCardStudents,
   useResetMonthlyPeriod,
   useResetSemesterPeriod,
   useSaveMonthly,
@@ -52,19 +52,19 @@ import {
 import type {
   MonthlyDraft,
   MonthlyReportPayload,
-  RaportStudent,
-  RaportType,
+  ReportCardStudent,
+  ReportCardType,
   SemesterDraft,
   SemesterReportPayload,
   SemesterType,
 } from './types'
 
-const BULANAN_KEYS = [
-  'nilai_akhlak',
-  'nilai_ibadah',
-  'nilai_kebersihan',
-  'nilai_quran',
-  'nilai_bahasa',
+const MONTHLY_KEYS = [
+  'character_score',
+  'worship_score',
+  'cleanliness_score',
+  'quran_score',
+  'language_score',
 ] as const
 
 const omitKeys = <T,>(obj: Record<string, T>, keys: string[]): Record<string, T> => {
@@ -79,39 +79,39 @@ export function InputPage() {
   const [searchParams] = useSearchParams()
   const { canWrite, canDelete } = usePermissions()
 
-  const jenisRaw = searchParams.get('jenis') as RaportType | null
-  const jenis: RaportType = jenisRaw && jenisRaw in RAPORT_TYPE_LABEL ? jenisRaw : 'bulanan'
-  const bulan = Number(searchParams.get('bulan')) || new Date().getMonth() + 1
-  const tahun = Number(searchParams.get('tahun')) || new Date().getFullYear()
+  const typeRaw = searchParams.get('type') as ReportCardType | null
+  const type: ReportCardType = typeRaw && typeRaw in REPORT_CARD_TYPE_LABEL ? typeRaw : 'monthly'
+  const month = Number(searchParams.get('month')) || new Date().getMonth() + 1
+  const year = Number(searchParams.get('year')) || new Date().getFullYear()
   const semester = (searchParams.get('semester') === '2' ? 2 : 1) as 1 | 2
-  const ta = searchParams.get('ta') ?? ''
+  const ay = searchParams.get('ay') ?? ''
   const musyrif = searchParams.get('musyrif') ?? ''
 
-  const classesQuery = useRaportClasses()
+  const classesQuery = useReportCardClasses()
   const classRow = (classesQuery.data ?? []).find((c) => c.id === classId)
   const grade = classRow?.grade ?? null
 
-  const studentsQuery = useRaportStudents(classId || undefined)
+  const studentsQuery = useReportCardStudents(classId || undefined)
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data])
   const studentIds = useMemo(() => students.map((s) => s.id), [students])
 
-  const isBulanan = jenis === 'bulanan'
-  const prevMonth = bulan === 1 ? 12 : bulan - 1
-  const prevYear = bulan === 1 ? tahun - 1 : tahun
+  const isMonthly = type === 'monthly'
+  const prevMonth = month === 1 ? 12 : month - 1
+  const prevYear = month === 1 ? year - 1 : year
 
-  const monthlyQuery = useMonthlyRows(studentIds, bulan, tahun)
+  const monthlyQuery = useMonthlyRows(studentIds, month, year)
   const prevMonthlyQuery = useMonthlyRows(studentIds, prevMonth, prevYear)
-  const semesterQuery = useSemesterRows(studentIds, jenis as SemesterType, semester, ta || undefined)
+  const semesterQuery = useSemesterRows(studentIds, type as SemesterType, semester, ay || undefined)
 
-  const monthStart = `${tahun}-${String(bulan).padStart(2, '0')}-01T00:00:00Z`
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01T00:00:00Z`
   // hari terakhir bulan berjalan (31 → Nov 30, Feb 28/29, dst.)
-  const lastDayOfMonth = new Date(tahun, bulan, 0).getDate()
-  const monthEnd = `${tahun}-${String(bulan).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}T23:59:59Z`
-  const behaviorQuery = useBehaviorForMonth(isBulanan ? studentIds : [], monthStart, monthEnd)
+  const lastDayOfMonth = new Date(year, month, 0).getDate()
+  const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}T23:59:59Z`
+  const behaviorQuery = useBehaviorForMonth(isMonthly ? studentIds : [], monthStart, monthEnd)
 
   const [drafts, setDrafts] = useState<Record<string, MonthlyDraft>>({})
   const [semesterDrafts, setSemesterDrafts] = useState<Record<string, SemesterDraft>>({})
-  const [extrasStudent, setExtrasStudent] = useState<RaportStudent | null>(null)
+  const [extrasStudent, setExtrasStudent] = useState<ReportCardStudent | null>(null)
 
   const saveMonthly = useSaveMonthly()
   const saveSemester = useSaveSemester()
@@ -142,11 +142,11 @@ export function InputPage() {
     return map
   }, [behaviorQuery.data])
 
-  const criteria = getCriteria(jenis, grade)
-  const maxScore = isBulanan ? BULANAN_MAX_SCORE : SEMESTER_MAX_SCORE
+  const criteria = getCriteria(type, grade)
+  const maxScore = isMonthly ? BULANAN_MAX_SCORE : SEMESTER_MAX_SCORE
 
   const getSavedScore = (studentId: string, key: string): number | null => {
-    if (isBulanan) {
+    if (isMonthly) {
       const row = savedMonthlyById.get(studentId)
       if (!row) return null
       return (row as unknown as Record<string, number | null>)[key] ?? null
@@ -157,7 +157,7 @@ export function InputPage() {
   const effectiveScores = (studentId: string): Record<string, number | null> => {
     const out: Record<string, number | null> = {}
     for (const c of criteria) {
-      if (isBulanan) {
+      if (isMonthly) {
         const draft = drafts[studentId]
         out[c.key] =
           draft && c.key in draft
@@ -174,7 +174,7 @@ export function InputPage() {
     return out
   }
 
-  const completeCount = students.filter((s) => isComplete(jenis, effectiveScores(s.id), grade)).length
+  const completeCount = students.filter((s) => isComplete(type, effectiveScores(s.id), grade)).length
 
   const patchDraft = (studentId: string, patch: Partial<MonthlyDraft>) => {
     setDrafts((prev) => ({
@@ -213,18 +213,18 @@ export function InputPage() {
           const d = next[row.student_id]
           const saved = savedMonthlyById.get(row.student_id)
           return (
-            !!d && BULANAN_KEYS.some((k) => typeof d[k] === 'number') ||
-            BULANAN_KEYS.some((k) => typeof (saved as unknown as Record<string, number | null>)?.[k] === 'number')
+            !!d && MONTHLY_KEYS.some((k) => typeof d[k] === 'number') ||
+            MONTHLY_KEYS.some((k) => typeof (saved as unknown as Record<string, number | null>)?.[k] === 'number')
           )
         })()
         if (hasCurrent) continue
         next[row.student_id] = {
           ...next[row.student_id],
-          nilai_akhlak: row.nilai_akhlak,
-          nilai_ibadah: row.nilai_ibadah,
-          nilai_kebersihan: row.nilai_kebersihan,
-          nilai_quran: row.nilai_quran,
-          nilai_bahasa: row.nilai_bahasa,
+          character_score: row.character_score,
+          worship_score: row.worship_score,
+          cleanliness_score: row.cleanliness_score,
+          quran_score: row.quran_score,
+          language_score: row.language_score,
         }
         copied += 1
       }
@@ -237,7 +237,7 @@ export function InputPage() {
     // cegah klik ganda selama proses simpan
     if (saveMonthly.isPending || saveSemester.isPending) return
 
-    if (isBulanan) {
+    if (isMonthly) {
       const payloads: MonthlyReportPayload[] = []
       const skippedIds: string[] = []
 
@@ -246,41 +246,41 @@ export function InputPage() {
         if (!draft || Object.keys(draft).length === 0) continue
         const saved = savedMonthlyById.get(student.id)
         const merged = {
-          nilai_akhlak: saved?.nilai_akhlak ?? null,
-          nilai_ibadah: saved?.nilai_ibadah ?? null,
-          nilai_kebersihan: saved?.nilai_kebersihan ?? null,
-          nilai_quran: saved?.nilai_quran ?? null,
-          nilai_bahasa: saved?.nilai_bahasa ?? null,
-          berat_badan: saved?.berat_badan ?? null,
-          tinggi_badan: saved?.tinggi_badan ?? null,
+          character_score: saved?.character_score ?? null,
+          worship_score: saved?.worship_score ?? null,
+          cleanliness_score: saved?.cleanliness_score ?? null,
+          quran_score: saved?.quran_score ?? null,
+          language_score: saved?.language_score ?? null,
+          weight_kg: saved?.weight_kg ?? null,
+          height_cm: saved?.height_cm ?? null,
           ziyadah: saved?.ziyadah ?? null,
           murojaah: saved?.murojaah ?? null,
           total_hafalan: saved?.total_hafalan ?? null,
           sholat: saved?.sholat ?? null,
-          hari_sakit: saved?.hari_sakit ?? 0,
-          hari_izin: saved?.hari_izin ?? 0,
-          hari_alpa: saved?.hari_alpa ?? 0,
-          hari_pulang: saved?.hari_pulang ?? 0,
-          catatan: saved?.catatan ?? null,
-          pelanggaran: saved?.pelanggaran ?? null,
-          prestasi: saved?.prestasi ?? null,
+          sick_days: saved?.sick_days ?? 0,
+          excused_days: saved?.excused_days ?? 0,
+          absent_days: saved?.absent_days ?? 0,
+          early_leave_days: saved?.early_leave_days ?? 0,
+          notes: saved?.notes ?? null,
+          violations: saved?.violations ?? null,
+          achievements: saved?.achievements ?? null,
           ...draft,
         }
         // data pendukung (fisik, kehadiran) juga dihitung sebagai isi
         const hasAny =
-          BULANAN_KEYS.some((k) => typeof merged[k] === 'number') ||
+          MONTHLY_KEYS.some((k) => typeof merged[k] === 'number') ||
           Boolean(
-            merged.catatan ||
+            merged.notes ||
               merged.ziyadah ||
               merged.murojaah ||
               merged.total_hafalan ||
-              merged.berat_badan ||
-              merged.tinggi_badan ||
+              merged.weight_kg ||
+              merged.height_cm ||
               merged.sholat ||
-              merged.hari_sakit ||
-              merged.hari_izin ||
-              merged.hari_alpa ||
-              merged.hari_pulang,
+              merged.sick_days ||
+              merged.excused_days ||
+              merged.absent_days ||
+              merged.early_leave_days,
           )
         // lewati hanya jika belum ada baris tersimpan DAN memang kosong.
         // Jika baris sudah ada, tetap disimpan agar pengosongan nilai ikut tersimpan.
@@ -290,8 +290,8 @@ export function InputPage() {
         }
         payloads.push({
           student_id: student.id,
-          month: bulan,
-          year: tahun,
+          month: month,
+          year: year,
           musyrif_name: musyrif || classRow?.homeroom_teacher?.name || null,
           ...merged,
           updated_by: null,
@@ -306,7 +306,7 @@ export function InputPage() {
       }
 
       const incomplete = payloads.filter(
-        (p) => !BULANAN_KEYS.every((k) => typeof p[k] === 'number'),
+        (p) => !MONTHLY_KEYS.every((k) => typeof p[k] === 'number'),
       ).length
       if (incomplete > 0) {
         message.warning(
@@ -329,7 +329,7 @@ export function InputPage() {
       }
     } else {
       // Semester
-      if (!ta) {
+      if (!ay) {
         message.warning('Pilih tahun ajaran terlebih dahulu')
         return
       }
@@ -342,26 +342,26 @@ export function InputPage() {
         const saved = savedSemesterById.get(student.id)
         const scores = { ...(saved?.scores ?? {}), ...draft.scores }
         const extras = {
-          berat_badan: draft.berat_badan ?? saved?.extras?.berat_badan ?? null,
-          tinggi_badan: draft.tinggi_badan ?? saved?.extras?.tinggi_badan ?? null,
+          weight_kg: draft.weight_kg ?? saved?.extras?.weight_kg ?? null,
+          height_cm: draft.height_cm ?? saved?.extras?.height_cm ?? null,
           sholat: draft.sholat ?? saved?.extras?.sholat ?? null,
-          hari_sakit: draft.hari_sakit ?? saved?.extras?.hari_sakit ?? 0,
-          hari_izin: draft.hari_izin ?? saved?.extras?.hari_izin ?? 0,
-          hari_alpa: draft.hari_alpa ?? saved?.extras?.hari_alpa ?? 0,
-          hari_pulang: draft.hari_pulang ?? saved?.extras?.hari_pulang ?? 0,
-          catatan: draft.catatan ?? saved?.extras?.catatan ?? null,
+          sick_days: draft.sick_days ?? saved?.extras?.sick_days ?? 0,
+          excused_days: draft.excused_days ?? saved?.extras?.excused_days ?? 0,
+          absent_days: draft.absent_days ?? saved?.extras?.absent_days ?? 0,
+          early_leave_days: draft.early_leave_days ?? saved?.extras?.early_leave_days ?? 0,
+          notes: draft.notes ?? saved?.extras?.notes ?? null,
         }
         const hasAny =
           Object.values(scores).some((v) => typeof v === 'number') ||
           Boolean(
-            extras.catatan ||
-              extras.berat_badan ||
-              extras.tinggi_badan ||
+            extras.notes ||
+              extras.weight_kg ||
+              extras.height_cm ||
               extras.sholat ||
-              extras.hari_sakit ||
-              extras.hari_izin ||
-              extras.hari_alpa ||
-              extras.hari_pulang,
+              extras.sick_days ||
+              extras.excused_days ||
+              extras.absent_days ||
+              extras.early_leave_days,
           )
         if (!saved && !hasAny) {
           skippedIds.push(student.id)
@@ -369,9 +369,9 @@ export function InputPage() {
         }
         payloads.push({
           student_id: student.id,
-          report_type: jenis as SemesterType,
+          report_type: type as SemesterType,
           semester,
-          academic_year_id: ta,
+          academic_year_id: ay,
           scores,
           extras,
           musyrif_name: musyrif || classRow?.homeroom_teacher?.name || null,
@@ -400,9 +400,9 @@ export function InputPage() {
   }
 
   const handleResetRow = (studentId: string) => {
-    if (isBulanan) {
+    if (isMonthly) {
       resetMonthly.mutate(
-        { studentIds: [studentId], month: bulan, year: tahun },
+        { studentIds: [studentId], month: month, year: year },
         {
           onSuccess: () => {
             message.success('Data siswa ini dihapus untuk periode ini')
@@ -417,7 +417,7 @@ export function InputPage() {
       )
     } else {
       resetSemester.mutate(
-        { studentIds: [studentId], reportType: jenis as SemesterType, semester, academicYearId: ta },
+        { studentIds: [studentId], reportType: type as SemesterType, semester, academicYearId: ay },
         {
           onSuccess: () => {
             message.success('Data siswa ini dihapus untuk periode ini')
@@ -433,7 +433,7 @@ export function InputPage() {
     }
   }
 
-  const columns: TableColumnsType<RaportStudent> = [
+  const columns: TableColumnsType<ReportCardStudent> = [
     {
       title: 'Santri',
       key: 'name',
@@ -454,7 +454,7 @@ export function InputPage() {
       ),
       key: c.key,
       width: 96,
-      render: (_: unknown, row: RaportStudent) => {
+      render: (_: unknown, row: ReportCardStudent) => {
         const value = effectiveScores(row.id)[c.key]
         return (
           <InputNumber
@@ -465,7 +465,7 @@ export function InputPage() {
             value={value ?? undefined}
             disabled={!canWrite}
             onChange={(v) =>
-              isBulanan
+              isMonthly
                 ? patchDraft(row.id, { [c.key]: v ?? null } as Partial<MonthlyDraft>)
                 : patchSemesterDraft(row.id, {
                     scores: { ...semesterDrafts[row.id]?.scores, [c.key]: v ?? null },
@@ -481,7 +481,7 @@ export function InputPage() {
       width: 88,
       responsive: ['md'],
       render: (_, row) => {
-        const avg = calcAverage(jenis, effectiveScores(row.id), grade)
+        const avg = calcAverage(type, effectiveScores(row.id), grade)
         return <Typography.Text strong>{avg ?? '—'}</Typography.Text>
       },
     },
@@ -490,20 +490,20 @@ export function InputPage() {
       key: 'status',
       width: 110,
       render: (_, row) =>
-        isComplete(jenis, effectiveScores(row.id), grade) ? (
+        isComplete(type, effectiveScores(row.id), grade) ? (
           <StatusTag color="green">Lengkap</StatusTag>
         ) : (
           <StatusTag color="default">Kosong</StatusTag>
         ),
     },
-    ...(isBulanan
+    ...(isMonthly
       ? [
           {
             title: 'Poin Bulan Ini',
             key: 'behavior',
             width: 110,
             responsive: ['lg' as const],
-            render: (_: unknown, row: RaportStudent) => {
+            render: (_: unknown, row: ReportCardStudent) => {
               const info = behaviorByStudent.get(row.id)
               if (!info || (info.negative === 0 && info.positive === 0)) {
                 return <span style={{ color: '#bbb' }}>—</span>
@@ -566,14 +566,14 @@ export function InputPage() {
   return (
     <div>
       <PageHeader
-        title={`Input ${RAPORT_TYPE_LABEL[jenis]}`}
+        title={`Input ${REPORT_CARD_TYPE_LABEL[type]}`}
         subtitle={classRow ? `Kelas ${classRow.name}` : '...'}
         extra={
           <Space wrap>
             <Link to={previewPath}>
               <Button icon={<PrinterOutlined />}>Preview & Cetak</Button>
             </Link>
-            {isBulanan && (
+            {isMonthly && (
               <Button icon={<CopyOutlined />} onClick={handleCopyPrevMonth} disabled={!canWrite}>
                 Salin dari {MONTH_NAMES[prevMonth - 1]}
               </Button>
@@ -594,7 +594,7 @@ export function InputPage() {
 
       <SetupBar classId={classId} homeroomTeacherName={classRow?.homeroom_teacher?.name ?? null} />
 
-      {!isBulanan && !ta && (
+      {!isMonthly && !ay && (
         <Alert
           type="info"
           showIcon
@@ -607,25 +607,25 @@ export function InputPage() {
         <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
             Lengkap {completeCount}/{students.length} santri · skala 0–{maxScore}
-            {drafts && Object.keys(drafts).length > 0 && isBulanan && (
+            {drafts && Object.keys(drafts).length > 0 && isMonthly && (
               <Tag color="processing" style={{ marginLeft: 8 }}>
                 {Object.keys(drafts).length} draf belum disimpan
               </Tag>
             )}
-            {semesterDrafts && Object.keys(semesterDrafts).length > 0 && !isBulanan && (
+            {semesterDrafts && Object.keys(semesterDrafts).length > 0 && !isMonthly && (
               <Tag color="processing" style={{ marginLeft: 8 }}>
                 {Object.keys(semesterDrafts).length} draf belum disimpan
               </Tag>
             )}
           </Typography.Text>
         </div>
-        <Table<RaportStudent>
+        <Table<ReportCardStudent>
           rowKey="id"
           columns={columns}
           dataSource={students}
           loading={
             studentsQuery.isLoading ||
-            (isBulanan ? monthlyQuery.isLoading : semesterQuery.isLoading)
+            (isMonthly ? monthlyQuery.isLoading : semesterQuery.isLoading)
           }
           locale={{
             emptyText: (
@@ -640,7 +640,7 @@ export function InputPage() {
       <ExtrasDrawer
         open={!!extrasStudent}
         student={extrasStudent}
-        type={jenis}
+        type={type}
         monthlyInitial={extrasStudent ? drafts[extrasStudent.id] ?? undefined : undefined}
         semesterInitial={extrasStudent ? semesterDrafts[extrasStudent.id] ?? undefined : undefined}
         onClose={() => setExtrasStudent(null)}

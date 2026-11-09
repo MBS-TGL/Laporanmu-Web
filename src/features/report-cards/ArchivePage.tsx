@@ -4,16 +4,16 @@ import { DeleteOutlined, EditOutlined, PrinterOutlined } from '@ant-design/icons
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { usePermissions } from '../../shared/hooks/useProfile'
-import { isComplete, MONTH_NAMES, RAPORT_TYPE_LABEL } from './constants'
+import { isComplete, MONTH_NAMES, REPORT_CARD_TYPE_LABEL } from './constants'
 import {
   useAllMonthlyRows,
   useAllSemesterRows,
   useAllStudentClasses,
-  useRaportClasses,
+  useReportCardClasses,
   useResetMonthlyPeriod,
   useResetSemesterPeriod,
 } from './hooks'
-import type { RaportType, SemesterType } from './types'
+import type { ReportCardType, SemesterType } from './types'
 
 interface ArchiveBucket {
   key: string
@@ -37,9 +37,9 @@ interface ArchiveBucket {
 export function ArchivePage() {
   const navigate = useNavigate()
   const { canDelete } = usePermissions()
-  const [semesterType, setSemesterType] = useState<SemesterType>('umum')
+  const [semesterType, setSemesterType] = useState<SemesterType>('general')
 
-  const classesQuery = useRaportClasses()
+  const classesQuery = useReportCardClasses()
   const studentClassesQuery = useAllStudentClasses()
   const monthlyQuery = useAllMonthlyRows()
   const semesterQuery = useAllSemesterRows(semesterType)
@@ -77,11 +77,11 @@ export function ArchivePage() {
     return [...map.entries()]
       .map(([key, b]) => {
         const complete = b.rows.filter((r) =>
-          [r.nilai_akhlak, r.nilai_ibadah, r.nilai_kebersihan, r.nilai_quran, r.nilai_bahasa].every(
+          [r.character_score, r.worship_score, r.cleanliness_score, r.quran_score, r.language_score].every(
             (v) => typeof v === 'number',
           ),
         ).length
-        const sp = new URLSearchParams({ jenis: 'bulanan', bulan: String(b.month), tahun: String(b.year) })
+        const sp = new URLSearchParams({ type: 'monthly', month: String(b.month), year: String(b.year) })
         return {
           key,
           classId: b.classId,
@@ -117,7 +117,7 @@ export function ArchivePage() {
     return [...map.entries()].map(([key, b]) => {
       const grade = classById.get(b.classId)?.grade ?? null
       const complete = b.rows.filter((r) => isComplete(semesterType, r.scores ?? {}, grade)).length
-      const sp = new URLSearchParams({ jenis: semesterType, semester: String(b.semester), ta: b.taId })
+      const sp = new URLSearchParams({ type: semesterType, semester: String(b.semester), ay: b.taId })
       return {
         key,
         classId: b.classId,
@@ -198,10 +198,10 @@ export function ArchivePage() {
       <PageHeader title="Arsip Raport" subtitle="Riwayat raport per kelas dan periode" />
 
       <Tabs
-        defaultActiveKey="bulanan"
+        defaultActiveKey="monthly"
         items={[
           {
-            key: 'bulanan',
+            key: 'monthly',
             label: 'Bulanan',
             children: (
               <Card>
@@ -230,8 +230,8 @@ export function ArchivePage() {
                       style={{ minWidth: 170 }}
                       value={semesterType}
                       onChange={(v) => setSemesterType(v as SemesterType)}
-                      options={(Object.entries(RAPORT_TYPE_LABEL) as [RaportType, string][])
-                        .filter(([k]) => k !== 'bulanan')
+                      options={(Object.entries(REPORT_CARD_TYPE_LABEL) as [ReportCardType, string][])
+                        .filter(([k]) => k !== 'monthly')
                         .map(([value, label]) => ({ value, label }))}
                     />
                   </Space>

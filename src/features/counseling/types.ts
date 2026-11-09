@@ -1,6 +1,6 @@
-export type CounselingCategory = 'pribadi' | 'sosial' | 'akademik' | 'karir'
-export type CounselingUrgency = 'ringan' | 'sedang' | 'tinggi'
-export type CounselingStatus = 'proses' | 'selesai'
+export type CounselingCategory = 'personal' | 'social' | 'academic' | 'career'
+export type CounselingUrgency = 'low' | 'medium' | 'high'
+export type CounselingStatus = 'in_progress' | 'completed'
 
 export interface CounselingLog {
   id: string

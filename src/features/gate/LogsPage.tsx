@@ -23,8 +23,8 @@ import type { GateDirection, GateLog, GateLogFilters } from './types'
 
 const DIRECTION_OPTIONS = [
   { label: 'Semua', value: '' },
-  { label: 'Keluar', value: 'keluar' },
-  { label: 'Masuk', value: 'masuk' },
+  { label: 'Keluar', value: 'exit' },
+  { label: 'Masuk', value: 'entry' },
 ]
 
 function formatDateTime(iso: string): string {
@@ -124,7 +124,7 @@ export function LogsPage() {
       key: 'direction',
       width: 110,
       render: (v: GateDirection) =>
-        v === 'keluar' ? (
+        v === 'exit' ? (
           <StatusTag color="orange" icon={<ExportOutlined />}>
             Keluar
           </StatusTag>

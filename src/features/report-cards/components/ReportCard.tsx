@@ -1,12 +1,12 @@
 import dayjs from 'dayjs'
-import { calcAverage, getCriteria, getPredicate, RAPORT_TYPE_LABEL } from '../constants'
-import type { MonthlyReport, RaportStudent, SchoolSettings, SemesterReport } from '../types'
-import type { RaportType } from '../types'
+import { calcAverage, getCriteria, getPredicate, REPORT_CARD_TYPE_LABEL } from '../constants'
+import type { MonthlyReport, ReportCardStudent, SchoolSettings, SemesterReport } from '../types'
+import type { ReportCardType } from '../types'
 
-interface RaportCardProps {
-  type: RaportType
+interface ReportCardProps {
+  type: ReportCardType
   grade: string | null
-  student: RaportStudent
+  student: ReportCardStudent
   classNameLabel: string
   period: string
   musyrifName: string | null
@@ -26,14 +26,14 @@ function Block({
   rows: [string, string][]
 }) {
   return (
-    <div className="raport-block">
-      <div className="raport-block-title">{title}</div>
-      <table className="raport-block-table">
+    <div className="report-card-block">
+      <div className="report-card-block-title">{title}</div>
+      <table className="report-card-block-table">
         <tbody>
           {rows.map(([label, value]) => (
             <tr key={label}>
-              <td className="raport-block-label">{label}</td>
-              <td className="raport-block-value">{value || '—'}</td>
+              <td className="report-card-block-label">{label}</td>
+              <td className="report-card-block-value">{value || '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -44,15 +44,15 @@ function Block({
 
 function SignatureCell({ role, name }: { role: string; name: string }) {
   return (
-    <td className="raport-sign-cell">
-      <div className="raport-sign-role">{role}</div>
-      <div className="raport-sign-space" />
-      <div className="raport-sign-name">{name || '.......................'}</div>
+    <td className="report-card-sign-cell">
+      <div className="report-card-sign-role">{role}</div>
+      <div className="report-card-sign-space" />
+      <div className="report-card-sign-name">{name || '.......................'}</div>
     </td>
   )
 }
 
-export function RaportCard({
+export function ReportCard({
   type,
   grade,
   student,
@@ -65,11 +65,11 @@ export function RaportCard({
   semesterExtras,
   school,
   reportNo,
-}: RaportCardProps) {
+}: ReportCardProps) {
   const criteria = getCriteria(type, grade)
   const primary = school?.color_primary ?? '#1a5c35'
   const secondary = school?.color_secondary ?? '#c8a400'
-  const isBulanan = type === 'bulanan'
+  const isMonthly = type === 'monthly'
 
   const scoreRows = criteria.map((c, i) => {
     const value = scores[c.key] ?? null
@@ -84,15 +84,15 @@ export function RaportCard({
   const total = scoreRows.reduce((sum, r) => sum + (r.value ?? 0), 0)
 
   return (
-    <div className="raport-card" style={{ borderColor: primary }}>
+    <div className="report-card-card" style={{ borderColor: primary }}>
       {/* Kop sekolah */}
-      <table className="raport-header">
+      <table className="report-card-header">
         <tbody>
           <tr>
-            <td className="raport-header-logo">
+            <td className="report-card-header-logo">
               <img src="/logo-icon.png" alt="Logo Laporanmu" width={56} height={56} />
             </td>
-            <td className="raport-header-center">
+            <td className="report-card-header-center">
               <div style={{ color: primary, fontWeight: 800, fontSize: 17, letterSpacing: '-0.01em' }}>
                 {school?.school_name ?? 'Laporanmu Boarding School'}
               </div>
@@ -100,7 +100,7 @@ export function RaportCard({
                 <div style={{ fontSize: 11, color: '#475569' }}>{school.school_address}</div>
               )}
             </td>
-            <td className="raport-header-logo">
+            <td className="report-card-header-logo">
               <img src="/logo-icon.png" alt="Logo Laporanmu" width={56} height={56} />
             </td>
           </tr>
@@ -118,39 +118,39 @@ export function RaportCard({
       {/* Judul */}
       <div style={{ textAlign: 'center', marginBottom: 10 }}>
         <div style={{ fontWeight: 800, fontSize: 15, color: primary }}>
-          {isBulanan ? 'RAPORT BULANAN SANTRI' : `RAPORT ${RAPORT_TYPE_LABEL[type].toUpperCase()}`}
+          {isMonthly ? 'RAPORT BULANAN SANTRI' : `RAPORT ${REPORT_CARD_TYPE_LABEL[type].toUpperCase()}`}
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: '#334155' }}>{period}</div>
       </div>
 
       {/* Info siswa */}
-      <table className="raport-info">
+      <table className="report-card-info">
         <tbody>
           <tr>
-            <td className="raport-info-label">Nama Santri</td>
-            <td className="raport-info-value">{student.name}</td>
-            <td className="raport-info-label">No.</td>
-            <td className="raport-info-value">{noUrut}</td>
+            <td className="report-card-info-label">Nama Santri</td>
+            <td className="report-card-info-value">{student.name}</td>
+            <td className="report-card-info-label">No.</td>
+            <td className="report-card-info-value">{noUrut}</td>
           </tr>
           <tr>
-            <td className="raport-info-label">No. Registrasi</td>
-            <td className="raport-info-value">{student.registration_code}</td>
-            <td className="raport-info-label">Kelas</td>
-            <td className="raport-info-value">{classNameLabel}</td>
+            <td className="report-card-info-label">No. Registrasi</td>
+            <td className="report-card-info-value">{student.registration_code}</td>
+            <td className="report-card-info-label">Kelas</td>
+            <td className="report-card-info-value">{classNameLabel}</td>
           </tr>
           <tr>
-            <td className="raport-info-label">{isBulanan ? 'Kamar / Asrama' : 'Wali Santri'}</td>
-            <td className="raport-info-value">
-              {isBulanan ? student.dorms?.name ?? '—' : student.guardian_name ?? '—'}
+            <td className="report-card-info-label">{isMonthly ? 'Kamar / Asrama' : 'Wali Santri'}</td>
+            <td className="report-card-info-value">
+              {isMonthly ? student.dorms?.name ?? '—' : student.guardian_name ?? '—'}
             </td>
-            <td className="raport-info-label">Musyrif / Wali</td>
-            <td className="raport-info-value">{musyrifName ?? '—'}</td>
+            <td className="report-card-info-label">Musyrif / Wali</td>
+            <td className="report-card-info-value">{musyrifName ?? '—'}</td>
           </tr>
         </tbody>
       </table>
 
       {/* Tabel nilai */}
-      <table className="raport-scores">
+      <table className="report-card-scores">
         <thead>
           <tr style={{ background: `${primary}14` }}>
             <th style={{ width: 34 }}>No</th>
@@ -168,7 +168,7 @@ export function RaportCard({
               <td style={{ textAlign: 'center' }}>{row.predicate}</td>
             </tr>
           ))}
-          {!isBulanan && (
+          {!isMonthly && (
             <>
               <tr style={{ background: '#f8fafc' }}>
                 <td colSpan={2} style={{ fontWeight: 700 }}>
@@ -192,14 +192,14 @@ export function RaportCard({
       </table>
 
       {/* Blok data bulanan */}
-      {isBulanan && monthlyExtras && (
+      {isMonthly && monthlyExtras && (
         <>
-          <div className="raport-blocks">
+          <div className="report-card-blocks">
             <Block
               title="KETERTIBAN"
               rows={[
-                ['Pelanggaran', monthlyExtras.pelanggaran ?? ''],
-                ['Prestasi', monthlyExtras.prestasi ?? ''],
+                ['Pelanggaran', monthlyExtras.violations ?? ''],
+                ['Prestasi', monthlyExtras.achievements ?? ''],
                 ['Sholat', monthlyExtras.sholat ?? ''],
               ]}
             />
@@ -214,60 +214,60 @@ export function RaportCard({
             <Block
               title="ABSENSI"
               rows={[
-                ['Sakit', `${monthlyExtras.hari_sakit ?? 0} hari`],
-                ['Izin', `${monthlyExtras.hari_izin ?? 0} hari`],
-                ['Alpa', `${monthlyExtras.hari_alpa ?? 0} hari`],
-                ['Pulang', `${monthlyExtras.hari_pulang ?? 0} hari`],
+                ['Sakit', `${monthlyExtras.sick_days ?? 0} hari`],
+                ['Izin', `${monthlyExtras.excused_days ?? 0} hari`],
+                ['Alpa', `${monthlyExtras.absent_days ?? 0} hari`],
+                ['Pulang', `${monthlyExtras.early_leave_days ?? 0} hari`],
               ]}
             />
           </div>
-          <div className="raport-blocks">
+          <div className="report-card-blocks">
             <Block
               title="PERKEMBANGAN FISIK"
               rows={[
-                ['Berat Badan', monthlyExtras.berat_badan ? `${monthlyExtras.berat_badan} kg` : ''],
-                ['Tinggi Badan', monthlyExtras.tinggi_badan ? `${monthlyExtras.tinggi_badan} cm` : ''],
+                ['Berat Badan', monthlyExtras.weight_kg ? `${monthlyExtras.weight_kg} kg` : ''],
+                ['Tinggi Badan', monthlyExtras.height_cm ? `${monthlyExtras.height_cm} cm` : ''],
               ]}
             />
-            <Block title="Catatan Musyrif" rows={[['Catatan', monthlyExtras.catatan ?? '']]} />
+            <Block title="Catatan Musyrif" rows={[['Catatan', monthlyExtras.notes ?? '']]} />
           </div>
         </>
       )}
 
       {/* Blok data semester */}
-      {!isBulanan && semesterExtras && (
-        <div className="raport-blocks">
+      {!isMonthly && semesterExtras && (
+        <div className="report-card-blocks">
           <Block
             title="DATA PENDUKUNG"
             rows={[
-              ['Berat Badan', semesterExtras.berat_badan ? `${semesterExtras.berat_badan} kg` : ''],
-              ['Tinggi Badan', semesterExtras.tinggi_badan ? `${semesterExtras.tinggi_badan} cm` : ''],
+              ['Berat Badan', semesterExtras.weight_kg ? `${semesterExtras.weight_kg} kg` : ''],
+              ['Tinggi Badan', semesterExtras.height_cm ? `${semesterExtras.height_cm} cm` : ''],
               ['Sholat', semesterExtras.sholat ?? ''],
               [
                 'Absensi',
-                `Sakit ${semesterExtras.hari_sakit ?? 0} · Izin ${semesterExtras.hari_izin ?? 0} · Alpa ${
-                  semesterExtras.hari_alpa ?? 0
-                } · Pulang ${semesterExtras.hari_pulang ?? 0}`,
+                `Sakit ${semesterExtras.sick_days ?? 0} · Izin ${semesterExtras.excused_days ?? 0} · Alpa ${
+                  semesterExtras.absent_days ?? 0
+                } · Pulang ${semesterExtras.early_leave_days ?? 0}`,
               ],
-              ['Catatan', semesterExtras.catatan ?? ''],
+              ['Catatan', semesterExtras.notes ?? ''],
             ]}
           />
         </div>
       )}
 
       {/* Tanda tangan */}
-      <table className="raport-signatures">
+      <table className="report-card-signatures">
         <tbody>
           <tr>
             <SignatureCell role="Wali Santri" name={student.guardian_name ?? ''} />
             <SignatureCell role="Musyrif / Wali Kelas" name={musyrifName ?? ''} />
-            <SignatureCell role="Pengasuh" name={school?.pengasuh_name ?? ''} />
+            <SignatureCell role="Pengasuh" name={school?.caretaker_name ?? ''} />
           </tr>
         </tbody>
       </table>
 
       {/* Footer */}
-      <div className="raport-footer">
+      <div className="report-card-footer">
         <span>No. Raport: {reportNo}</span>
         <span>Dicetak {dayjs().format('DD/MM/YYYY HH:mm')}</span>
       </div>

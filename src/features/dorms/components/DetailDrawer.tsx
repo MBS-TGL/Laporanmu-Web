@@ -47,7 +47,7 @@ export function DetailDrawer({
         dorm ? (
           <Space size={8} wrap>
             <span style={{ fontWeight: 600 }}>{dorm.name}</span>
-            {dorm.gender && <Tag>{dorm.gender === 'campur' ? 'Campur' : dorm.gender === 'putra' ? 'Putra' : 'Putri'}</Tag>}
+            {dorm.gender && <Tag>{dorm.gender === 'mixed' ? 'Campur' : dorm.gender === 'male' ? 'Putra' : 'Putri'}</Tag>}
           </Space>
         ) : null
       }

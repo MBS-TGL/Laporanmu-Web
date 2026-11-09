@@ -42,7 +42,7 @@ import { useClassesBrief, useDormsBrief, useExistingStudentCodes } from '../hook
 
 const { Text } = Typography
 
-const VALID_STATUSES = ['aktif', 'lulus', 'pindah', 'keluar']
+const VALID_STATUSES = ['active', 'graduated', 'transferred', 'left']
 
 // RPC dieksekusi per baris (bukan transaksi tunggal) — mengirim per chunk
 // menjaga payload tetap kecil untuk file besar tanpa mengubah semantiknya
@@ -144,7 +144,7 @@ const TEMPLATE_ROWS: Record<FieldKey, string>[] = [
     nis: '2026001',
     nik: '3509012345670001',
     gender: 'L',
-    status: 'aktif',
+    status: 'active',
     phone: '081234567890',
     photo_url: '',
     tags: 'Beasiswa;Yatim',
@@ -164,7 +164,7 @@ const TEMPLATE_ROWS: Record<FieldKey, string>[] = [
     nis: '',
     nik: '',
     gender: 'P',
-    status: 'aktif',
+    status: 'active',
     phone: '',
     photo_url: '',
     tags: '',
@@ -326,11 +326,11 @@ const GENDER_ALIASES: Record<string, string> = {
   'laki-laki': 'L',
   'laki laki': 'L',
   pria: 'L',
-  putra: 'L',
+  male: 'L',
   p: 'P',
   perempuan: 'P',
   wanita: 'P',
-  putri: 'P',
+  female: 'P',
 }
 
 function normalizeGender(value?: string) {
@@ -1030,7 +1030,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
     { title: 'Kelas', dataIndex: 'class_label', key: 'class_label', render: (v?: string) => v || '-' },
     { title: 'Asrama', dataIndex: 'dorm_label', key: 'dorm_label', render: (v?: string) => v || '-' },
     { title: 'Gender', dataIndex: 'gender', key: 'gender', width: 80, render: (v?: string) => v || '-' },
-    { title: 'Status', dataIndex: 'status', key: 'status', width: 90, render: (v?: string) => v || 'aktif' },
+    { title: 'Status', dataIndex: 'status', key: 'status', width: 90, render: (v?: string) => v || 'active' },
     {
       title: 'Validasi',
       dataIndex: 'error',

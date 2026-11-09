@@ -33,7 +33,7 @@ export async function fetchSuspensionById(id: string): Promise<Suspension> {
 
 export interface CreateSuspensionInput {
   student_id: string
-  jenjang: 'SMP' | 'SMA'
+  level: 'SMP' | 'SMA'
   start_date: string
   end_date: string
   reason_summary: string
@@ -46,7 +46,7 @@ export async function createSuspension(input: CreateSuspensionInput): Promise<Su
     .from('suspensions')
     .insert({
       student_id: input.student_id,
-      jenjang: input.jenjang,
+      level: input.level,
       start_date: input.start_date,
       end_date: input.end_date,
       reason_summary: input.reason_summary,
@@ -226,7 +226,7 @@ export async function gradeSubmission(input: GradeInput): Promise<void> {
   const { error } = await supabase
     .from('suspension_task_submissions')
     .update({
-      status: 'dinilai',
+      status: 'graded',
       score: input.score,
       teacher_comment: input.comment || null,
       graded_by: input.gradedBy,
@@ -297,7 +297,7 @@ export async function rpcValidateToken(token: string) {
     suspension_id: string
     student_name: string
     class_name: string | null
-    jenjang: 'SMP' | 'SMA'
+    level: 'SMP' | 'SMA'
     start_date: string
     end_date: string
     days: string[]

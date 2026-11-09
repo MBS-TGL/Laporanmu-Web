@@ -1,11 +1,11 @@
-export type SuspensionStatus = 'aktif' | 'selesai' | 'dibatalkan'
-export type SuspensionJenjang = 'SMP' | 'SMA'
-export type SuspensionTaskStatus = 'belum' | 'dikerjakan' | 'dinilai'
+export type SuspensionStatus = 'active' | 'completed' | 'cancelled'
+export type SuspensionLevel = 'SMP' | 'SMA'
+export type SuspensionTaskStatus = 'pending' | 'submitted' | 'graded'
 
 export interface Suspension {
   id: string
   student_id: string
-  jenjang: SuspensionJenjang
+  level: SuspensionLevel
   start_date: string
   end_date: string
   reason_summary: string
@@ -72,17 +72,17 @@ export interface SuspensionDailyLog {
 
 // ---- Bentuk RPC publik (halaman wali) ----
 
-export interface WaliTokenInfo {
+export interface GuardianTokenInfo {
   suspension_id: string
   student_name: string
   class_name: string | null
-  jenjang: SuspensionJenjang
+  level: SuspensionLevel
   start_date: string
   end_date: string
   days: string[]
 }
 
-export interface WaliTemplateItem {
+export interface GuardianTemplateItem {
   id: string
   block_key: 'dinihari' | 'pagi' | 'sore' | 'malam'
   item_key: string
@@ -92,7 +92,7 @@ export interface WaliTemplateItem {
   sort_order: number
 }
 
-export interface WaliTask {
+export interface GuardianTask {
   id: string
   subject: string
   title: string
@@ -101,7 +101,7 @@ export interface WaliTask {
   created_at: string
 }
 
-export interface WaliSubmission {
+export interface GuardianSubmission {
   task_id: string
   status: SuspensionTaskStatus
   score: number | null
@@ -111,14 +111,14 @@ export interface WaliSubmission {
   submitted_at: string
 }
 
-export interface WaliDayData {
-  templates: WaliTemplateItem[]
-  tasks: WaliTask[]
+export interface GuardianDayData {
+  templates: GuardianTemplateItem[]
+  tasks: GuardianTask[]
   log: SuspensionDailyLog | null
-  submissions: WaliSubmission[]
+  submissions: GuardianSubmission[]
 }
 
-export interface WaliLogEntry {
+export interface GuardianLogEntry {
   checked?: boolean
   value?: string
   text?: string
@@ -128,4 +128,4 @@ export interface WaliLogEntry {
   wafa_halaman?: string
 }
 
-export type WaliEntries = Record<string, WaliLogEntry>
+export type GuardianEntries = Record<string, GuardianLogEntry>

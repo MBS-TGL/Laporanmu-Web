@@ -41,7 +41,6 @@ import {
   HistoryOutlined,
   IdcardOutlined,
   KeyOutlined,
-  LinkOutlined,
   ManOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -67,6 +66,8 @@ import {
   useClassesBrief,
   useCreateStudent,
   useDeleteStudent,
+  useGenerateStudentPins,
+  useSaveStudentGuardians,
   useStudentStats,
   useStudents,
   useUpdateStudent,
@@ -85,6 +86,7 @@ import { GatewayModal } from './components/GatewayModal'
 import { CardModal } from './components/CardModal'
 import { CardsModal } from './components/CardsModal'
 import { RISK_THRESHOLD } from './api'
+import { isIncomplete } from './completeness'
 import { waLink } from './wa'
 import { STUDENT_STATUS_META, GENDER_LABEL } from './status'
 import type {
@@ -99,10 +101,10 @@ import type {
 
 const STATUS_OPTIONS = [
   { label: 'Semua', value: '' },
-  { label: 'Aktif', value: 'aktif' },
-  { label: 'Lulus', value: 'lulus' },
-  { label: 'Pindah', value: 'pindah' },
-  { label: 'Keluar', value: 'keluar' },
+  { label: 'Aktif', value: 'active' },
+  { label: 'Lulus', value: 'graduated' },
+  { label: 'Pindah', value: 'transferred' },
+  { label: 'Keluar', value: 'left' },
 ]
 
 const GENDER_TABS = [
@@ -162,7 +164,6 @@ export function StudentsPage() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const [importSource, setImportSource] = useState<'file' | 'gsheets'>('file')
   const [resetOpen, setResetOpen] = useState(false)
   const [bulkPhotoOpen, setBulkPhotoOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
@@ -189,6 +190,8 @@ export function StudentsPage() {
   const studentsQuery = useStudents({ page: 1, pageSize: 1000 })
   const createMutation = useCreateStudent()
   const updateMutation = useUpdateStudent()
+  const saveGuardiansMutation = useSaveStudentGuardians()
+  const generatePinsMutation = useGenerateStudentPins()
   const deleteMutation = useDeleteStudent()
   const bulkDeleteMutation = useBulkDeleteStudents()
   const bulkRestoreMutation = useBulkRestoreStudents()
@@ -221,7 +224,7 @@ export function StudentsPage() {
       if (missing === 'photo' && s.photo_url) return false
       if (missing === 'phone' && s.phone) return false
       if (missing === 'nisn' && s.nisn) return false
-      if (missing === 'any' && s.photo_url && s.phone && s.nisn) return false
+      if (missing === 'any' && !isIncomplete(s)) return false
       if (pointMode === 'negative' && s.total_points >= 0) return false
       if (pointMode === 'positive' && s.total_points <= 0) return false
       return true
@@ -387,24 +390,42 @@ export function StudentsPage() {
 
   const handleSubmit = (values: StudentFormValues) => {
     const onError = (err: Error) => message.error(err.message || 'Gagal menyimpan siswa')
+    // Data ayah/ibu/wali disimpan via RPC terpisah (student_guardians, 0020) —
+    // saat edit selalu dipanggil agar baris yang dikosongkan ikut di-soft-delete.
+    const persistGuardians = (studentId: string) => {
+      if (!editing && !values.guardians?.length) return Promise.resolve()
+      return saveGuardiansMutation.mutateAsync({ studentId, rows: values.guardians ?? [] })
+    }
     if (editing) {
       updateMutation.mutate(
         { id: editing.id, values },
         {
           onSuccess: (updated) => {
-            message.success('Siswa diperbarui')
-            setFormOpen(false)
-            // perbarui drawer bila sedang terbuka untuk siswa yang sama
-            setDetail((current) => (current?.id === updated.id ? updated : current))
+            persistGuardians(updated.id)
+              .then(() => {
+                message.success('Siswa diperbarui')
+                setFormOpen(false)
+                // perbarui drawer bila sedang terbuka untuk siswa yang sama
+                setDetail((current) => (current?.id === updated.id ? updated : current))
+              })
+              .catch((err: Error) =>
+                message.error(err.message || 'Gagal menyimpan data orang tua'),
+              )
           },
           onError,
         },
       )
     } else {
       createMutation.mutate(values, {
-        onSuccess: () => {
-          message.success('Siswa ditambahkan')
-          setFormOpen(false)
+        onSuccess: (created) => {
+          persistGuardians(created.id)
+            .then(() => {
+              message.success('Siswa ditambahkan')
+              setFormOpen(false)
+            })
+            .catch((err: Error) =>
+              message.error(err.message || 'Siswa tersimpan, tetapi data orang tua gagal disimpan'),
+            )
         },
         onError,
       })
@@ -479,6 +500,32 @@ export function StudentsPage() {
     })
   }
 
+  /** Generate PIN portal wali massal untuk siswa terpilih (RPC 0021) */
+  const confirmBulkGeneratePins = () => {
+    const ids = [...selectedIdSet]
+    const count = ids.length
+    if (count === 0) return
+    const alreadyPinned = selectedStudents.filter((s) => s.pin).length
+    modal.confirm({
+      title: `Buat PIN untuk ${count} siswa terpilih?`,
+      content:
+        alreadyPinned > 0
+          ? `PIN 6 digit akan dibuat otomatis. ${alreadyPinned} siswa yang sudah punya PIN akan diganti — kartu yang sudah tercetak harus dicetak ulang.`
+          : 'PIN 6 digit akan dibuat otomatis untuk masuk portal wali.',
+      okText: 'Buat PIN',
+      cancelText: 'Batal',
+      onOk: () =>
+        generatePinsMutation
+          .mutateAsync(ids)
+          .then((results) => {
+            message.success(
+              results.length === 1 ? '1 PIN berhasil dibuat' : `${results.length} PIN berhasil dibuat`,
+            )
+          })
+          .catch((err: Error) => message.error(err.message || 'Gagal membuat PIN')),
+    })
+  }
+
   // -------------------------------------------------------------------------
   // Menu "Lainnya" di header
   // -------------------------------------------------------------------------
@@ -491,24 +538,18 @@ export function StudentsPage() {
         label: 'Data',
         children: [
           {
-            key: 'import-excel',
+            key: 'import',
             icon: <FileExcelOutlined />,
-            label: <div><div style={{ fontWeight: 600 }}>Import Excel</div><div style={{ fontSize: 12, opacity: 0.65 }}>Unggah data siswa masal</div></div>,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span><div style={{ fontWeight: 600 }}>Import Data</div><div style={{ fontSize: 12, opacity: 0.65 }}>Unggah dari Excel atau Google Sheets</div></span>
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                  <Kbd>I</Kbd>
+                </span>
+              </div>
+            ),
             disabled: !canWrite,
-            onClick: () => {
-              setImportSource('file')
-              setImportOpen(true)
-            },
-          },
-          {
-            key: 'import-gsheets',
-            icon: <LinkOutlined />,
-            label: <div><div style={{ fontWeight: 600 }}>Import GSheets</div><div style={{ fontSize: 12, opacity: 0.65 }}>Sinkronisasi data via Google Sheets</div></div>,
-            disabled: !canWrite,
-            onClick: () => {
-              setImportSource('gsheets')
-              setImportOpen(true)
-            },
+            onClick: () => setImportOpen(true),
           },
           {
             key: 'export',
@@ -527,14 +568,28 @@ export function StudentsPage() {
           {
             key: 'bulk-photo',
             icon: <CameraOutlined />,
-            label: <div><div style={{ fontWeight: 600 }}>Bulk Foto</div><div style={{ fontSize: 12, opacity: 0.65 }}>Update foto siswa secara masal via NISN</div></div>,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span><div style={{ fontWeight: 600 }}>Bulk Foto</div><div style={{ fontSize: 12, opacity: 0.65 }}>Update foto siswa secara masal via NISN</div></span>
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                  <Kbd>B</Kbd>
+                </span>
+              </div>
+            ),
             disabled: !canWrite,
             onClick: () => setBulkPhotoOpen(true),
           },
           {
             key: 'wa-settings',
             icon: <WhatsAppOutlined />,
-            label: <div><div style={{ fontWeight: 600 }}>Pengaturan WA</div><div style={{ fontSize: 12, opacity: 0.65 }}>Token Fonnte untuk broadcast wali santri</div></div>,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span><div style={{ fontWeight: 600 }}>Pengaturan WA</div><div style={{ fontSize: 12, opacity: 0.65 }}>Token Fonnte untuk broadcast wali santri</div></span>
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                  <Kbd>W</Kbd>
+                </span>
+              </div>
+            ),
             disabled: !canWrite,
             onClick: () => setWaSettingsOpen(true),
           },
@@ -548,13 +603,27 @@ export function StudentsPage() {
           {
             key: 'bulk-card',
             icon: <IdcardOutlined />,
-            label: <div><div style={{ fontWeight: 600 }}>Cetak Kartu Massal</div><div style={{ fontSize: 12, opacity: 0.65 }}>Per kelas, semua aktif, atau sesuai filter</div></div>,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span><div style={{ fontWeight: 600 }}>Cetak Kartu Massal</div><div style={{ fontSize: 12, opacity: 0.65 }}>Per kelas, semua aktif, atau sesuai filter</div></span>
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                  <Kbd>C</Kbd>
+                </span>
+              </div>
+            ),
             onClick: () => setBulkCardOpen(true),
           },
           {
             key: 'archive',
             icon: <HistoryOutlined />,
-            label: <div><div style={{ fontWeight: 600 }}>Arsip Siswa</div><div style={{ fontSize: 12, opacity: 0.65 }}>Lihat &amp; pulihkan data siswa tidak aktif</div></div>,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span><div style={{ fontWeight: 600 }}>Arsip Siswa</div><div style={{ fontSize: 12, opacity: 0.65 }}>Lihat &amp; pulihkan data siswa tidak aktif</div></span>
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                  <Kbd>A</Kbd>
+                </span>
+              </div>
+            ),
             onClick: () => navigate('/master/students/archive'),
           },
           {
@@ -631,6 +700,44 @@ export function StudentsPage() {
       group: 'Aksi',
       icon: <ExportOutlined />,
       run: () => openExport('filtered'),
+    },
+    {
+      keys: ['I'],
+      label: 'Import data',
+      group: 'Aksi',
+      icon: <FileExcelOutlined />,
+      when: canWrite,
+      run: () => setImportOpen(true),
+    },
+    {
+      keys: ['B'],
+      label: 'Bulk foto via NISN',
+      group: 'Aksi',
+      icon: <CameraOutlined />,
+      when: canWrite,
+      run: () => setBulkPhotoOpen(true),
+    },
+    {
+      keys: ['C'],
+      label: 'Cetak kartu massal',
+      group: 'Aksi',
+      icon: <IdcardOutlined />,
+      run: () => setBulkCardOpen(true),
+    },
+    {
+      keys: ['W'],
+      label: 'Pengaturan WA',
+      group: 'Aksi',
+      icon: <WhatsAppOutlined />,
+      when: canWrite,
+      run: () => setWaSettingsOpen(true),
+    },
+    {
+      keys: ['A'],
+      label: 'Buka arsip siswa',
+      group: 'Aksi',
+      icon: <HistoryOutlined />,
+      run: () => navigate('/master/students/archive'),
     },
     {
       keys: ['P'],
@@ -946,6 +1053,11 @@ export function StudentsPage() {
           setClassId(id)
           resetPage()
         }}
+        onWorstCompleteness={(id) => {
+          setClassId(id)
+          setMissing('any')
+          resetPage()
+        }}
       />
 
       <Card>
@@ -1171,6 +1283,11 @@ export function StudentsPage() {
             Kartu
           </Button>
           {canWrite && (
+            <Button size="small" icon={<KeyOutlined />} onClick={confirmBulkGeneratePins}>
+              Buat PIN
+            </Button>
+          )}
+          {canWrite && (
             <Button size="small" icon={<SwapOutlined />} onClick={() => setMoveOpen(true)}>
               Kelas
             </Button>
@@ -1202,7 +1319,7 @@ export function StudentsPage() {
         onSubmit={handleSubmit}
       />
 
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} initialSource={importSource} />
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
 
       <ExportModal
         open={exportOpen}

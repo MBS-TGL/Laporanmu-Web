@@ -43,39 +43,32 @@ import { usePermissions } from '../../../shared/hooks/useProfile'
 import { fetchReportsByStudent } from '../../behavior/api'
 import { fetchGateLogsByStudent } from '../../gate/api'
 import { fetchAuditLogs } from '../../admin/api'
-import { fetchMonthlyRowsByStudent } from '../../raport/api'
+import { fetchMonthlyRowsByStudent } from '../../report-cards/api'
 import { updateStudentTags } from '../api'
+import { completenessPercent, missingFieldsOf } from '../completeness'
+import { useStudentGuardians } from '../hooks'
 import { GENDER_LABEL, STUDENT_STATUS_META } from '../status'
 import { WA_TEMPLATES, renderWaMessage, waLink } from '../wa'
-import type { Student } from '../types'
+import type { GuardianRelation, Student } from '../types'
 
 const MASK = '••••••'
 const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
-type ProfileTab = 'info' | 'perilaku' | 'raport' | 'gerbang' | 'audit'
+type ProfileTab = 'info' | 'perilaku' | 'report-card' | 'gerbang' | 'audit'
 
-const NILAI_KEYS = [
-  { key: 'nilai_akhlak', label: 'Akhlak', color: '#f59e0b' },
-  { key: 'nilai_ibadah', label: 'Ibadah', color: '#4f46e5' },
-  { key: 'nilai_kebersihan', label: 'Bersih', color: '#10b981' },
-  { key: 'nilai_quran', label: 'Quran', color: '#0ea5e9' },
-  { key: 'nilai_bahasa', label: 'Bhs', color: '#7c3aed' },
+const SCORE_KEYS = [
+  { key: 'character_score', label: 'Akhlak', color: '#f59e0b' },
+  { key: 'worship_score', label: 'Ibadah', color: '#4f46e5' },
+  { key: 'cleanliness_score', label: 'Bersih', color: '#10b981' },
+  { key: 'quran_score', label: 'Quran', color: '#0ea5e9' },
+  { key: 'language_score', label: 'Bhs', color: '#7c3aed' },
 ] as const
 
-/** Field yang dihitung untuk persentase kelengkapan data */
-const FIELD_CHECKS: { label: string; test: (s: Student) => boolean }[] = [
-  { label: 'Foto', test: (s) => !!s.photo_url },
-  { label: 'NISN', test: (s) => !!s.nisn },
-  { label: 'NIS', test: (s) => !!s.nis },
-  { label: 'NIK', test: (s) => !!s.nik },
-  { label: 'Telepon', test: (s) => !!s.phone },
-  { label: 'Alamat', test: (s) => !!s.address },
-  { label: 'Tempat lahir', test: (s) => !!s.birth_place },
-  { label: 'Tanggal lahir', test: (s) => !!s.birth_date },
-  { label: 'Agama', test: (s) => !!s.religion },
-  { label: 'Nama wali', test: (s) => !!s.guardian_name },
-  { label: 'Label', test: (s) => !!s.tags?.length },
-]
+const GUARDIAN_RELATION_LABEL: Record<GuardianRelation, string> = {
+  father: 'Ayah',
+  mother: 'Ibu',
+  guardian: 'Wali',
+}
 
 function initials(name: string): string {
   return name
@@ -271,7 +264,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
     enabled: open && !!studentId,
   })
 
-  const raportQuery = useQuery({
+  const reportCardQuery = useQuery({
     queryKey: ['raport-monthly', 'student', studentId],
     queryFn: () => fetchMonthlyRowsByStudent(studentId!),
     enabled: open && !!studentId,
@@ -289,10 +282,15 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
     enabled: open && !!studentId,
   })
 
+  // Data ayah/ibu/wali (student_guardians, 0020) — RLS hanya admin/pengurus;
+  // bila query gagal (mis. role guru) section ini saja yang disembunyikan
+  const guardiansQuery = useStudentGuardians(studentId, open)
+
   const reports = reportsQuery.data ?? []
-  const raportRows = raportQuery.data ?? []
+  const reportCardRows = reportCardQuery.data ?? []
   const gateLogs = gateQuery.data ?? []
   const auditLogs = auditQuery.data?.data ?? []
+  const guardians = guardiansQuery.data ?? []
 
   const chartData = useMemo(() => {
     const months = Array.from({ length: 6 }, (_, i) => {
@@ -322,8 +320,8 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
     onEdit?.(student)
   }
 
-  const missingFields = FIELD_CHECKS.filter((f) => !f.test(student)).map((f) => f.label)
-  const completeness = Math.round(((FIELD_CHECKS.length - missingFields.length) / FIELD_CHECKS.length) * 100)
+  const missingFields = missingFieldsOf(student)
+  const completeness = completenessPercent(student)
 
   const posCount = reports.filter((r) => r.points > 0).length
   const negCount = reports.filter((r) => r.points < 0).length
@@ -335,7 +333,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
 
   const openWa = () => {
     if (!student.phone) return
-    const tpl = WA_TEMPLATES.find((t) => t.id === 'laporan')
+    const tpl = WA_TEMPLATES.find((t) => t.id === 'report')
     window.open(waLink(student.phone, renderWaMessage(tpl?.body ?? '', student)), '_blank')
   }
 
@@ -367,7 +365,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
   const railItems: { id: ProfileTab; label: string; icon: ReactNode; count?: number }[] = [
     { id: 'info', label: 'Info', icon: <IdcardOutlined /> },
     { id: 'perilaku', label: 'Perilaku', icon: <HistoryOutlined />, count: reports.length },
-    { id: 'raport', label: 'Raport', icon: <FileDoneOutlined />, count: raportRows.length },
+    { id: 'report-card', label: 'Raport', icon: <FileDoneOutlined />, count: reportCardRows.length },
     { id: 'gerbang', label: 'Gerbang', icon: <LoginOutlined />, count: gateLogs.length },
     { id: 'audit', label: 'Audit', icon: <AuditOutlined />, count: auditLogs.length },
   ]
@@ -399,7 +397,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
         </div>
       }
     >
-      {/* ── Header ringan: identitas + ring kelengkapan + ringkasan domisili ── */}
+      {/* ── Header low: identitas + ring kelengkapan + ringkasan domisili ── */}
       <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #eef2f7', background: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
@@ -560,7 +558,8 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                 <InfoRow label="Jenis Kelamin">{student.gender ? GENDER_LABEL[student.gender] : '—'}</InfoRow>
                 <InfoRow label="Agama">{student.religion ?? '—'}</InfoRow>
                 <InfoRow label="Tempat, Tanggal Lahir">{ttl || '—'}</InfoRow>
-                {student.status === 'lulus' && (
+                {student.nickname && <InfoRow label="Nama Panggilan">{student.nickname}</InfoRow>}
+                {student.status === 'graduated' && (
                   <InfoRow label="Tahun Lulus">
                     {student.graduation_year ?? '—'}
                     {student.last_class?.name ? ` · ${student.last_class.name}` : ''}
@@ -604,6 +603,49 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                 </Empty>
               )}
 
+              {guardiansQuery.isSuccess && guardians.length > 0 && (
+                <>
+                  <SectionTitle>Orang Tua</SectionTitle>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    {guardians.map((g) => (
+                      <div
+                        key={g.id}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: 12,
+                          background: '#f8fafc',
+                          border: '1px solid #eef2f7',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            color: '#64748b',
+                            marginBottom: 8,
+                          }}
+                        >
+                          {GUARDIAN_RELATION_LABEL[g.relation]}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
+                          <InfoRow label="Nama">{mask(g.name)}</InfoRow>
+                          <InfoRow label="No. HP">
+                            <Typography.Text copyable={copyable(g.phone)} style={{ fontSize: 14.5 }}>
+                              {mask(g.phone)}
+                            </Typography.Text>
+                          </InfoRow>
+                          <InfoRow label="Pendidikan">{g.education ?? '—'}</InfoRow>
+                          <InfoRow label="Pekerjaan">{g.occupation ?? '—'}</InfoRow>
+                          <InfoRow label="Penghasilan / bulan">{g.income_range ?? '—'}</InfoRow>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
               <SectionTitle>Alamat &amp; Domisili</SectionTitle>
               {student.address || student.dorms?.name ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
@@ -618,6 +660,39 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                     </Button>
                   )}
                 </Empty>
+              )}
+
+              {(student.kk_number ||
+                student.child_status ||
+                student.child_number != null ||
+                student.siblings_count != null ||
+                student.home_phone ||
+                student.origin_school ||
+                student.origin_graduation_year != null ||
+                student.admitted_at ||
+                student.uniform_size) && (
+                <>
+                  <SectionTitle>Data Lainnya</SectionTitle>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+                    <InfoRow label="No. KK">
+                      <Typography.Text copyable={copyable(student.kk_number)} style={{ fontSize: 14.5 }}>
+                        {mask(student.kk_number)}
+                      </Typography.Text>
+                    </InfoRow>
+                    <InfoRow label="Status Anak">{student.child_status ?? '—'}</InfoRow>
+                    <InfoRow label="Anak Ke">{student.child_number ?? '—'}</InfoRow>
+                    <InfoRow label="Jumlah Saudara">{student.siblings_count ?? '—'}</InfoRow>
+                    <InfoRow label="Telepon Rumah">{mask(student.home_phone)}</InfoRow>
+                    <InfoRow label="Ukuran Seragam">{student.uniform_size ?? '—'}</InfoRow>
+                    <InfoRow label="Sekolah Asal">{student.origin_school ?? '—'}</InfoRow>
+                    <InfoRow label="Tahun Lulus Sekolah Asal">
+                      {student.origin_graduation_year ?? '—'}
+                    </InfoRow>
+                    <InfoRow label="Tanggal Diterima">
+                      {student.admitted_at ? dayjs(student.admitted_at).format('DD MMMM YYYY') : '—'}
+                    </InfoRow>
+                  </div>
+                </>
               )}
 
               {tags.length > 0 && (
@@ -726,16 +801,16 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
             ))}
 
           {/* ── RAPORT ── */}
-          {tab === 'raport' &&
-            (raportQuery.isPending ? (
+          {tab === 'report-card' &&
+            (reportCardQuery.isPending ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
                 <Spin />
               </div>
-            ) : raportRows.length === 0 ? (
+            ) : reportCardRows.length === 0 ? (
               <TabEmpty title="Arsip raport kosong" description="Data raport bulanan untuk siswa ini belum tersedia." />
             ) : (
-              raportRows.map((r) => {
-                const values = NILAI_KEYS.map((k) => r[k.key]).filter((v): v is number => v != null)
+              reportCardRows.map((r) => {
+                const values = SCORE_KEYS.map((k) => r[k.key]).filter((v): v is number => v != null)
                 const avg = values.length ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1) : null
                 return (
                   <Card
@@ -759,7 +834,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                       </span>
                     }
                   >
-                    {NILAI_KEYS.map((k) => {
+                    {SCORE_KEYS.map((k) => {
                       const v = r[k.key]
                       return (
                         <div key={k.key} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 6 }}>
@@ -792,7 +867,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                 style={{ marginTop: 12 }}
                 dataSource={gateLogs}
                 renderItem={(g) => {
-                  const keluar = g.direction === 'keluar'
+                  const isExit = g.direction === 'exit'
                   return (
                     <List.Item style={{ padding: '10px 0' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
@@ -801,8 +876,8 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                             width: 36,
                             height: 36,
                             borderRadius: 10,
-                            background: keluar ? '#fff7ed' : '#ecfdf5',
-                            color: keluar ? '#ea580c' : '#059669',
+                            background: isExit ? '#fff7ed' : '#ecfdf5',
+                            color: isExit ? '#ea580c' : '#059669',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -810,14 +885,14 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                             flexShrink: 0,
                           }}
                         >
-                          {keluar ? <LogoutOutlined /> : <LoginOutlined />}
+                          {isExit ? <LogoutOutlined /> : <LoginOutlined />}
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>{dayjs(g.occurred_at).format('DD MMM YYYY · HH:mm')}</div>
                           {g.recorder?.name && <div style={{ fontSize: 12, color: '#94a3b8' }}>{g.recorder.name}</div>}
                         </div>
-                        <Tag color={keluar ? 'orange' : 'green'} style={{ marginInlineEnd: 0, borderRadius: 6 }}>
-                          {keluar ? 'Keluar' : 'Masuk'}
+                        <Tag color={isExit ? 'orange' : 'green'} style={{ marginInlineEnd: 0, borderRadius: 6 }}>
+                          {isExit ? 'Keluar' : 'Masuk'}
                         </Tag>
                       </div>
                     </List.Item>

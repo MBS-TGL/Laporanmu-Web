@@ -42,14 +42,14 @@ import { MedicineForm } from './components/MedicineForm'
 
 const STATUS_LABEL: Record<HealthStatus, string> = {
   UKS: 'Rawat di UKS',
-  Asrama: 'Rest di Asrama',
-  Kembali: 'Kembali KBM',
+  Dormitory: 'Rest di Asrama',
+  Returned: 'Kembali KBM',
 }
 
 const STATUS_COLOR: Record<HealthStatus, string> = {
   UKS: 'orange',
-  Asrama: 'purple',
-  Kembali: 'green',
+  Dormitory: 'purple',
+  Returned: 'green',
 }
 
 export function HealthPage() {
@@ -73,7 +73,7 @@ export function HealthPage() {
   const updateMedicineMutation = useUpdateMedicine()
   const deleteMedicineMutation = useDeleteMedicine()
 
-  const resting = logs.filter((l) => l.status === 'UKS' || l.status === 'Asrama')
+  const resting = logs.filter((l) => l.status === 'UKS' || l.status === 'Dormitory')
   const lowStock = medicines.filter((m) => m.stock <= m.min_stock)
 
   const filteredLogs = useMemo(() => {
@@ -206,12 +206,12 @@ export function HealthPage() {
       width: 110,
       render: (_, l) => (
         <Space size="small">
-          {(l.status === 'UKS' || l.status === 'Asrama') && canWrite && (
+          {(l.status === 'UKS' || l.status === 'Dormitory') && canWrite && (
             <Button
               size="small"
               onClick={() =>
                 statusMutation.mutate(
-                  { id: l.id, status: 'Kembali' },
+                  { id: l.id, status: 'Returned' },
                   {
                     onSuccess: () => message.success(`${l.student_name} dinyatakan sembuh`),
                     onError: (err: Error) => message.error(err.message || 'Gagal memperbarui'),
@@ -411,7 +411,7 @@ export function HealthPage() {
                                 ghost
                                 onClick={() =>
                                   statusMutation.mutate(
-                                    { id: l.id, status: 'Kembali' },
+                                    { id: l.id, status: 'Returned' },
                                     {
                                       onSuccess: () =>
                                         message.success(`${l.student_name} dinyatakan sembuh & kembali KBM`),

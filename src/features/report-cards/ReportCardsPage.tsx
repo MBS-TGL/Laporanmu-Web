@@ -6,11 +6,11 @@ import { PageHeader } from '../../shared/components/PageHeader'
 import {
   BULANAN_CRITERIA,
   MONTH_NAMES,
-  RAPORT_TYPE_LABEL,
+  REPORT_CARD_TYPE_LABEL,
   isComplete,
 } from './constants'
-import { useAllMonthlyRows, useAllSemesterRows, useAllStudentClasses, useRaportClasses } from './hooks'
-import type { RaportType, SemesterType } from './types'
+import { useAllMonthlyRows, useAllSemesterRows, useAllStudentClasses, useReportCardClasses } from './hooks'
+import type { ReportCardType, SemesterType } from './types'
 
 function ClassGrid({
   loading,
@@ -81,15 +81,15 @@ function ClassGrid({
   )
 }
 
-export function RaportPage() {
+export function ReportCardsPage() {
   const navigate = useNavigate()
   const now = new Date()
-  const [bulan, setBulan] = useState(now.getMonth() + 1)
-  const [tahun, setTahun] = useState(now.getFullYear())
-  const [semesterType, setSemesterType] = useState<SemesterType>('umum')
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [year, setYear] = useState(now.getFullYear())
+  const [semesterType, setSemesterType] = useState<SemesterType>('general')
   const [semester, setSemester] = useState<1 | 2>(1)
 
-  const classesQuery = useRaportClasses()
+  const classesQuery = useReportCardClasses()
   const studentClassesQuery = useAllStudentClasses()
   const monthlyQuery = useAllMonthlyRows()
   const semesterQuery = useAllSemesterRows(semesterType)
@@ -108,7 +108,7 @@ export function RaportPage() {
       if (!classId) continue
       const key = classId
       const bucket = buckets.get(key) ?? { complete: 0, filled: 0 }
-      const values = [row.nilai_akhlak, row.nilai_ibadah, row.nilai_kebersihan, row.nilai_quran, row.nilai_bahasa]
+      const values = [row.character_score, row.worship_score, row.cleanliness_score, row.quran_score, row.language_score]
       const isFull = values.every((v) => typeof v === 'number')
       if (isFull) bucket.complete += 1
       if (values.some((v) => typeof v === 'number')) bucket.filled += 1
@@ -155,16 +155,16 @@ export function RaportPage() {
   }, [semesterQuery.data, studentClassMap, classes, classById, semester, semesterType, studentClassesQuery.data])
 
   const openMonthly = (classId: string) => {
-    navigate(`/report-cards/input/${classId}?jenis=bulanan&bulan=${bulan}&tahun=${tahun}`)
+    navigate(`/report-cards/input/${classId}?type=bulanan&month=${month}&year=${year}`)
   }
 
   const openSemester = (classId: string) => {
-    const ta = classes.find((c) => c.id === classId)?.academic_year_id
+    const ay = classes.find((c) => c.id === classId)?.academic_year_id
     const sp = new URLSearchParams({
-      jenis: semesterType,
+      type: semesterType,
       semester: String(semester),
     })
-    if (ta) sp.set('ta', ta)
+    if (ay) sp.set('ay', ay)
     navigate(`/report-cards/input/${classId}?${sp.toString()}`)
   }
 
@@ -180,10 +180,10 @@ export function RaportPage() {
       />
 
       <Tabs
-        defaultActiveKey="bulanan"
+        defaultActiveKey="monthly"
         items={[
           {
-            key: 'bulanan',
+            key: 'monthly',
             label: 'Raport Bulanan',
             children: (
               <>
@@ -192,15 +192,15 @@ export function RaportPage() {
                     <Typography.Text strong>Periode:</Typography.Text>
                     <Select
                       style={{ minWidth: 140 }}
-                      value={bulan}
-                      onChange={setBulan}
+                      value={month}
+                      onChange={setMonth}
                       options={MONTH_NAMES.map((m, i) => ({ value: i + 1, label: m }))}
                     />
                     <Select
                       style={{ minWidth: 110 }}
-                      value={tahun}
-                      onChange={setTahun}
-                      options={[tahun - 1, tahun, tahun + 1].map((y) => ({ value: y, label: String(y) }))}
+                      value={year}
+                      onChange={setYear}
+                      options={[year - 1, year, year + 1].map((y) => ({ value: y, label: String(y) }))}
                     />
                     <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
                       Skala nilai 1–9 · {BULANAN_CRITERIA.length} kriteria
@@ -227,8 +227,8 @@ export function RaportPage() {
                       style={{ minWidth: 170 }}
                       value={semesterType}
                       onChange={(v) => setSemesterType(v as SemesterType)}
-                      options={(Object.entries(RAPORT_TYPE_LABEL) as [RaportType, string][])
-                        .filter(([k]) => k !== 'bulanan')
+                      options={(Object.entries(REPORT_CARD_TYPE_LABEL) as [ReportCardType, string][])
+                        .filter(([k]) => k !== 'monthly')
                         .map(([value, label]) => ({ value, label }))}
                     />
                     <Typography.Text strong>Semester:</Typography.Text>
@@ -260,4 +260,4 @@ export function RaportPage() {
   )
 }
 
-export type { RaportType }
+export type { ReportCardType }

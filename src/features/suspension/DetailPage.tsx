@@ -52,9 +52,9 @@ import {
 import type { SuspensionFollowup, SuspensionStatus, SuspensionTask } from './types'
 
 const STATUS_META: Record<SuspensionStatus, { label: string; color: string }> = {
-  aktif: { label: 'Aktif', color: 'orange' },
-  selesai: { label: 'Selesai', color: 'green' },
-  dibatalkan: { label: 'Dibatalkan', color: 'default' },
+  active: { label: 'Aktif', color: 'orange' },
+  completed: { label: 'Selesai', color: 'green' },
+  cancelled: { label: 'Dibatalkan', color: 'default' },
 }
 
 export function DetailPage() {
@@ -73,7 +73,7 @@ export function DetailPage() {
         title={detail ? `Skorsing — ${detail.student?.name ?? ''}` : 'Detail Skorsing'}
         subtitle={
           detail
-            ? `${detail.jenjang} · ${dayjs(detail.start_date).format('DD MMM')} — ${dayjs(detail.end_date).format('DD MMM YYYY')}`
+            ? `${detail.level} · ${dayjs(detail.start_date).format('DD MMM')} — ${dayjs(detail.end_date).format('DD MMM YYYY')}`
             : undefined
         }
         extra={
@@ -81,12 +81,12 @@ export function DetailPage() {
             <Link to="/suspension">
               <Button icon={<ArrowLeftOutlined />}>Daftar</Button>
             </Link>
-            {isAdmin && detail?.status === 'aktif' && (
+            {isAdmin && detail?.status === 'active' && (
               <Button
                 type="primary"
                 onClick={() =>
                   statusMutation.mutate(
-                    { id, status: 'selesai' },
+                    { id, status: 'completed' },
                     {
                       onSuccess: () => message.success('Skorsing diselesaikan'),
                       onError: (err: Error) => message.error(err.message || 'Gagal'),
@@ -97,10 +97,10 @@ export function DetailPage() {
                 Selesaikan
               </Button>
             )}
-            {isAdmin && detail?.status === 'aktif' && (
+            {isAdmin && detail?.status === 'active' && (
               <Button danger onClick={() =>
                 statusMutation.mutate(
-                  { id, status: 'dibatalkan' },
+                  { id, status: 'cancelled' },
                   {
                     onSuccess: () => message.success('Skorsing dibatalkan'),
                     onError: (err: Error) => message.error(err.message || 'Gagal'),
@@ -129,7 +129,7 @@ export function DetailPage() {
                   {STATUS_META[detail.status].label}
                 </StatusTag>
               </Descriptions.Item>
-              <Descriptions.Item label="Jenjang">{detail.jenjang}</Descriptions.Item>
+              <Descriptions.Item label="Jenjang">{detail.level}</Descriptions.Item>
               <Descriptions.Item label="No. Registrasi">
                 {detail.student?.registration_code ?? '—'}
               </Descriptions.Item>
@@ -455,7 +455,7 @@ function SubmissionsPanel({ suspensionId }: { suspensionId: string }) {
               <Card
                 key={sub.id}
                 size="small"
-                style={{ borderLeft: `4px solid ${sub.status === 'dinilai' ? '#10b981' : '#d97706'}` }}
+                style={{ borderLeft: `4px solid ${sub.status === 'graded' ? '#10b981' : '#d97706'}` }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                   <div>
@@ -470,7 +470,7 @@ function SubmissionsPanel({ suspensionId }: { suspensionId: string }) {
                     </div>
                   </div>
                   <Space size="small">
-                    {sub.status === 'dinilai' ? (
+                    {sub.status === 'graded' ? (
                       <StatusTag color="green">Nilai {sub.score}</StatusTag>
                     ) : (
                       <StatusTag color="orange">Belum Dinilai</StatusTag>
@@ -536,7 +536,7 @@ function SubmissionsPanel({ suspensionId }: { suspensionId: string }) {
                                 source: 'OPERATIONAL',
                                 tableName: 'suspension_task_submissions',
                                 recordId: sub.id,
-                                newData: { score, status: 'dinilai' },
+                                newData: { score, status: 'graded' },
                               })
                             },
                             onError: (err: Error) => message.error(err.message || 'Gagal menyimpan nilai'),

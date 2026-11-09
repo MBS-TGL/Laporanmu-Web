@@ -50,21 +50,21 @@ import { TabPlacements } from './components/TabPlacements'
 import type { Dorm, DormFormValues, DormGender, DormStatus } from './types'
 
 const STATUS_META: Record<string, { label: string; color?: string; icon: ReactNode }> = {
-  aktif: { label: 'Aktif', color: 'green', icon: <CheckCircleOutlined /> },
-  penuh: { label: 'Penuh', color: 'orange', icon: <TeamOutlined /> },
-  nonaktif: { label: 'Nonaktif', icon: <StopOutlined /> },
+  active: { label: 'Aktif', color: 'green', icon: <CheckCircleOutlined /> },
+  full: { label: 'Penuh', color: 'orange', icon: <TeamOutlined /> },
+  nonactive: { label: 'Nonaktif', icon: <StopOutlined /> },
 }
 
 const GENDER_LABEL: Record<string, string> = {
-  putra: 'Putra',
-  putri: 'Putri',
-  campur: 'Campur',
+  male: 'Putra',
+  female: 'Putri',
+  mixed: 'Campur',
 }
 
 const GENDER_COLOR: Record<string, string> = {
-  putra: 'geekblue',
-  putri: 'magenta',
-  campur: 'purple',
+  male: 'geekblue',
+  female: 'magenta',
+  mixed: 'purple',
 }
 
 interface AssignState {
@@ -350,7 +350,7 @@ export function DormsPage() {
       width: 160,
       render: (v: DormStatus | null, row) => {
         const occupied = occupancyMap.get(row.id) ?? 0
-        const autoFull = v === 'aktif' && row.capacity > 0 && occupied >= row.capacity
+        const autoFull = v === 'active' && row.capacity > 0 && occupied >= row.capacity
         return (
           <Space size={4} wrap>
             {v && <StatusTag color={STATUS_META[v].color} icon={STATUS_META[v].icon}>{STATUS_META[v].label}</StatusTag>}
@@ -389,7 +389,7 @@ export function DormsPage() {
     },
   ]
 
-  const kamarTab = (
+  const roomTab = (
     <div>
       <Space wrap style={{ marginBottom: 16 }}>
         <StatChip
@@ -454,9 +454,9 @@ export function DormsPage() {
               setPage(1)
             }}
             options={[
-              { value: 'putra', label: 'Putra' },
-              { value: 'putri', label: 'Putri' },
-              { value: 'campur', label: 'Campur' },
+              { value: 'male', label: 'Putra' },
+              { value: 'female', label: 'Putri' },
+              { value: 'mixed', label: 'Campur' },
             ]}
           />
           <Select
@@ -469,9 +469,9 @@ export function DormsPage() {
               setPage(1)
             }}
             options={[
-              { value: 'aktif', label: 'Aktif' },
-              { value: 'penuh', label: 'Penuh' },
-              { value: 'nonaktif', label: 'Nonaktif' },
+              { value: 'active', label: 'Aktif' },
+              { value: 'full', label: 'Penuh' },
+              { value: 'inactive', label: 'Nonaktif' },
             ]}
           />
         </Space>
@@ -530,7 +530,7 @@ export function DormsPage() {
       <Tabs
         defaultActiveKey="kamar"
         items={[
-          { key: 'kamar', label: 'Kamar', children: kamarTab },
+          { key: 'rooms', label: 'Kamar', children: roomTab },
           {
             key: 'penempatan',
             label: 'Penempatan Santri',

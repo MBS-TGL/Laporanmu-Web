@@ -35,14 +35,14 @@ import type { Gender, Teacher, TeacherFilters, TeacherFormValues, TeacherStatus 
 const STATUS_META: Record<TeacherStatus, { label: string; color?: string; icon: ReactNode }> = {
   active: { label: 'Aktif', color: 'green', icon: <CheckCircleOutlined /> },
   inactive: { label: 'Nonaktif', icon: <StopOutlined /> },
-  cuti: { label: 'Cuti', color: 'orange', icon: <PauseCircleOutlined /> },
+  on_leave: { label: 'Cuti', color: 'orange', icon: <PauseCircleOutlined /> },
 }
 
 const STATUS_OPTIONS = [
   { label: 'Semua', value: '' },
   { label: 'Aktif', value: 'active' },
   { label: 'Nonaktif', value: 'inactive' },
-  { label: 'Cuti', value: 'cuti' },
+  { label: 'Cuti', value: 'on_leave' },
 ]
 
 export function TeachersPage() {

@@ -31,11 +31,11 @@ import { usePermissions } from '../../shared/hooks/useProfile'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { supabase } from '../../lib/supabase'
 import { useSearchParams } from 'react-router-dom'
-import { useRaportClasses, useRaportStudents } from '../raport/hooks'
+import { useReportCardClasses, useReportCardStudents } from '../report-cards/hooks'
 import { useAttendanceRows, useSaveAttendance, useSyncAttendance } from './hooks'
 import { countWeekdays, summarizeDays } from './api'
 import type { AttendanceDays, AttendanceStatus } from './types'
-import type { RaportStudent } from '../raport/types'
+import type { ReportCardStudent } from '../report-cards/types'
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -62,29 +62,29 @@ export function AttendancePage() {
   const { canWrite } = usePermissions()
   const now = new Date()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [classId, setClassId] = useState<string | undefined>(searchParams.get('kelas') ?? undefined)
-  const [bulan, setBulan] = useState(Number(searchParams.get('bulan')) || now.getMonth() + 1)
-  const [tahun, setTahun] = useState(Number(searchParams.get('tahun')) || now.getFullYear())
+  const [classId, setClassId] = useState<string | undefined>(searchParams.get('class') ?? undefined)
+  const [month, setMonth] = useState(Number(searchParams.get('month')) || now.getMonth() + 1)
+  const [year, setYear] = useState(Number(searchParams.get('year')) || now.getFullYear())
   const [tab, setTab] = useState<'input' | 'rekap'>('input')
 
   // pilihan periode tersimpan di URL agar bisa di-deep-link (pola raport)
-  const syncParams = (next: { kelas?: string; bulan?: number; tahun?: number }) => {
+  const syncParams = (next: { class?: string; month?: number; year?: number }) => {
     const sp = new URLSearchParams()
-    const kelas = next.kelas ?? classId
-    const b = next.bulan ?? bulan
-    const t = next.tahun ?? tahun
-    if (kelas) sp.set('kelas', kelas)
-    sp.set('bulan', String(b))
-    sp.set('tahun', String(t))
+    const klass = next.class ?? classId
+    const b = next.month ?? month
+    const t = next.year ?? year
+    if (klass) sp.set('class', klass)
+    sp.set('month', String(b))
+    sp.set('year', String(t))
     setSearchParams(sp, { replace: true })
   }
 
-  const studentsQuery = useRaportStudents(classId)
+  const studentsQuery = useReportCardStudents(classId)
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data])
-  const classesQuery = useRaportClasses()
+  const classesQuery = useReportCardClasses()
 
-  const rowsQuery = useAttendanceRows(classId, tahun, bulan)
-  const prevQuery = useAttendanceRows(classId, bulan === 1 ? tahun - 1 : tahun, bulan === 1 ? 12 : bulan - 1)
+  const rowsQuery = useAttendanceRows(classId, year, month)
+  const prevQuery = useAttendanceRows(classId, month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1)
 
   const [drafts, setDrafts] = useState<Record<string, AttendanceDays>>({})
   const saveMutation = useSaveAttendance()
@@ -114,12 +114,12 @@ export function AttendancePage() {
     })
   }
 
-  const daysInMonth = new Date(tahun, bulan, 0).getDate()
+  const daysInMonth = new Date(year, month, 0).getDate()
   const isWeekend = (d: number) => {
-    const dow = new Date(tahun, bulan - 1, d).getDay()
+    const dow = new Date(year, month - 1, d).getDay()
     return dow === 0 || dow === 6
   }
-  const weekdays = countWeekdays(tahun, bulan)
+  const weekdays = countWeekdays(year, month)
 
   const fillAll = (status: AttendanceStatus) => {
     if (!canWrite) return
@@ -142,7 +142,7 @@ export function AttendancePage() {
   const copyLastMonth = () => {
     const prevRows = prevQuery.data ?? []
     if (prevRows.length === 0) {
-      message.info(`Tidak ada data absensi ${MONTH_NAMES[bulan === 1 ? 12 : bulan - 1]} untuk disalin`)
+      message.info(`Tidak ada data absensi ${MONTH_NAMES[month === 1 ? 12 : month - 1]} untuk disalin`)
       return
     }
     let copied = 0
@@ -168,20 +168,20 @@ export function AttendancePage() {
     const payload = students.map((s) => ({
       student_id: s.id,
       class_id: classId,
-      year: tahun,
-      month: bulan,
+      year: year,
+      month: month,
       days: getDays(s.id),
       updated_by: userData.user?.id ?? null,
     }))
     saveMutation.mutate(payload, {
       onSuccess: () => {
-        message.success(`Absensi ${MONTH_NAMES[bulan - 1]} ${tahun} tersimpan`)
+        message.success(`Absensi ${MONTH_NAMES[month - 1]} ${year} tersimpan`)
         setDrafts({})
         void logAudit({
           action: 'UPDATE',
           source: 'OPERATIONAL',
           tableName: 'student_attendance',
-          newData: { class_id: classId, year: tahun, month: bulan, students: payload.length },
+          newData: { class_id: classId, year: year, month: month, students: payload.length },
         })
       },
       onError: (err: Error) => message.error(err.message || 'Gagal menyimpan absensi'),
@@ -198,7 +198,7 @@ export function AttendancePage() {
       return
     }
     syncMutation.mutate(
-      { rows, classId, year: tahun, month: bulan, updatedBy: null },
+      { rows, classId, year: year, month: month, updatedBy: null },
       {
         onSuccess: async () => {
           const { data: userData } = await supabase.auth.getUser()
@@ -206,10 +206,10 @@ export function AttendancePage() {
             action: 'SYNC',
             source: 'OPERATIONAL',
             tableName: 'student_monthly_reports',
-            newData: { year: tahun, month: bulan, students: rows.length },
+            newData: { year: year, month: month, students: rows.length },
           })
           void userData
-          message.success(`Rekap absensi tersinkron ke rapor ${MONTH_NAMES[bulan - 1]} (${rows.length} santri)`)
+          message.success(`Rekap absensi tersinkron ke rapor ${MONTH_NAMES[month - 1]} (${rows.length} santri)`)
         },
         onError: (err: Error) => message.error(err.message || 'Gagal sinkron ke rapor'),
       },
@@ -222,7 +222,7 @@ export function AttendancePage() {
     [students, drafts, rowsQuery.data],
   )
 
-  const rekapColumns: TableColumnsType<RaportStudent> = [
+  const rekapColumns: TableColumnsType<ReportCardStudent> = [
     {
       title: 'Santri',
       key: 'name',
@@ -237,13 +237,13 @@ export function AttendancePage() {
       title: STATUS_META[st].label,
       key: st,
       width: 82,
-      render: (_: unknown, s: RaportStudent) => summaries.get(s.id)?.[st] ?? 0,
+      render: (_: unknown, s: ReportCardStudent) => summaries.get(s.id)?.[st] ?? 0,
     })),
     {
       title: '% Hadir',
       key: 'pct',
       width: 150,
-      render: (_: unknown, s: RaportStudent) => {
+      render: (_: unknown, s: ReportCardStudent) => {
         const sum = summaries.get(s.id) ?? { H: 0, S: 0, I: 0, A: 0, P: 0 }
         const pct = weekdays > 0 ? Math.round((sum.H / weekdays) * 100) : 0
         const anyFilled = Object.keys(getDays(s.id)).length > 0
@@ -269,7 +269,7 @@ export function AttendancePage() {
       key: 'delta',
       width: 90,
       responsive: ['lg'],
-      render: (_: unknown, s: RaportStudent) => {
+      render: (_: unknown, s: ReportCardStudent) => {
         const prevSum = summarizeDays(prevByStudent.get(s.id) ?? {})
         const cur = summaries.get(s.id)?.H ?? 0
         const delta = cur - (prevSum.H ?? 0)
@@ -286,7 +286,7 @@ export function AttendancePage() {
       key: 'alert',
       width: 150,
       responsive: ['md'],
-      render: (_: unknown, s: RaportStudent) => {
+      render: (_: unknown, s: ReportCardStudent) => {
         const sum = summaries.get(s.id) ?? { H: 0, S: 0, I: 0, A: 0, P: 0 }
         const anyFilled = Object.keys(getDays(s.id)).length > 0
         const pct = weekdays > 0 ? Math.round((sum.H / weekdays) * 100) : 0
@@ -297,13 +297,13 @@ export function AttendancePage() {
     },
   ]
 
-  const gridColumns: TableColumnsType<RaportStudent> = [
+  const gridColumns: TableColumnsType<ReportCardStudent> = [
     {
       title: 'Nama Santri',
       key: 'name',
       fixed: 'left',
       width: 170,
-      render: (_: unknown, s: RaportStudent) => (
+      render: (_: unknown, s: ReportCardStudent) => (
         <Tooltip title={s.registration_code}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>{s.name}</span>
         </Tooltip>
@@ -316,7 +316,7 @@ export function AttendancePage() {
             {day}
           </div>
           <div style={{ fontSize: 9, color: '#94a3b8' }}>
-            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(tahun, bulan - 1, day).getDay()]}
+            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][new Date(year, month - 1, day).getDay()]}
           </div>
         </div>
       ),
@@ -328,7 +328,7 @@ export function AttendancePage() {
       onCell: () => ({
         style: { padding: '2px', background: isWeekend(day) ? '#fbfcfe' : undefined },
       }),
-      render: (_: unknown, s: RaportStudent) => {
+      render: (_: unknown, s: ReportCardStudent) => {
         const status = getDays(s.id)[String(day)] ?? ''
         const meta = status ? STATUS_META[status] : null
         return (
@@ -361,7 +361,7 @@ export function AttendancePage() {
       title: 'H',
       key: 'sum-h',
       width: 44,
-      render: (_: unknown, s: RaportStudent) => (
+      render: (_: unknown, s: ReportCardStudent) => (
         <Typography.Text strong style={{ fontSize: 12.5 }}>
           {summaries.get(s.id)?.H ?? 0}
         </Typography.Text>
@@ -387,29 +387,29 @@ export function AttendancePage() {
             onChange={(v) => {
               setClassId(v as string)
               setDrafts({})
-              syncParams({ kelas: v as string })
+              syncParams({ class: v as string })
             }}
             options={(classesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
           />
           <Select
             style={{ minWidth: 130 }}
-            value={bulan}
+            value={month}
             onChange={(v) => {
-              setBulan(v as number)
+              setMonth(v as number)
               setDrafts({})
-              syncParams({ bulan: v as number })
+              syncParams({ month: v as number })
             }}
             options={MONTH_NAMES.map((m, i) => ({ value: i + 1, label: m }))}
           />
           <Select
             style={{ minWidth: 100 }}
-            value={tahun}
+            value={year}
             onChange={(v) => {
-              setTahun(v as number)
+              setYear(v as number)
               setDrafts({})
-              syncParams({ tahun: v as number })
+              syncParams({ year: v as number })
             }}
-            options={[tahun - 1, tahun, tahun + 1].map((y) => ({ value: y, label: String(y) }))}
+            options={[year - 1, year, year + 1].map((y) => ({ value: y, label: String(y) }))}
           />
           <Segmented
             value={tab}
@@ -490,7 +490,7 @@ export function AttendancePage() {
                     style={{ marginBottom: 12 }}
                     message={`Klik sel untuk siklus: Kosong → Hadir → Sakit → Izin → Alpa → Pulang Awal. Hari kerja bulan ini: ${weekdays} hari.`}
                   />
-                  <Table<RaportStudent>
+                  <Table<ReportCardStudent>
                     rowKey="id"
                     columns={gridColumns}
                     dataSource={students}
@@ -532,7 +532,7 @@ export function AttendancePage() {
                     </Col>
                   </Row>
                   <Card>
-                    <Table<RaportStudent>
+                    <Table<ReportCardStudent>
                       rowKey="id"
                       columns={rekapColumns}
                       dataSource={students}

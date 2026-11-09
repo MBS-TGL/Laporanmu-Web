@@ -17,7 +17,7 @@ function initials(name: string): string {
     .join('')
 }
 
-/** Jejak siswa yang telah lulus: daftar alumni + profil + pembatalan kelulusan */
+/** Jejak siswa yang telah graduated: daftar alumni + profil + pembatalan kelulusan */
 export function AlumniPage() {
   const { message } = App.useApp()
   const qc = useQueryClient()

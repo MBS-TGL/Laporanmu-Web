@@ -1,12 +1,15 @@
 import Papa from 'papaparse'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
+import { isIncomplete, type CompletenessFields } from './completeness'
 import type {
   SortOption,
   Student,
   StudentBrief,
   StudentFilters,
   StudentFormValues,
+  StudentGuardian,
+  StudentGuardianInput,
   StudentStats,
 } from './types'
 
@@ -142,6 +145,7 @@ function payload(values: StudentFormValues) {
     status: values.status,
     nisn: values.nisn || null,
     nis: values.nis || null,
+    nik: values.nik || null,
     phone: values.phone || null,
     birth_place: values.birth_place || null,
     birth_date: values.birth_date || null,
@@ -150,7 +154,48 @@ function payload(values: StudentFormValues) {
     guardian_name: values.guardian_name || null,
     guardian_relation: values.guardian_relation || null,
     tags: values.tags ?? [],
+    nickname: values.nickname || null,
+    kk_number: values.kk_number || null,
+    child_status: values.child_status || null,
+    child_number: values.child_number ?? null,
+    siblings_count: values.siblings_count ?? null,
+    home_phone: values.home_phone || null,
+    origin_school: values.origin_school || null,
+    origin_graduation_year: values.origin_graduation_year ?? null,
+    admitted_at: values.admitted_at || null,
+    uniform_size: values.uniform_size || null,
   }
+}
+
+// ------------------------------------------------------------
+// Data orang tua/wali (tabel student_guardians — migration 0020)
+// ------------------------------------------------------------
+
+export async function fetchStudentGuardians(studentId: string): Promise<StudentGuardian[]> {
+  const { data, error } = await supabase
+    .from('student_guardians')
+    .select('*')
+    .eq('student_id', studentId)
+    .is('deleted_at', null)
+    .order('created_at')
+
+  if (error) throw error
+  return (data ?? []) as StudentGuardian[]
+}
+
+/**
+ * Simpan baris ayah/ibu/wali sekaligus via RPC (diff per relation —
+ * baris yang tidak dikirim di-soft-delete). Lihat migration 0020.
+ */
+export async function saveStudentGuardians(
+  studentId: string,
+  rows: StudentGuardianInput[],
+): Promise<void> {
+  const { error } = await supabase.rpc('save_student_guardians', {
+    p_student_id: studentId,
+    p_rows: rows,
+  })
+  if (error) throw error
 }
 
 export async function createStudent(values: StudentFormValues): Promise<Student> {
@@ -165,10 +210,10 @@ export async function createStudent(values: StudentFormValues): Promise<Student>
 }
 
 export async function updateStudent(id: string, values: StudentFormValues): Promise<Student> {
-  // Jalur kelulusan manual via form: isi jejak kelulusan saat status jadi 'lulus',
-  // kosongkan saat status berubah dari 'lulus' ke selain itu.
+  // Jalur kelulusan manual via form: isi jejak kelulusan saat status jadi 'graduated',
+  // kosongkan saat status berubah dari 'graduated' ke selain itu.
   let extra: Partial<Pick<Student, 'graduated_at' | 'graduation_year' | 'last_class_id'>> = {}
-  if (values.status === 'lulus') {
+  if (values.status === 'graduated') {
     const { data: existing } = await supabase
       .from('students')
       .select('graduated_at, graduation_year, class_id')
@@ -186,7 +231,7 @@ export async function updateStudent(id: string, values: StudentFormValues): Prom
       .select('status')
       .eq('id', id)
       .maybeSingle()
-    if ((existing as { status: string } | null)?.status === 'lulus') {
+    if ((existing as { status: string } | null)?.status === 'graduated') {
       extra = { graduated_at: null, graduation_year: null, last_class_id: null }
     }
   }
@@ -309,8 +354,9 @@ export async function fetchStudentStats(): Promise<StudentStats> {
     supabase
       .from('students')
       // hint FK wajib sejak 0018 — students punya 2 FK ke classes (class_id & last_class_id)
+      // kolom lengkap dimuat untuk definisi kelengkapan 13 field (completeness.ts, §6.1b)
       .select(
-        'id, name, gender, total_points, class_id, photo_url, phone, nisn, classes!students_class_id_fkey(name)',
+        'id, name, gender, total_points, class_id, photo_url, nisn, nis, nik, phone, address, birth_place, birth_date, religion, guardian_name, kk_number, origin_school, tags, classes!students_class_id_fkey(name)',
       )
       .is('deleted_at', null),
     supabase.from('reports').select('points').gte('created_at', weekAgo),
@@ -322,36 +368,38 @@ export async function fetchStudentStats(): Promise<StudentStats> {
     gender: string | null
     total_points: number
     class_id: string | null
-    photo_url: string | null
-    phone: string | null
-    nisn: string | null
     classes?: { name: string } | null
-  }
+  } & CompletenessFields
   const rows = (studentsRes.data ?? []) as unknown as Row[]
   const total = rows.length
 
-  let putra = 0
-  let putri = 0
+  let male = 0
+  let female = 0
   let pointSum = 0
   let riskCount = 0
   let incompleteCount = 0
-  const classBuckets = new Map<string, { name: string; sum: number; count: number }>()
+  const classBuckets = new Map<
+    string,
+    { name: string; sum: number; count: number; incomplete: number }
+  >()
 
   for (const row of rows) {
-    if (row.gender === 'L') putra += 1
-    else if (row.gender === 'P') putri += 1
+    if (row.gender === 'L') male += 1
+    else if (row.gender === 'P') female += 1
     pointSum += row.total_points ?? 0
     if ((row.total_points ?? 0) <= RISK_THRESHOLD) riskCount += 1
-    if (!row.photo_url || !row.phone || !row.nisn) incompleteCount += 1
+    if (isIncomplete(row)) incompleteCount += 1
 
     if (row.class_id) {
       const bucket = classBuckets.get(row.class_id) ?? {
         name: row.classes?.name ?? 'Tanpa nama',
         sum: 0,
         count: 0,
+        incomplete: 0,
       }
       bucket.sum += row.total_points ?? 0
       bucket.count += 1
+      if (isIncomplete(row)) bucket.incomplete += 1
       classBuckets.set(row.class_id, bucket)
     }
   }
@@ -371,6 +419,19 @@ export async function fetchStudentStats(): Promise<StudentStats> {
     }
   }
 
+  // Rekap kelengkapan per kelas — terendah dulu; kelas tanpa field kosong tak dilaporkan
+  const classCompleteness = [...classBuckets.entries()]
+    .map(([id, b]) => ({
+      id,
+      name: b.name,
+      total: b.count,
+      incomplete: b.incomplete,
+      percent: Math.round(((b.count - b.incomplete) / b.count) * 100),
+    }))
+    .sort((a, b) => a.percent - b.percent || b.incomplete - a.incomplete)
+  const worstCompleteness =
+    classCompleteness.find((c) => c.incomplete > 0) ?? null
+
   let trend7d: number | null = null
   if (!reportsRes.error && total > 0) {
     const reportSum = ((reportsRes.data ?? []) as { points: number }[]).reduce(
@@ -382,11 +443,13 @@ export async function fetchStudentStats(): Promise<StudentStats> {
 
   return {
     total,
-    putra,
-    putri,
+    male,
+    female,
     avgPoints: total > 0 ? Math.round(pointSum / total) : 0,
     riskCount,
     incompleteCount,
+    classCompleteness,
+    worstCompleteness,
     trend7d,
     topPerformer,
     worstClass,
@@ -459,7 +522,7 @@ export async function graduateStudentsBulk(ids: string[], graduationYear: number
 export async function revertGraduation(id: string): Promise<void> {
   const { error } = await supabase
     .from('students')
-    .update({ status: 'aktif', graduated_at: null, graduation_year: null, last_class_id: null })
+    .update({ status: 'active', graduated_at: null, graduation_year: null, last_class_id: null })
     .eq('id', id)
   if (error) throw error
 }
@@ -493,6 +556,20 @@ export async function fetchStudentsByIds(ids: string[]): Promise<Student[]> {
 export async function updateStudentPhoto(id: string, photoUrl: string): Promise<void> {
   const { error } = await supabase.from('students').update({ photo_url: photoUrl }).eq('id', id)
   if (error) throw error
+}
+
+// ------------------------------------------------------------
+// Generate PIN portal wali (RPC di supabase/migrations/0021_generate_pins.sql)
+// ------------------------------------------------------------
+export interface GeneratedPin {
+  student_id: string
+  new_pin: string
+}
+
+export async function generateStudentPins(ids: string[]): Promise<GeneratedPin[]> {
+  const { data, error } = await supabase.rpc('generate_student_pins', { p_ids: ids })
+  if (error) throw error
+  return (data ?? []) as GeneratedPin[]
 }
 
 // ------------------------------------------------------------

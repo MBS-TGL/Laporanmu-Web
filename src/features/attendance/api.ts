@@ -35,7 +35,7 @@ export async function upsertAttendance(payload: AttendanceUpsert[]): Promise<voi
 }
 
 // Sinkronisasi rekap absensi ke kolom raport bulanan (mekanisme V1)
-export async function syncAttendanceToRaport(
+export async function syncAttendanceToReportCards(
   rows: { student_id: string; days: AttendanceDays }[],
   classId: string,
   year: number,
@@ -63,10 +63,10 @@ export async function syncAttendanceToRaport(
       student_id: r.student_id,
       month,
       year,
-      hari_sakit: summary.S,
-      hari_izin: summary.I,
-      hari_alpa: summary.A,
-      hari_pulang: summary.P,
+      sick_days: summary.S,
+      excused_days: summary.I,
+      absent_days: summary.A,
+      early_leave_days: summary.P,
       updated_by: updatedBy,
       ...(existingByStudent.get(r.student_id) ? { id: existingByStudent.get(r.student_id) } : {}),
     }

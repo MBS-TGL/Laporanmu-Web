@@ -1,5 +1,8 @@
-export type StudentStatus = 'aktif' | 'lulus' | 'pindah' | 'keluar'
+export type StudentStatus = 'active' | 'graduated' | 'transferred' | 'left'
 export type Gender = 'L' | 'P'
+
+/** Hubungan orang tua/wali — baris student_guardians (0020) */
+export type GuardianRelation = 'father' | 'mother' | 'guardian'
 
 export interface Student {
   id: string
@@ -24,6 +27,17 @@ export interface Student {
   birth_date: string | null
   religion: string | null
   address: string | null
+  /** kolom perluasan Dapodik (0020) — semuanya nullable */
+  nickname: string | null
+  kk_number: string | null
+  child_status: string | null
+  child_number: number | null
+  siblings_count: number | null
+  home_phone: string | null
+  origin_school: string | null
+  origin_graduation_year: number | null
+  admitted_at: string | null
+  uniform_size: string | null
   /** diisi saat siswa diluluskan */
   graduated_at: string | null
   graduation_year: number | null
@@ -46,6 +60,7 @@ export interface StudentFormValues {
   status: StudentStatus
   nisn?: string
   nis?: string
+  nik?: string
   phone?: string
   birth_place?: string
   birth_date?: string
@@ -54,6 +69,45 @@ export interface StudentFormValues {
   guardian_name?: string
   guardian_relation?: string
   tags?: string[]
+  nickname?: string
+  kk_number?: string
+  child_status?: string
+  child_number?: number
+  siblings_count?: number
+  home_phone?: string
+  origin_school?: string
+  origin_graduation_year?: number
+  admitted_at?: string
+  uniform_size?: string
+  /** baris ayah/ibu/wali — disimpan via RPC save_student_guardians */
+  guardians?: StudentGuardianInput[]
+}
+
+export interface StudentGuardian {
+  id: string
+  student_id: string
+  relation: GuardianRelation
+  name: string | null
+  nik: string | null
+  birth_year: number | null
+  education: string | null
+  occupation: string | null
+  income_range: string | null
+  phone: string | null
+  address: string | null
+}
+
+/** Payload satu baris guardian dari form — field kosong jadi undefined */
+export interface StudentGuardianInput {
+  relation: GuardianRelation
+  name?: string
+  nik?: string
+  birth_year?: number
+  education?: string
+  occupation?: string
+  income_range?: string
+  phone?: string
+  address?: string
 }
 
 export type SortOption =
@@ -101,13 +155,26 @@ export interface StudentWorstClass {
   count: number
 }
 
+/** Rekap kelengkapan data satu kelas (PRD §6.1b poin 4) */
+export interface ClassCompleteness {
+  id: string
+  name: string
+  total: number
+  incomplete: number
+  percent: number
+}
+
 export interface StudentStats {
   total: number
-  putra: number
-  putri: number
+  male: number
+  female: number
   avgPoints: number
   riskCount: number
   incompleteCount: number
+  /** kelengkapan per kelas, terendah dulu */
+  classCompleteness: ClassCompleteness[]
+  /** kelas dengan % kelengkapan terendah (hanya bila ada field kosong), null bila semua lengkap */
+  worstCompleteness: ClassCompleteness | null
   /** rata-rata poin dari laporan 7 hari terakhir, null bila tidak ada siswa */
   trend7d: number | null
   topPerformer: StudentTopPerformer | null

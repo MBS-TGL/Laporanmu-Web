@@ -1,4 +1,4 @@
-import type { RaportType, SemesterType } from './types'
+import type { ReportCardType, SemesterType } from './types'
 
 export const MONTH_NAMES = [
   'Januari',
@@ -20,11 +20,11 @@ export const SEMESTER_LABEL: Record<1 | 2, string> = {
   2: 'Semester 2 (Genap)',
 }
 
-export const RAPORT_TYPE_LABEL: Record<RaportType, string> = {
-  bulanan: 'Raport Bulanan',
-  pondok_lisan: 'Pondok (Lisan)',
-  pondok_mapel: 'Pondok (Mapel)',
-  umum: 'Raport Umum',
+export const REPORT_CARD_TYPE_LABEL: Record<ReportCardType, string> = {
+  monthly: 'Raport Bulanan',
+  pondok_oral: 'Pondok (Lisan)',
+  pondok_subject: 'Pondok (Mapel)',
+  general: 'Raport Umum',
 }
 
 export const BULANAN_MAX_SCORE = 9
@@ -38,16 +38,16 @@ export interface Criterion {
 
 // Kriteria raport bulanan (skala 1–9)
 export const BULANAN_CRITERIA: Criterion[] = [
-  { key: 'nilai_akhlak', label: 'Akhlak' },
-  { key: 'nilai_ibadah', label: 'Ibadah' },
-  { key: 'nilai_kebersihan', label: 'Kebersihan' },
-  { key: 'nilai_quran', label: "Al-Qur'an" },
-  { key: 'nilai_bahasa', label: 'Bahasa' },
+  { key: 'character_score', label: 'Akhlak' },
+  { key: 'worship_score', label: 'Ibadah' },
+  { key: 'cleanliness_score', label: 'Kebersihan' },
+  { key: 'quran_score', label: "Al-Qur'an" },
+  { key: 'language_score', label: 'Bahasa' },
 ]
 
 // Kriteria raport semester — SMP = tingkat 7-9, SMA = 10-12
 export const SEMESTER_CRITERIA: Record<SemesterType, { smp: Criterion[]; sma: Criterion[] }> = {
-  pondok_lisan: {
+  pondok_oral: {
     smp: [
       { key: 'doa', label: 'Doa Harian' },
       { key: 'wafa', label: 'Wafa' },
@@ -76,7 +76,7 @@ export const SEMESTER_CRITERIA: Record<SemesterType, { smp: Criterion[]; sma: Cr
       { key: 'praktek', label: 'Praktek Ibadah' },
     ],
   },
-  pondok_mapel: {
+  pondok_subject: {
     smp: [
       { key: 'aqidah', label: 'Aqidah' },
       { key: 'akhlaq', label: 'Akhlaq' },
@@ -99,7 +99,7 @@ export const SEMESTER_CRITERIA: Record<SemesterType, { smp: Criterion[]; sma: Cr
       { key: 'imla', label: "Imla'" },
     ],
   },
-  umum: {
+  general: {
     smp: [
       { key: 'matematika', label: 'Matematika' },
       { key: 'ipa', label: 'IPA (Sains)' },
@@ -125,8 +125,8 @@ export const SEMESTER_CRITERIA: Record<SemesterType, { smp: Criterion[]; sma: Cr
   },
 }
 
-export function getCriteria(type: RaportType, grade: string | null): Criterion[] {
-  if (type === 'bulanan') return BULANAN_CRITERIA
+export function getCriteria(type: ReportCardType, grade: string | null): Criterion[] {
+  if (type === 'monthly') return BULANAN_CRITERIA
   const level = isSmaClass(grade) ? 'sma' : 'smp'
   return SEMESTER_CRITERIA[type as SemesterType][level]
 }
@@ -161,7 +161,7 @@ export const CATATAN_TEMPLATES = [
   'Sering terlambat kegiatan pagi.',
 ]
 
-export function getGradePredicateBulanan(score: number | null): string {
+export function getGradePredicateMonthly(score: number | null): string {
   if (score === null || Number.isNaN(score)) return '-'
   if (score >= 9) return 'Sangat Baik'
   if (score >= 8) return 'Baik'
@@ -179,14 +179,14 @@ export function getGradePredicateSemester(score: number | null): string {
   return 'E - Kurang Baik'
 }
 
-export function getPredicate(type: RaportType, score: number | null): string {
-  return type === 'bulanan'
-    ? getGradePredicateBulanan(score)
+export function getPredicate(type: ReportCardType, score: number | null): string {
+  return type === 'monthly'
+    ? getGradePredicateMonthly(score)
     : getGradePredicateSemester(score)
 }
 
 export function calcAverage(
-  type: RaportType,
+  type: ReportCardType,
   scores: Record<string, number | null>,
   grade: string | null,
 ): number | null {
@@ -201,7 +201,7 @@ export function calcAverage(
 }
 
 export function isComplete(
-  type: RaportType,
+  type: ReportCardType,
   scores: Record<string, number | null>,
   grade: string | null,
 ): boolean {
@@ -215,19 +215,19 @@ export function academicYearFromMonth(month: number, year: number): string {
 }
 
 export function periodKey(
-  type: RaportType,
+  type: ReportCardType,
   opts: { month?: number; year?: number; semester?: 1 | 2; academicYearId?: string },
 ): string {
-  return type === 'bulanan'
-    ? `bulanan__${opts.year}__${opts.month}`
+  return type === 'monthly'
+    ? `monthly__${opts.year}__${opts.month}`
     : `${opts.semester}__${opts.academicYearId ?? ''}`
 }
 
 export function periodLabel(
-  type: RaportType,
+  type: ReportCardType,
   opts: { month?: number; year?: number; semester?: 1 | 2; academicYear?: string },
 ): string {
-  if (type === 'bulanan') {
+  if (type === 'monthly') {
     const m = opts.month ?? 1
     return `${MONTH_NAMES[m - 1]} ${opts.year ?? ''}`
   }
