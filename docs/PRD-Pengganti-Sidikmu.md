@@ -1,8 +1,9 @@
 # PRD — Laporanmu sebagai Pengganti Sidikmu
 
-> **Versi:** v1.0 (draft untuk review) · **Tanggal:** 8 November 2026
-> **Sumber Sidikmu:** tangkapan layar modul Master, Akademik, Monev Guru, SPMB, CBT, dan BK (v2.0, SMP Muhammadiyah 4 Tanggul)
-> **Sumber Laporanmu:** inventarisasi langsung codebase (`src/features`, `supabase/migrations 0001–0018`)
+> **Versi:** v1.1 (acuan build — boleh dikembangkan/di-improve selama build) · **Tanggal:** 9 November 2026
+> **Sumber Sidikmu:** tangkapan layar (v1.0) + **audit read-only penuh `sidikmu-trace.md` (9 Nov 2026, role Kepala Sekolah, 1 login, 0 submit)** — SMP Muhammadiyah 4 Tanggul
+> **Sumber Laporanmu:** inventarisasi langsung codebase (`src/features`, `supabase/migrations 0001–0019`)
+> **Catatan cakupan audit trace:** satu role (Kepala Sekolah); halaman yang ditolak untuk role ini **tidak terverifikasi** (lihat Lampiran B). Belum ada contoh file ekspor Sidikmu (§13.3).
 
 ---
 
@@ -51,18 +52,18 @@ PRD ini merencanakan ekspansi Laporanmu agar mencakup seluruh modul Sidikmu yang
 
 ## 3. Inventaris Sidikmu (as-is)
 
-Berdasarkan menu & dashboard yang terlihat pada tangkapan layar. Catatan: fitur di bawah submenu bertanda `∨` tidak terlihat detailnya, sehingga diinferensi dari namanya — **perlu konfirmasi ke pengguna aktif Sidikmu** sebelum dikembangkan (lihat §13).
+Berdasarkan tangkapan layar (v1.0) **dan audit trace read-only** (`sidikmu-trace.md`). Status per halaman (AKSES/DITOLAK/404/RUSAK) untuk role Kepala Sekolah ada di **Lampiran B**; halaman rusak di **Lampiran C**. Fitur yang belum terverifikasi ditandai eksplisit.
 
 | Domain | Modul yang terlihat |
 |--------|---------------------|
-| **Master** | User, Setting Presensi, Face Recognition, Pendidikan (guru & tenaga kependidikan), Jadwal & Pelajaran, Ekstrakurikuler, Kepegawaian, Jadwal & Materi ICP, Materi Praktek, Kokurikuler, 7 KAIH, Pembagian Kelas, Deskripsi CP, Deskripsi TP, Rekap Prestasi |
-| **Akademik / Nilai** | Input Nilai Formatif, Input Nilai Sumatif, Edit Nilai Kurmer, Input/Edit Nilai ICP, Monitoring Nilai KM, Generate Nilai, Penilaian Kokurikuler, Nilai KM, Nilai Ekstrakurikuler, Prestasi Siswa, Peringkat Siswa, Catatan Siswa, Raport PTS, Raport PAS, Kenaikan Kelas, Arsip Nilai. **Bobot default:** Formatif 30 · Sumatif 20 · Sum. Tengah 20 · Sum. Akhir 30; progress pengisian nilai per kelas/mapel (59% completed) |
-| **Presensi** | Dashboard Presensi, Presensi Siswa, Data Presensi (mesin), Setting Presensi, Face Recognition |
-| **Keuangan** | Tabungan (transaksi setoran santri), PIN Transaksi, modul "Money" lain (terlihat sebagian: Money G…, Money Nil…) |
-| **Monev Guru** | Request Guru Pengganti (+ approval admin, statistik pengganti hari ini/bulan ini, guru tidak hadir, persentase kehadiran guru), Pantau Guru Kelas, Setting Jam, Data Guru & Jadwal, Laporan Monev Guru, Materi & Perangkat (upload dokumen materi, "Data Materi Hari Ini"), Index Penilaian, Analisis Nilai Mapel, Buku Induk KurMer |
-| **SPMB** | Input/Data Formulir, Data Calon Siswa, Data Unregister, Data Hasil Seleksi, Data Sarana & Rekap Sarana, Data Rekomendasi, Informasi Umum/Dokumen/Pendaftaran (publik), Proses Seleksi, Jadwal SPMB, OTP Verified/Pending, tren pendaftaran 90 hari, demografi gender |
-| **CBT** | Input Soal, Bank Soal, Setting Ujian, Data Ujian, File Audio (upload), Token Ujian, monitoring real-time peserta (selesai/belum/token pending), grafik pelanggaran ujian |
-| **BK** | Pengaturan & Poin, Pelanggaran Siswa, Prestasi Siswa, Rekap Poin Siswa, Data Presensi (mesin & harian), Konseling Individu/Kelompok, Bimbingan Kelompok/Klasikal, Home Visit, AKPD, Sosiometri, MBTI, Surat Panggilan Ortu, Surat Peringatan/Pujian; dashboard analisis BK (filter tanggal, proporsi kategori, top-5 pelanggaran) |
+| **Master** | User, Setting Presensi (Dashboard, Titik Lokasi QRCode geofence + notifikasi WA walas/ortu, Shift Presensi, Data Presensi Mesin), Face Recognition (Registrasi Wajah jalan dengan AI · **Data Wajah 404**), Pendidikan (Batas Semester, Kelas, Siswa), Jadwal & Pelajaran (Mata Pelajaran, Jam Pelajaran), Ekstrakurikuler, Kepegawaian (Data Pegawai ±21 field, Wali Kelas), Jadwal & Materi ICP, Materi Praktek (Range Nilai, BTA, Wudhu, Sholat, Hafalan), Kokurikuler (Pengaturan, Dimensi 8 baris, Kegiatan), 7 KAIH (Master 7+15 baris, Data Rekap 167 baris), Pembagian Kelas, Deskripsi CP, Deskripsi TP, Rekap Prestasi |
+| **Akademik / Nilai** | Input Nilai Formatif, Input Nilai Sumatif, Edit Nilai Kurmer, Input/Edit Nilai ICP, Monitoring Nilai KM (kolom: Kelas\|Mapel\|Aspek\|Jenis\|Kategori\|Nilai Ke\|Siswa Aktif\|Tercatat\|**Selisih**\|**Status**), Generate Nilai (Generate \| Reset per TA/Semester), Penilaian Kokurikuler, Nilai KM, Nilai Ekstrakurikuler, Prestasi Siswa, Peringkat Siswa, Catatan Siswa, Raport PTS, Raport PAS, Kenaikan Kelas (Naik/Tinggal per baris), Arsip Nilai (DKN Kurmer + Export Excel). **Bobot default:** Formatif 30 · Sumatif 20 · Sum. Tengah 20 · Sum. Akhir 30 (tampil di home; **tidak ada field bobot di input**; progress pengisian per kelas/mapel — tangkapan layar: 59% completed). **Presensi Per Mapel = 404.** Pola input: filter 2 tahap (`Proses Selanjutnya` dulu → tabel) |
+| **Presensi** | Dashboard Presensi (`dashboard_presensi.php`: Scan QR/Tempel RFID, log realtime, Tes Suara, sinkron server), Input/Data Presensi Siswa, **Data Presensi Mesin** (169 baris: total scan/datang/pulang, telat), Setting Presensi (Shift + QRPoint geofence), Face Recognition |
+| **Keuangan** | **Modul rusak untuk role Kepsek** — dashboard fatal SQL (`Unknown column 'file_bukti'`); yang terlihat hanya: Tabungan Siswa (Masuk/Keluar/Data — halaman kosong), Tabungan Non Siswa, Master Data (Rekening, Satuan, Pos Penerimaan/Pengeluaran, Kewajiban, Suplier — sebagian kosong/DITOLAK), Master RAPBS, Transaksi Tunai/Bank, Data Transaksi, Laporan. **Kartu PIN Transaksi** ("Atur PIN pembayaran") = kartu home **tanpa href/aksi — klik tidak berpindah**. **Tidak ada "Money Nilai"/SPP/tagihan** (tidak ditemukan di seluruh menu — lihat §11) |
+| **Monev Guru** | Materi & Perangkat (kartu statistik: request/guru hadir/tidak hadir/persentase + "Data Materi Hari Ini"), Index Penilaian, Analisis Nilai Mapel, Buku Induk KurMer (14 baris + Buka Portofolio), Request Guru Pengganti (filter status+tanggal, approval, Export), Pantau Guru Kelas (grid realtime per kelas), Setting Jam, Data Guru & Jadwal, Laporan Monev Guru (Prosentase Kinerja, Presensi Umum/by Bulan/by Nama, Presensi By Jadwal) |
+| **SPMB** | Input Formulir (**±55 field** — lihat Lampiran A), Data Formulir, Data Calon Siswa (Terima sbg siswa / Batalkan Verifikasi), Data Unregister (Re-register), Data Hasil Seleksi (Excel/Print), Data Sarana & Rekap Sarana, Data Rekomendasi (**rusak** — isinya PHP warning), Informasi Umum/Dokumen/Pendaftaran + Proses Seleksi + Jadwal SPMB (editor "Kelola Informasi PPDB"), Master. **OTP publik `/spmb`: 6 digit via WhatsApp** (`registrasi.php`: "Isi Nomor WhatsApp untuk menerima kode verifikasi"); verifikasi no registrasi/NIK/NISN/no HP |
+| **CBT** | Deskripsi CP, Upload File (Bank Media Audio), Input Soal (PG, PG Multi, True-False, Matching, Essay, Polygon Hotspot, Video Reaction), Bank Soal, Setting Ujian (proctor, jumlah+nilai per jenis soal × Mudah/Sedang/Sulit, start/stop datetime), Data Ujian Aktif/Belum/Selesai/Master. **Masuk siswa: `/cbt` = Username (NIS) + Password (Kode Ujian) → "Mulai Ujian"** (tanpa akun); admin memantau **Token Pending** + grafik pelanggaran real-time |
+| **BK** | Pengaturan & Poin (Kategori Pelanggaran, Tingkat Sanksi/SP — belum diuji), Pelanggaran Siswa (Catat Pelanggaran), Prestasi Siswa (**404**), Rekap Poin Siswa, Data Presensi Mesin, Data Presensi (PHP warning), Konseling Individu/Kelompok, Bimbingan Kelompok/Klasikal, Home Visit, AKPD (Angket, Hasil), Sosiometri (Angket, Hasil), MBTI (Angket, Hasil), Surat Panggilan Ortu, Surat Peringatan/Perjanjian (**Surat Pujian TIDAK ADA**), Laporan Rekap BK, dashboard analisis BK (filter 2 tanggal, proporsi kategori, top-5 pelanggaran, top-5 poin). **Modul TPA** (belum tercatat di v1.0): Input Soal TPA (7 jenis), Setting Ujian TPA, Bank Soal TPA, Hasil TPA (Aktif/Belum/Selesai), Upload File Audio, Kategori Materi. **15 halaman inti DITOLAK untuk role Kepsek** (Lampiran B); Data User = `href=#` |
 
 ---
 
@@ -82,6 +83,7 @@ Berdasarkan menu & dashboard yang terlihat pada tangkapan layar. Catatan: fitur 
 | Izin pulang + gate log + kartu QR | ✅ Lebih dari Sidikmu |
 | UKS + stok obat | ✅ **Tidak ada di Sidikmu** |
 | Pengumuman + portal publik + WA broadcast (Fonnte Edge Function) | ✅ Setara / lebih |
+| Portal wali `/check` — poin, raport bulanan, **presensi H/S/I/A/P 3 bulan + status skorsing** | ✅ Sudah masuk RPC `check_student` (0019_portal_wali) — tinggal nilai akademik, saldo tabungan, izin |
 | Audit log, RBAC 5 role, impor siswa CSV/XLSX | ✅ Fondasi siap |
 
 ### 4.2 Yang belum ada sama sekali (gap utama)
@@ -94,6 +96,18 @@ Tabel mata pelajaran, jadwal pelajaran, pembagian kelas per mapel, nilai akademi
 - **Tidak ada realtime** (wajib untuk monitoring CBT & dashboard presensi live).
 - **RBAC belum granular** — 5 role global; belum ada konsep "wali kelas dari kelas X" atau "guru mapel Y kelas Z".
 - Skema raport semester berbasis **jsonb dengan kriteria hardcode** — perlu restrukturisasi ke tabel mapel sebelum fitur nilai dibangun.
+
+### 4.4 Kualitas vendor Sidikmu (bahan komunikasi ke pemilik sekolah)
+
+Temuan audit trace 9 Nov 2026 (role Kepsek) — modul inti yang **rusak/tidak berfungsi di sisi vendor sendiri**:
+
+- **Keuangan hampir mati total**: fatal SQL di dashboard (`home_keuangan.php`, kolom `file_bukti` tidak ada di schema), 2 halaman ACCESS DENIED, 5 halaman transaksi kosong.
+- **3× 404** pada menu yang terpasang (Presensi Per Mapel, Data Wajah, BK Prestasi Siswa).
+- **PHP warning** `headers already sent` & `Undefined array key "skelaswali"` di banyak halaman; Data Rekomendasi SPMB isinya warning saja.
+- **15 halaman BK** ditolak untuk role Kepala Sekolah sendiri (termasuk Surat & Konseling) — tanpa konfigurasi izin yang jelas.
+- **Kartu PIN Transaksi** di home tidak punya aksi (dead UI).
+
+Daftar lengkap: **Lampiran C**. Implikasi: cut-over per modul jadi lebih mendesak; sementara modul yang masih jalan (Akademik, Master, CBT, SPMB) tetap dipakai sampai gantinya siap.
 
 ---
 
@@ -110,16 +124,17 @@ Legenda status: ✅ sudah ada · 🟡 sebagian/perlu ditingkatkan · ❌ belum a
 | 5 | Peringkat Siswa, Kenaikan Kelas | ❌ | **P0** | Peringkat dihitung dari leger; kenaikan kelas = proses batch naik/kelas ulang/tidak lulus (pola RPC `graduate_students`) |
 | 6 | Prestasi Siswa, Nilai Ekstrakurikuler | ❌ | P1 | Prestasi = catatan poin positif + tabel prestasi (tingkat: sekolah…nasional); ekskul = roster + nilai predikat untuk raport |
 | 7 | Presensi Siswa + Dashboard Presensi + Setting/Mesin Presensi | 🟡 | P1 | Yang ada cukup; tambah dashboard rekap live per kelas + integrasi gate scan QR (opsional). Face recognition **tidak direplikasi** |
-| 8 | Keuangan: Tabungan + PIN Transaksi | ❌ | **P1** | Modul baru: buku tabungan per santri, setor/tarik, PIN petugas, mutasi + cetak; saldo awal dimigrasi |
+| 8 | Keuangan: Tabungan + PIN Transaksi | ❌ | **P1** | Modul baru: buku tabungan per santri, setor/tarik, PIN petugas, mutasi + cetak; saldo awal dimigrasi. **(Modul Keuangan Sidikmu sendiri rusak — cut-over jadi lebih mendesak)** |
 | 9 | Monev Guru: kehadiran, guru pengganti, Setting Jam, Data Materi | ❌ | P1 | Presensi guru harian (hadir/sakit/izin/tugas luar) + alur request guru pengganti dengan approval; upload materi per jadwal (bukan LMS) |
 | 10 | Analisis Nilai Mapel, Buku Induk KurMer, Index Penilaian | ❌ | P1 | Turunan otomatis dari data nilai P0 — laporan per mapel/kelas/guru, buku induk = profil siswa + riwayat nilai |
 | 11 | BK: Pelanggaran/Prestasi/Rekap Poin | ✅ | — | Sudah ada; hanya perlu dashboard analisis (top-5, proporsi kategori, filter tanggal) |
 | 12 | BK: Konseling Individu/Kelompok, Bimbingan Klasikal, Home Visit | 🟡 | P1 | Perluas `counseling_logs` dengan jenis layanan + peserta (individu/kelompok/kelas) |
-| 13 | BK: AKPD, Sosiometri, MBTI | ❌ | P2 | Instrumen formulir generik (bank pertanyaan + skoring sederhana); **opsional** — konfirmasi intensitas pemakaian |
-| 14 | BK: Surat Panggilan/Peringatan/Pujian | ❌ | **P1** | Template surat + nomor surat + cetak + **token verifikasi QR** (pakai pola `/verify`) |
-| 15 | SPMB (PPDB) end-to-end | ❌ | **P1** | Formulir publik + OTP WA + seleksi bertahap + informasi publik + dashboard; lulus → otomatis masuk `students` |
-| 16 | CBT (bank soal, ujian token, monitoring) | ❌ | P2 | Modul terbesar & paling berat operasionalnya; bangun belakangan, pola token seperti skorsing |
+| 13 | BK: AKPD, Sosiometri, MBTI | ❌ | P2 | Instrumen formulir generik (bank pertanyaan + skoring sederhana); **opsional** — konfirmasi intensitas pemakaian. *Catatan trace: semua halaman ini ditolak untuk Kepsek (Lampiran B) — indikasi pemakaian hanya oleh konselor* |
+| 14 | BK: Surat Panggilan/Peringatan (Pujian = value-add baru, tidak ada di Sidikmu) | ❌ | **P1** | Template surat + nomor surat + cetak + **token verifikasi QR** (pakai pola `/verify`). *Trace: Sidikmu hanya punya Panggilan + Peringatan/Perjanjian* |
+| 15 | SPMB (PPDB) end-to-end | ❌ | **P1** | Formulir publik + OTP WA **6 digit** + seleksi bertahap + informasi publik + dashboard; lulus → otomatis masuk `students` |
+| 16 | CBT (bank soal, ujian token, monitoring) | ❌ | P2 | Modul terbesar & paling berat operasionalnya; bangun belakangan; masuk siswa terkonfirmasi: `/cbt` = NIS + Kode Ujian (tanpa akun) |
 | 17 | E-learning / Materi Praktek | ❌ | P2 | Cukup upload materi per jadwal di monev guru (#9); LMS penuh tidak dibuat |
+| 18 | BK TPA (bank soal/setting ujian/hasil TPA) | ❌ | P2 | Modul TPA di BK (7 jenis soal) — **konfirmasi intensitas pemakaian dulu** sebelum dibangun; jika dipakai, ikut modul CBT (#16) |
 
 ---
 
@@ -213,7 +228,7 @@ Format per modul: Deskripsi → User story kunci → Skema data → Reuse patter
 
 ### 6.6 BK Lanjutan: Layanan & Surat Resmi (P1, effort M)
 
-**Deskripsi.** Dua peluasan: (a) jenis layanan konseling — individu, kelompok, klasikal, home visit — dengan peserta; (b) surat resmi berNomor Surat: panggilan orang tua, peringatan, pujian, dengan cetak + QR verifikasi publik.
+**Deskripsi.** Dua peluasan: (a) jenis layanan konseling — individu, kelompok, klasikal, home visit — dengan peserta; (b) surat resmi berNomor Surat: panggilan orang tua, peringatan (dua ini ada di Sidikmu), **pujian (value-add baru — tidak ada di Sidikmu)**, dengan cetak + QR verifikasi publik.
 
 **User story kunci.**
 - Sebagai konselor, saya catat sesi kelompok (pilih beberapa santri) atau klasikal (pilih kelas), bukan hanya individu.
@@ -233,15 +248,15 @@ Format per modul: Deskripsi → User story kunci → Skema data → Reuse patter
 **Deskripsi.** Penerimaan murid baru end-to-end: formulir publik, verifikasi OTP via WA, seleksi bertahap, pengumuman hasil, dan kelulusan → otomatis menjadi data siswa.
 
 **User story kunci.**
-- Sebagai calon siswa/orang tua, saya mengisi formulir publik di landing page (kartu portal baru "SPMB"), menerima nomor registrasi, dan memverifikasi nomor HP via **OTP WhatsApp** (Fonnte sudah terintegrasi — Sidikmu juga pakai OTP).
+- Sebagai calon siswa/orang tua, saya mengisi formulir publik di landing page (kartu portal baru "SPMB"), menerima nomor registrasi, dan memverifikasi nomor HP via **OTP WhatsApp 6 digit** (Sidikmu: `/spmb` + `registrasi.php` — "Isi Nomor WhatsApp untuk menerima kode verifikasi"; Fonnte sudah terintegrasi).
 - Sebagai operator SPMB (role baru), saya memantau pendaftar (hari ini/minggu ini/total, OTP verified/pending, tren, demografi — setara dashboard SPMB Sidikmu).
 - Sebagai operator, saya memindahkan calon antar tahap seleksi (administrasi → tes → wawancara → hasil), merekam hasil seleksi & rekomendasi, dan memproses unregister.
 - Sebagai operator, saya mempublish informasi SPMB (umum, dokumen, jadwal) sebagai halaman publik.
 - Sebagai operator, calon yang diterima dinyatakan "diterima & mendaftar" → ter-generate sebagai `students` dengan kode registrasi + PIN portal (integrasi T4 di §2).
 
-**Skema.** `admissions` (registration_no, name, gender, birth, asal_sekolah, parent data, phone, status: baru/otp_verified/seleksi/lulus/tidak_lulus/unregister/daftar_ulang, stage history) · `admission_documents` (storage path, type) · `admission_settings` (period tahun ajaran, kuota, jadwal seleksi, is_open) · `admission_stages`/results.
+**Skema.** `admissions` (registration_no, name, gender, birth, asal_sekolah, parent data, phone, status: baru/otp_verified/seleksi/lulus/tidak_lulus/unregister/daftar_ulang, stage history) · `admission_documents` (storage path, type) · `admission_settings` (period tahun ajaran, kuota, jadwal seleksi, is_open) · `admission_stages`/results. **Daftar field lengkap formulir Sidikmu (±55 field) → Lampiran A** (referensi desain kolom; boleh disederhanakan saat build).
 
-**Reuse (kuat sekali):** halaman publik + PortalCard, RPC security-definer + rate limit, Edge Function Fonnte (OTP), announcements `is_public`, impor/ekspor CSV, audit log.
+**Reuse (kuat sekali):** halaman publik + PortalCard, RPC security-definer + rate limit, Edge Function Fonnte (OTP 6 digit), announcements `is_public`, impor/ekspor CSV, audit log.
 
 ---
 
@@ -251,7 +266,7 @@ Format per modul: Deskripsi → User story kunci → Skema data → Reuse patter
 
 **User story kunci.**
 - Sebagai guru, saya mengelola bank soal (PG + esai, gambar/audio via Storage) dan menyusun paket ujian dari bank soal (durasi, acak soal/opsi, token aktif).
-- Sebagai santri, saya membuka halaman publik `/cbt/:token`, memilih nama/NIS kelas ujian, dan mengerjakan; jawaban tersimpan otomatis (autosave).
+- Sebagai santri, saya membuka halaman publik `/cbt` (atau `/:token`), memasukkan **NIS + Kode Ujian** (konsep Sidikmu: Username = NIS, Password = Kode Ujian), dan mengerjakan; jawaban tersimpan otomatis (autosave).
 - Sebagai pengawas, saya melihat monitor real-time: belum mulai / sedang / selesai (Supabase Realtime), termasuk log anomali (ganti tab/fokus hilang — setara "Grafik Pelanggaran Ujian" Sidikmu).
 - Sebagai sistem, PG dinilai otomatis; esai dinilai guru di layar koreksi.
 
@@ -341,8 +356,8 @@ Anchoring pakai kalender akademik, bukan kalender biasa. Sizing solo-dev: S <1 m
 |---------------|-----------|--------|
 | Face Recognition presensi | ❌ Tidak dibuat | Kompleksitas tinggi, nilai praktis rendah; kartu QR santri (sudah ada) + presensi manual/mesin cukup |
 | E-learning penuh / Materi Praktek sebagai LMS | ❌ → upload materi per jadwal | Laporanmu bukan LMS; monev guru cukup |
-| Money menu lain (bila ada SPP/tagihan) | ⏸️ Konfirmasi dulu | Hanya "Tabungan" yang jelas terlihat; bila ada tagihan SPP, jadikan fase tersendiri |
-| AKPD/MBTI/Sosiometri | ⏸️ P2 opsional | Instrumen berat, konfirmasi intensitas pemakaian dulu |
+| Money menu lain / SPP-tagihan | ✅ **Terjawab (audit 9 Nov)** | **Tidak ada** "Money Nilai"/SPP/tagihan di seluruh menu Sidikmu — hanya Tabungan; kartu PIN Transaksi mati. Scope keuangan = tabungan saja (§6.5) |
+| AKPD/MBTI/Sosiometri | ⏸️ P2 opsional | Instrumen berat, konfirmasi intensitas pemakaian dulu (semua ditolak untuk Kepsek — jarang dipakai?) |
 | ICP/7 KAIH/Kokurikuler sebagai modul terpisah | ♻️ → kriteria nilai configurable | Prinsip "konfigurasi, bukan modul" |
 
 ---
@@ -358,13 +373,101 @@ Anchoring pakai kalender akademik, bukan kalender biasa. Sizing solo-dev: S <1 m
 
 ## 13. Pertanyaan Terbuka (perlu konfirmasi sebelum eksekusi)
 
-1. Apakah benar tidak ada SPP/tagihan di modul "Money" Sidikmu (hanya tabungan)? Perlu cek menu Money lengkap.
-2. Modul Sidikmu mana yang **benar-benar rutin** dipakai guru hari ini? (Kandidat wawancara: wali kelas, guru mapel, petugas UKS/tukeu, operator SPMB, konselor BK.) Ini bisa menurunkan scope CBT/instrumen BK drastis.
-3. Format & akses ekspor data dari Sidikmu (apa yang bisa diexport vendor? per modul?).
+1. ~~Apakah benar tidak ada SPP/tagihan di modul "Money" Sidikmu (hanya tabungan)?~~ ✅ **TERJAWAB (audit 9 Nov)** — tidak ada "Money Nilai"/SPP/tagihan di seluruh menu; hanya Tabungan (+ PIN Transaksi kartu mati). Lihat §11.
+2. Modul Sidikmu mana yang **benar-benar rutin** dipakai guru hari ini? (Kandidat wawancara: wali kelas, guru mapel, petugas UKS/tukeu, operator SPMB, konselor BK.) Ini bisa menurunkan scope CBT/instrumen BK drastis. *Catatan: audit trace tidak bisa menjawab ini — butuh wawancara pengguna.*
+3. Format & akses ekspor data dari Sidikmu (apa yang bisa diexport vendor? per modul?). *Catatan: tombol Export Excel terlihat di banyak halaman (Arsip Nilai, 7 KAIH, Data Formulir, dll), tapi **belum ada contoh file** untuk dianalisis formatnya.*
 4. Kapan tepatnya PTS/PAS dan buka SPMB tahun depan — untuk anchoring Fase 1 & 3.
-5. Apakah perlu akun untuk kepala sekolah terpisah dari admin, atau cukup admin + dashboard?
+5. Apakah perlu akun untuk kepala sekolah terpisah dari admin, atau cukup admin + dashboard? *Catatan trace: di Sidikmu, Kepsek ditolak di BK inti + Keuangan (Lampiran B) — indikasi izin dipisah per role.*
 6. Tahun ajaran berikutnya mulai dengan fresh-start nilai (rekomendasi) atau wajib bawa riwayat nilai dari Sidikmu?
 
 ---
 
-*Dokumen ini disusun dari inventarisasi codebase Laporanmu-Web (19 folder feature, migrations 0001–0018) dan tangkapan layar Sidikmu v2.0. Perubahan keputusan arah (khususnya §11 dan §13) sebaiknya dikommit bersama dokumen ini.*
+## Lampiran A — Field Input Formulir SPMB Sidikmu (55 field)
+
+Dari trace `G_Input_Formulir` — "Input Calon Siswa Baru (Reguler Bukan Inden) TA 2027/2028". **Referensi desain kolom `admissions` (§6.7); boleh disederhanakan/di-improve saat build.**
+
+**Data Siswa (25 field)**
+
+| # | Field (nama asli) | Tipe |
+|---|-------------------|------|
+| 1 | `nisn` | text |
+| 2 | `nik` | text |
+| 3 | `nama` | text |
+| 4 | `jk` | select |
+| 5 | `agama_siswa` | select |
+| 6 | `status_anak` | select |
+| 7 | `anak_ke` | number |
+| 8 | `jumlah_saudara` | number |
+| 9–12 | `provinsi`, `kabupaten`, `kecamatan`, `kelurahan` | select (alamat) |
+| 13 | `alamat_siswa` | textarea |
+| 14 | `tempat_lahir` | text |
+| 15 | `tgl_lahir` | date |
+| 16 | `hp_siswa` | number |
+| 17 | `ukuran_seragam` | select |
+| 18 | `rekomendasi` | select |
+| 19 | `sekolah_asal` | text |
+| 20 | `tahun_lulus_smp` | text |
+| 21 | *(label "Opsional" — field tanpa nama jelas, kemungkinan keterangan)* | text |
+| 22–25 | `provinsi_sekolah`, `kabupaten_sekolah`, `kecamatan_sekolah`, `kelurahan_sekolah` | select (asal sekolah) |
+
+**Data Ayah (12 field):** `kondisi_ayah` (select), `nama_ayah`, `tempat_lahir_ayah`, `tgl_lahir_ayah` (date), `alamat_ayah` (textarea), `hp_ayah` (number), `agama_ayah`, `pendidikan_ayah` (select), `kerja_ayah`, `gaji_ayah` (select), `warganegara_ayah` (select), email
+
+**Data Ibu (12 field):** pola identik ayah — `kondisi_ibu`, `nama_ibu`, `tempat_lahir_ibu`, `tgl_lahir_ibu`, `alamat_ibu`, `hp_ibu`, `agama_ibu`, `pendidikan_ibu`, `kerja_ibu`, `gaji_ibu`, `warganegara_ibu`, email
+
+**Data Wali — Opsional (2 field):** `Nama Wali` (text), `HP Wali` (number)
+
+**Berkas upload (4 field):** `foto_siswa`, `foto_kk`, `foto_akte`, `fotopayment` (file)
+
+Aksi: `Simpan Data` (tidak ditekan selama audit). Total: **55 field**.
+
+---
+
+## Lampiran B — Matriks Izin Role Kepala Sekolah di Sidikmu
+
+Hasil trace read-only 9 Nov 2026. **Bahan desain RBAC Laporanmu (§6.1)** — role `kepala_sekolah` / `tukeu` / konselor harus jelas sejak awal, jangan mengulang kebingungan izin Sidikmu.
+
+> ⚠️ **Hanya untuk role Kepala Sekolah.** Tidak ada akun role lain saat audit → halaman DITOLAK **tidak terverifikasi** isinya. Status: ✅ AKSES · ⛔ DITOLAK · 💥 404 · 🔧 RUSAK · ⚠️ KOSONG (footer saja)
+
+| Modul | Halaman | Status | Catatan |
+|-------|---------|--------|---------|
+| Home | Kartu cepat (Input Nilai, Pelanggaran, Tabungan, PIN Transaksi) | ✅ / 🔧 | PIN Transaksi = kartu tanpa aksi |
+| Akademik | Seluruh menu (Nilai, Raport PTS/PAS, Kenaikan, Presensi Siswa, Generate, Monitoring, Arsip) | ✅ | Presensi Per Mapel = 💥 404 |
+| Master | Seluruh menu kecuali Data Wajah | ✅ | Data Wajah = 💥 404 |
+| Monev Guru | Seluruh menu | ✅ | — |
+| SPMB | Seluruh menu | ✅ | Data Rekomendasi = 🔧 |
+| CBT | Seluruh menu | ✅ | — |
+| BK | Pelanggaran Siswa, Data Presensi, Data Presensi Mesin, Bank Soal TPA, Upload File Audio, Ganti Password, Dashboard Laporan & Analisis | ✅ | Data Presensi = PHP warning |
+| BK | Kategori Materi, Setting Ujian TPA | ⚠️ | footer saja, kemungkinan ditolak tanpa pesan |
+| BK | Prestasi Siswa | 💥 | 404 |
+| BK | Data User | — | `href=#` |
+| BK | Konseling Individu · Konseling Kelompok · Bimbingan Kelompok · Bimbingan Klasikal · Home Visit · AKPD (Angket + Hasil) · Sosiometri (Angket + Hasil) · MBTI (Angket + Hasil) · Surat Panggilan Ortu · Surat Peringatan/Perjanjian · Laporan Rekap BK · Rekap Poin Siswa | ⛔ ×15 | "Akses Ditolak! Anda tidak memiliki izin mengakses modul BK." |
+| Keuangan | Dashboard Keuangan | 🔧 | Fatal SQL `file_bukti` (`home_keuangan.php`) |
+| Keuangan | Data Tabungan, Kewajiban Per Siswa | ⛔ | ACCESS DENIED / NO ACCESS |
+| Keuangan | Tabungan Masuk/Keluar, Pembayaran, Pengeluaran, Rekening | ⚠️ | kosong (footer saja) |
+| Keuangan | Master RAPBS, Transaksi Bank, Tabungan Non Siswa, Laporan Tabungan | — | anchor → kembali ke dashboard yang error |
+| Grid | Elearning, Monev Nilai | — | `href=#`, tanpa halaman |
+| Publik | `/cbt`, `/spmb` | ✅ | tanpa login (NIS+kode ujian / OTP 6 digit) |
+
+**Implikasi desain RBAC Laporanmu:** tentukan role `kepala_sekolah` (read-all + approval), `tukeu` (keuangan saja), konselor (BK saja), `operator_spmb` — beserta helper RLS `is_homeroom_teacher` / `is_class_subject_teacher` (§6.1) **sebelum** modul Keuangan/BK dibangun.
+
+---
+
+## Lampiran C — Halaman Rusak di Sidikmu (bahan komunikasi stakeholder)
+
+| # | Halaman | Gejala | Lokasi (file PHP bila diketahui) |
+|---|---------|--------|----------------------------------|
+| 1 | Dashboard Keuangan | Fatal SQL: `Unknown column 'file_bukti' in 'SELECT'` | `home_keuangan.php:4` (mysqli) |
+| 2 | Data Tabungan | `ACCESS DENIED` | `k_data_transaksi_tabungan.php` |
+| 3 | Kewajiban Per Siswa | `NO ACCESS` | `m_set_kewajiban_persiswa.php` |
+| 4 | Presensi Per Mapel (menu Akademik) | 404 Not Found | — |
+| 5 | Data Wajah (menu Master) | 404 Not Found | — |
+| 6 | Prestasi Siswa (menu BK) | 404 Not Found | — |
+| 7 | Data Rekomendasi (SPMB) | Isinya PHP warning bertumpuk (`headers already sent`) | `spmb_data_rekomendasi.php:5` |
+| 8 | Banyak halaman | PHP warning `headers already sent` (output buffer/sesi bermasalah) | `index.php:230` |
+| 9 | Data Presensi (BK) | `Undefined array key "skelaswali"` | `a_presensi_data.php:2` |
+| 10 | Kartu PIN Transaksi (home) | Kartu `menu-card` tanpa href/onclick — klik tidak berpindah | — |
+| 11 | 15 halaman BK inti | "Akses Ditolak" untuk role Kepala Sekolah (Lampiran B) | — |
+
+---
+
+*Dokumen ini disusun dari inventarisasi codebase Laporanmu-Web (19 folder feature, migrations 0001–0019) dan audit trace read-only `sidikmu-trace.md` (9 Nov 2026) + tangkapan layar Sidikmu v2.0. PRD ini **acuan build** — fleksibel, boleh di-improve/diubah selama build berjalan; perubahan keputusan arah (khususnya §11 dan §13) sebaiknya dikommit bersama dokumen ini.*
