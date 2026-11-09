@@ -46,6 +46,8 @@ export function useTableStats() {
   return useQuery({
     queryKey: ['admin', 'table-stats'],
     queryFn: fetchTableStats,
+    // Hitungan per tabel mahal (puluhan head-count) — anggap segar 1 menit
+    staleTime: 60_000,
   })
 }
 
@@ -53,6 +55,7 @@ export function useIntegrityIssues() {
   return useQuery({
     queryKey: ['admin', 'integrity'],
     queryFn: fetchIntegrityIssues,
+    staleTime: 60_000,
   })
 }
 
@@ -60,6 +63,7 @@ export function useAuditActivity(days = 7) {
   return useQuery({
     queryKey: ['admin', 'audit-activity', days],
     queryFn: () => fetchAuditActivity(days),
+    staleTime: 60_000,
   })
 }
 
@@ -70,6 +74,7 @@ export function useBuckets() {
   return useQuery({
     queryKey: ['admin', 'buckets'],
     queryFn: fetchBuckets,
+    staleTime: 5 * 60_000,
   })
 }
 
@@ -77,6 +82,7 @@ export function useLargestFiles() {
   return useQuery({
     queryKey: ['admin', 'storage-largest'],
     queryFn: () => fetchLargestFiles(),
+    staleTime: 60_000,
   })
 }
 

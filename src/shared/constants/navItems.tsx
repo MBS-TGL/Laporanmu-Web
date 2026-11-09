@@ -2,10 +2,13 @@ import type { ComponentProps, ComponentType } from 'react'
 import {
   ApartmentOutlined,
   AppstoreOutlined,
+  AudioOutlined,
   BankOutlined,
+  BookOutlined,
   CalendarOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  DeploymentUnitOutlined,
   FileDoneOutlined,
   FileTextOutlined,
   FolderOpenOutlined,
@@ -13,17 +16,24 @@ import {
   HddOutlined,
   HeartOutlined,
   HistoryOutlined,
+  InboxOutlined,
+  MoneyCollectOutlined,
   NotificationOutlined,
   ProfileOutlined,
   ReadOutlined,
+  RobotOutlined,
   SafetyCertificateOutlined,
   SafetyOutlined,
+  ScheduleOutlined,
   SettingOutlined,
   SolutionOutlined,
   TeamOutlined,
   ThunderboltOutlined,
   ToolOutlined,
+  TrophyOutlined,
+  UserAddOutlined,
   UsergroupAddOutlined,
+  WalletOutlined,
 } from '@ant-design/icons'
 
 type IconType = ComponentType<ComponentProps<typeof TeamOutlined>>
@@ -56,7 +66,22 @@ const MASTER_ITEMS: NavItem[] = [
   { to: '/master/students/alumni', label: 'Alumni', icon: SafetyCertificateOutlined, desc: 'Jejak siswa yang telah lulus' },
   { to: '/master/teachers', label: 'Data Guru', icon: ReadOutlined, desc: 'Data pengajar, musyrif, dan staf' },
   { to: '/master/classes', label: 'Data Kelas', icon: BankOutlined, desc: 'Struktur kelas dan wali kelas' },
+  { to: '/master/subjects', label: 'Mata Pelajaran', icon: BookOutlined, desc: 'Daftar mapel, kelompok, dan beban JP' },
   { to: '/master/academic-years', label: 'Tahun Akademik', icon: CalendarOutlined, desc: 'Periode semester dan kalender akademik' },
+  { to: '/master/inventory', label: 'Inventaris', icon: InboxOutlined, desc: 'Aset dan barang beserta kondisinya' },
+  { to: '/master/admissions', label: 'PPDB', icon: UserAddOutlined, desc: 'Penerimaan santri baru dari daftar hingga daftar ulang' },
+]
+
+const ACADEMIC_ITEMS: NavItem[] = [
+  { to: '/academic/tahfidz', label: 'Tahfidz', icon: AudioOutlined, desc: 'Setoran hafalan ziyadah & murojaah santri' },
+  { to: '/academic/schedules', label: 'Jadwal KBM', icon: ScheduleOutlined, desc: 'Jadwal mengajar per kelas, mapel, dan guru' },
+  { to: '/academic/halaqah', label: 'Halaqah', icon: DeploymentUnitOutlined, desc: 'Kelompok halaqah, musyrif, dan anggota' },
+  { to: '/academic/ekskul', label: 'Ekstrakurikuler', icon: TrophyOutlined, desc: 'Kegiatan ekstrakurikuler dan pembina' },
+  { to: '/academic/library', label: 'Perpustakaan', icon: BookOutlined, desc: 'Katalog buku dan peminjaman santri' },
+]
+
+const FINANCE_ITEMS: NavItem[] = [
+  { to: '/finance/savings', label: 'Tabungan', icon: MoneyCollectOutlined, desc: 'Rekening tabungan, setor-tarik, dan buku tabungan' },
 ]
 
 const BEHAVIOR_ITEMS: NavItem[] = [
@@ -89,6 +114,7 @@ const SETTINGS_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Dashboard Admin', icon: AppstoreOutlined, desc: 'Pusat pantauan teknis sistem', requireRoles: ['developer', 'admin'] },
+  { to: '/insights', label: 'AI Insights', icon: RobotOutlined, desc: 'Analisis cerdas data pondok', requireRoles: ['developer', 'admin'] },
   { to: '/admin/database', label: 'Database', icon: DatabaseOutlined, desc: 'Kesehatan database & cek integritas', requireRoles: ['developer', 'admin'] },
   { to: '/admin/storage', label: 'Penyimpanan', icon: HddOutlined, desc: 'Bucket storage & pembersihan file', requireRoles: ['developer', 'admin'] },
   { to: '/admin/tasks', label: 'Otomasi', icon: ThunderboltOutlined, desc: 'Tugas pemeliharaan manual', requireRoles: ['developer', 'admin'] },
@@ -101,6 +127,8 @@ export const NAV_GROUPS: NavGroup[] = [
   { key: 'master', label: 'Master Data', icon: TeamOutlined, items: MASTER_ITEMS },
   { key: 'behavior', label: 'Poin Santri', icon: FileDoneOutlined, items: BEHAVIOR_ITEMS },
   { key: 'boarding', label: 'Kesantrian', icon: ApartmentOutlined, items: BOARDING_ITEMS },
+  { key: 'academic', label: 'Akademik', icon: ReadOutlined, items: ACADEMIC_ITEMS },
+  { key: 'finance', label: 'Keuangan', icon: WalletOutlined, items: FINANCE_ITEMS },
   { key: 'report-cards', label: 'Raport', icon: FileTextOutlined, items: REPORT_CARD_ITEMS },
   { key: 'gate', label: 'Gerbang', icon: GatewayOutlined, items: GATE_ITEMS },
   { key: 'settings', label: 'Pengaturan', icon: SettingOutlined, items: SETTINGS_ITEMS },

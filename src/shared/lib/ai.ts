@@ -31,19 +31,24 @@ export interface AiChatMessage {
   content: string
 }
 
-/** Kirim prompt ke Gemini dan balas teks jawaban (atau pesan kesalahan yang ramah). */
-export async function askAi(prompt: string, history: AiChatMessage[] = []): Promise<string> {
+/** Pemanggilan Gemini generik — dipakai askAi dan modul AI Insights. */
+export async function callGemini(options: {
+  system: string
+  prompt: string
+  history?: AiChatMessage[]
+  maxOutputTokens?: number
+}): Promise<string> {
   const apiKey = (import.meta.env as Record<string, string | undefined>).VITE_GEMINI_API_KEY
   if (!apiKey) {
     return 'API Key AI belum diatur. Tambahkan **VITE_GEMINI_API_KEY** di file .env.local lalu muat ulang aplikasi.'
   }
 
   const contents = [
-    ...history.map((message) => ({
+    ...(options.history ?? []).map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: message.content }],
     })),
-    { role: 'user', parts: [{ text: prompt }] },
+    { role: 'user', parts: [{ text: options.prompt }] },
   ]
 
   try {
@@ -54,8 +59,8 @@ export async function askAi(prompt: string, history: AiChatMessage[] = []): Prom
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents,
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
+          systemInstruction: { parts: [{ text: options.system }] },
+          generationConfig: { temperature: 0.4, maxOutputTokens: options.maxOutputTokens ?? 512 },
         }),
       },
     )
@@ -68,4 +73,9 @@ export async function askAi(prompt: string, history: AiChatMessage[] = []): Prom
   } catch {
     return 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
   }
+}
+
+/** Kirim prompt ke Gemini dan balas teks jawaban (atau pesan kesalahan yang ramah). */
+export async function askAi(prompt: string, history: AiChatMessage[] = []): Promise<string> {
+  return callGemini({ system: SYSTEM_PROMPT, prompt, history })
 }
