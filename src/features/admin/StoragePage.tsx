@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Alert,
   App,
@@ -6,12 +6,15 @@ import {
   Card,
   Col,
   Empty,
+  Input,
   Popconfirm,
   Row,
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
+  theme,
   type TableColumnsType,
 } from 'antd'
 import {
@@ -20,10 +23,13 @@ import {
   FileOutlined,
   ReloadOutlined,
   ScanOutlined,
+  SearchOutlined,
   VideoCameraOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { PageHeader } from '../../shared/components/PageHeader'
+import { StatChip } from '../../shared/components/StatChip'
+import { useDebounce } from '../../shared/hooks/useDebounce'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { useBuckets, useDeleteStorageFiles, useLargestFiles, useOrphanScan } from './hooks'
 import type { StorageFileInfo } from './types'
@@ -43,139 +49,106 @@ function fileIcon(name: string) {
 
 export function StoragePage() {
   const { message } = App.useApp()
+  const { token } = theme.useToken()
   const bucketsQuery = useBuckets()
   const largestQuery = useLargestFiles()
   const orphanScan = useOrphanScan()
   const deleteMutation = useDeleteStorageFiles()
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
 
   const buckets = bucketsQuery.data ?? []
   const largest = largestQuery.data ?? []
   const orphans = orphanScan.data ?? []
 
-  const deleteColumns: TableColumnsType<StorageFileInfo> = [
-    {
-      title: 'File',
-      key: 'name',
-      render: (_, f) => (
-        <Space size={8}>
-          {fileIcon(f.name)}
-          <div>
-            <div style={{ fontWeight: 500, wordBreak: 'break-all' }}>{f.name}</div>
-            <code style={{ fontSize: 11, color: '#64748b' }}>{f.bucket}</code>
-          </div>
-        </Space>
-      ),
-    },
-    {
-      title: 'Ukuran',
-      dataIndex: 'size',
-      key: 'size',
-      width: 110,
-      render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatSize(v)}</span>,
-    },
-    {
-      title: 'Diunggah',
-      dataIndex: 'updatedAt',
-      key: 'updatedAt',
-      width: 150,
-      responsive: ['lg'],
-      render: (v: string | null) => (v ? dayjs(v).format('DD MMM YYYY') : '—'),
-    },
-    {
-      title: 'Aksi',
-      key: 'actions',
-      width: 110,
-      render: (_, f) => (
-        <Popconfirm
-          title="Hapus file ini?"
-          description="File dihapus permanen dari storage."
-          okText="Hapus"
-          okButtonProps={{ danger: true }}
-          cancelText="Batal"
-          onConfirm={async () => {
-            setDeletingKey(`${f.bucket}/${f.name}`)
-            try {
-              await deleteMutation.mutateAsync({ bucket: f.bucket, names: [f.name] })
-              void logAudit({
-                action: 'DELETE',
-                source: 'SYSTEM',
-                tableName: 'storage.objects',
-                newData: { bucket: f.bucket, file: f.name, size: f.size },
-              })
-              message.success('File dihapus')
-            } catch (err) {
-              message.error(err instanceof Error ? err.message : 'Gagal menghapus file')
-            } finally {
-              setDeletingKey(null)
-            }
-          }}
-        >
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            loading={deletingKey === `${f.bucket}/${f.name}`}
-          />
-        </Popconfirm>
-      ),
-    },
-  ]
+  const filteredLargest = useMemo(() => {
+    const term = debouncedSearch.trim().toLowerCase()
+    if (!term) return largest
+    return largest.filter((f) => f.name.toLowerCase().includes(term) || f.bucket.toLowerCase().includes(term))
+  }, [largest, debouncedSearch])
 
-  const orphanTable = (
-    <Table<StorageFileInfo>
-      rowKey={(f) => `${f.bucket}/${f.name}`}
-      size="small"
-      columns={deleteColumns}
-      dataSource={orphans}
-      pagination={orphans.length > 10 ? { pageSize: 10, showSizeChanger: false } : false}
-      locale={{
-        emptyText: <Empty description="Tidak ada file orphan — storage bersih" />,
-      }}
-      footer={
-        orphans.length > 0
-          ? () => (
-              <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-                <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-                  Total {orphans.length} file ·{' '}
-                  {formatSize(orphans.reduce((sum, f) => sum + f.size, 0))}
-                </Typography.Text>
-                <Popconfirm
-                  title="Hapus semua file orphan?"
-                  description={`${orphans.length} file akan dihapus permanen. Pastikan tidak ada yang masih dirujuk.`}
-                  okText="Hapus Semua"
-                  okButtonProps={{ danger: true }}
-                  cancelText="Batal"
-                  onConfirm={async () => {
-                    const byBucket = new Map<string, string[]>()
-                    for (const f of orphans) {
-                      byBucket.set(f.bucket, [...(byBucket.get(f.bucket) ?? []), f.name])
-                    }
-                    try {
-                      for (const [bucket, names] of byBucket) {
-                        await deleteMutation.mutateAsync({ bucket, names })
-                      }
-                      void logAudit({
-                        action: 'DELETE',
-                        source: 'SYSTEM',
-                        tableName: 'storage.objects',
-                        newData: { aksi: 'pembersihan_orphan', jumlah: orphans.length },
-                      })
-                      message.success(`${orphans.length} file orphan dihapus`)
-                    } catch (err) {
-                      message.error(err instanceof Error ? err.message : 'Gagal membersihkan file')
-                    }
-                  }}
-                >
-                  <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending}>
-                    Hapus Semua Orphan
-                  </Button>
-                </Popconfirm>
-              </Space>
-            )
-          : undefined
+  const handleDelete = async (files: StorageFileInfo[]) => {
+    const byBucket = new Map<string, string[]>()
+    for (const f of files) byBucket.set(f.bucket, [...(byBucket.get(f.bucket) ?? []), f.name])
+    try {
+      for (const [bucket, names] of byBucket) {
+        await deleteMutation.mutateAsync({ bucket, names })
       }
-    />
+      void logAudit({
+        action: 'DELETE',
+        source: 'SYSTEM',
+        tableName: 'storage.objects',
+        newData: { aksi: files.length > 1 ? 'pembersihan_orphan' : 'hapus_file', jumlah: files.length },
+      })
+      message.success(files.length > 1 ? `${files.length} file dihapus` : 'File dihapus')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal menghapus file')
+    }
+  }
+
+  // Kolom terbesar & orphan identik (keduanya bisa dihapus) — satu definisi memoized
+  const fileColumns = useMemo<TableColumnsType<StorageFileInfo>>(
+    () => [
+      {
+        title: 'File',
+        key: 'name',
+        render: (_, f) => (
+          <Space size={8}>
+            {fileIcon(f.name)}
+            <div>
+              <div style={{ fontWeight: 500, wordBreak: 'break-all' }}>{f.name}</div>
+              <code style={{ fontSize: 11, color: token.colorTextTertiary }}>{f.bucket}</code>
+            </div>
+          </Space>
+        ),
+      },
+      {
+        title: 'Ukuran',
+        dataIndex: 'size',
+        key: 'size',
+        width: 110,
+        sorter: (a, b) => a.size - b.size,
+        render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatSize(v)}</span>,
+      },
+      {
+        title: 'Diunggah',
+        dataIndex: 'updatedAt',
+        key: 'updatedAt',
+        width: 150,
+        responsive: ['lg'],
+        render: (v: string | null) => (v ? dayjs(v).format('DD MMM YYYY') : '—'),
+      },
+      {
+        title: 'Aksi',
+        key: 'actions',
+        width: 90,
+        render: (_: unknown, f: StorageFileInfo) => (
+          <Popconfirm
+            title="Hapus file ini?"
+            description="File dihapus permanen dari storage."
+            okText="Hapus"
+            okButtonProps={{ danger: true }}
+            cancelText="Batal"
+            onConfirm={() => {
+              setDeletingKey(`${f.bucket}/${f.name}`)
+              void handleDelete([f]).finally(() => setDeletingKey(null))
+            }}
+          >
+            <Tooltip title="Hapus file">
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                loading={deletingKey === `${f.bucket}/${f.name}`}
+              />
+            </Tooltip>
+          </Popconfirm>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token, deletingKey],
   )
 
   return (
@@ -183,10 +156,47 @@ export function StoragePage() {
       <PageHeader
         title="Manajemen Penyimpanan"
         subtitle="Bucket storage, file terbesar, dan pembersihan file yatim (orphan)"
+        extra={
+          <Tooltip title="Muat ulang bucket & file">
+            <Button
+              icon={<ReloadOutlined spin={bucketsQuery.isFetching || largestQuery.isFetching} />}
+              onClick={() => {
+                void bucketsQuery.refetch()
+                void largestQuery.refetch()
+              }}
+            />
+          </Tooltip>
+        }
       />
 
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+        <StatChip
+          icon={<CloudServerOutlined />}
+          label="Bucket"
+          value={buckets.length}
+          color="indigo"
+          loading={bucketsQuery.isPending}
+        />
+        <StatChip
+          icon={<FileOutlined />}
+          label="File Terbesar"
+          value={largest[0] ? formatSize(largest[0].size) : '–'}
+          color="sky"
+          loading={largestQuery.isPending}
+        />
+        {orphanScan.isFetched && (
+          <StatChip
+            icon={<ScanOutlined />}
+            label="File Orphan"
+            value={orphans.length}
+            color={orphans.length > 0 ? 'rose' : 'emerald'}
+            loading={orphanScan.isFetching}
+          />
+        )}
+      </div>
+
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        {bucketsQuery.isLoading ? (
+        {bucketsQuery.isPending ? (
           <Col span={24}>
             <Card loading style={{ minHeight: 120 }} />
           </Col>
@@ -197,7 +207,7 @@ export function StoragePage() {
               showIcon
               icon={<CloudServerOutlined />}
               message="Tidak ada bucket yang bisa dibaca"
-              description="Aplikasi saat ini minim pemakaian storage (foto tersimpan terkompresi di database). Bucket yang dibuat nantinya (mis. Fase 0 PRD) akan tampil di sini. Jika bucket sudah ada tapi tidak muncul, periksa kebijakan storage Supabase."
+              description="Aplikasi saat ini minim pemakaian storage (foto tersimpan terkompresi di database). Bucket yang dibuat nantinya akan tampil di sini. Jika bucket sudah ada tapi tidak muncul, periksa kebijakan storage Supabase."
             />
           </Col>
         ) : (
@@ -210,8 +220,8 @@ export function StoragePage() {
                       width: 38,
                       height: 38,
                       borderRadius: 10,
-                      background: '#eef2ff',
-                      color: '#4f46e5',
+                      background: `${token.colorPrimary}1A`,
+                      color: token.colorPrimary,
                       display: 'grid',
                       placeItems: 'center',
                       fontSize: 17,
@@ -222,7 +232,9 @@ export function StoragePage() {
                   <div>
                     <div style={{ fontWeight: 700 }}>{bucket.name}</div>
                     <Space size={6} style={{ marginTop: 2 }}>
-                      <Tag color={bucket.public ? 'green' : 'orange'}>{bucket.public ? 'Publik' : 'Privat'}</Tag>
+                      <Tag color={bucket.public ? 'green' : 'orange'} style={{ borderRadius: 999 }}>
+                        {bucket.public ? 'Publik' : 'Privat'}
+                      </Tag>
                       {bucket.created_at && (
                         <Typography.Text type="secondary" style={{ fontSize: 11.5 }}>
                           {dayjs(bucket.created_at).format('DD MMM YYYY')}
@@ -243,25 +255,31 @@ export function StoragePage() {
             title="File Berukuran Besar"
             size="small"
             extra={
-              <Button
+              <Input
                 size="small"
-                icon={<ReloadOutlined />}
-                loading={largestQuery.isFetching}
-                onClick={() => void largestQuery.refetch()}
-              >
-                Segarkan
-              </Button>
+                placeholder="Cari file / bucket…"
+                prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
+                allowClear
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ width: 200 }}
+              />
             }
           >
             <Table<StorageFileInfo>
               rowKey={(f) => `${f.bucket}/${f.name}`}
               size="small"
-              columns={deleteColumns}
-              dataSource={largest}
-              loading={largestQuery.isLoading}
+              columns={fileColumns}
+              dataSource={filteredLargest}
+              loading={largestQuery.isPending}
               pagination={false}
               locale={{
-                emptyText: <Empty description="Tidak ada file di bucket" />,
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={largest.length > 0 ? 'Tidak ada file yang cocok' : 'Tidak ada file di bucket'}
+                  />
+                ),
               }}
             />
           </Card>
@@ -291,7 +309,49 @@ export function StoragePage() {
               <code style={{ margin: '0 4px' }}>teachers.photo_url</code>.
               {orphanScan.isFetched && ' Pemindaian hanya menjangkau file di tingkat akar (root).'}
             </Typography.Paragraph>
-            {orphanTable}
+            <Table<StorageFileInfo>
+              rowKey={(f) => `${f.bucket}/${f.name}`}
+              size="small"
+              columns={fileColumns}
+              dataSource={orphans}
+              loading={orphanScan.isFetching}
+              pagination={orphans.length > 10 ? { pageSize: 10, showSizeChanger: false } : false}
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      orphanScan.isFetched
+                        ? 'Tidak ada file orphan — storage bersih'
+                        : 'Belum dipindai — klik "Pindai Sekarang"'
+                    }
+                  />
+                ),
+              }}
+              footer={
+                orphans.length > 0
+                  ? () => (
+                      <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
+                          Total {orphans.length} file · {formatSize(orphans.reduce((sum, f) => sum + f.size, 0))}
+                        </Typography.Text>
+                        <Popconfirm
+                          title="Hapus semua file orphan?"
+                          description={`${orphans.length} file akan dihapus permanen. Pastikan tidak ada yang masih dirujuk.`}
+                          okText="Hapus Semua"
+                          okButtonProps={{ danger: true }}
+                          cancelText="Batal"
+                          onConfirm={() => void handleDelete(orphans)}
+                        >
+                          <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending}>
+                            Hapus Semua Orphan
+                          </Button>
+                        </Popconfirm>
+                      </Space>
+                    )
+                  : undefined
+              }
+            />
           </Card>
         </Col>
       </Row>

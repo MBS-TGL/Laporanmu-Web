@@ -82,8 +82,8 @@ const UsersPage = lazy(() =>
 const AuditPage = lazy(() =>
   import('../features/admin/AuditPage').then((m) => ({ default: m.AuditPage })),
 )
-const AdminDashboardPage = lazy(() =>
-  import('../features/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })),
+const AdminDashboard = lazy(() =>
+  import('../features/admin/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 )
 const AdminDatabasePage = lazy(() =>
   import('../features/admin/DatabasePage').then((m) => ({ default: m.DatabasePage })),
@@ -94,11 +94,41 @@ const AdminStoragePage = lazy(() =>
 const AdminTasksPage = lazy(() =>
   import('../features/admin/TasksPage').then((m) => ({ default: m.TasksPage })),
 )
-const DeveloperSettingsPage = lazy(() =>
-  import('../features/admin/DeveloperSettingsPage').then((m) => ({ default: m.DeveloperSettingsPage })),
+const AdminSettings = lazy(() =>
+  import('../features/admin/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
 const AnnouncementsPage = lazy(() =>
   import('../features/announcements/AnnouncementsPage').then((m) => ({ default: m.AnnouncementsPage })),
+)
+const SubjectsPage = lazy(() =>
+  import('../features/subjects/SubjectsPage').then((m) => ({ default: m.SubjectsPage })),
+)
+const InventoryPage = lazy(() =>
+  import('../features/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })),
+)
+const AdmissionsPage = lazy(() =>
+  import('../features/admissions/AdmissionsPage').then((m) => ({ default: m.AdmissionsPage })),
+)
+const TahfidzPage = lazy(() =>
+  import('../features/tahfidz/TahfidzPage').then((m) => ({ default: m.TahfidzPage })),
+)
+const SchedulesPage = lazy(() =>
+  import('../features/schedules/SchedulesPage').then((m) => ({ default: m.SchedulesPage })),
+)
+const HalaqahPage = lazy(() =>
+  import('../features/halaqah/HalaqahPage').then((m) => ({ default: m.HalaqahPage })),
+)
+const EkskulPage = lazy(() =>
+  import('../features/ekskul/EkskulPage').then((m) => ({ default: m.EkskulPage })),
+)
+const LibraryPage = lazy(() =>
+  import('../features/library/LibraryPage').then((m) => ({ default: m.LibraryPage })),
+)
+const SavingsPage = lazy(() =>
+  import('../features/savings/SavingsPage').then((m) => ({ default: m.SavingsPage })),
+)
+const InsightsPage = lazy(() =>
+  import('../features/insights/InsightsPage').then((m) => ({ default: m.InsightsPage })),
 )
 const CheckPage = lazy(() =>
   import('../features/public/CheckPage').then((m) => ({ default: m.CheckPage })),
@@ -241,6 +271,86 @@ export const appRouter = createBrowserRouter([
             ),
           },
           {
+            path: 'master/subjects',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <SubjectsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'master/inventory',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <InventoryPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'master/admissions',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <AdmissionsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'academic/tahfidz',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <TahfidzPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'academic/schedules',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <SchedulesPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'academic/halaqah',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <HalaqahPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'academic/ekskul',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <EkskulPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'academic/library',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <LibraryPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'finance/savings',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <SavingsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'insights',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <InsightsPage />
+              </Suspense>
+            ),
+          },
+          {
             path: 'boarding/dorms',
             element: (
               <Suspense fallback={<PageFallback />}>
@@ -377,7 +487,7 @@ export const appRouter = createBrowserRouter([
                 index: true,
                 element: (
                   <Suspense fallback={<PageFallback />}>
-                    <AdminDashboardPage />
+                    <AdminDashboard />
                   </Suspense>
                 ),
               },
@@ -409,7 +519,7 @@ export const appRouter = createBrowserRouter([
                 path: 'settings',
                 element: (
                   <Suspense fallback={<PageFallback />}>
-                    <DeveloperSettingsPage />
+                    <AdminSettings />
                   </Suspense>
                 ),
               },

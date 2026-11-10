@@ -12,11 +12,15 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
+  theme,
   type TableColumnsType,
 } from 'antd'
 import {
   CaretRightOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
   HistoryOutlined,
@@ -25,6 +29,8 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { PageHeader } from '../../shared/components/PageHeader'
+import { StatChip } from '../../shared/components/StatChip'
+import { useDebounce } from '../../shared/hooks/useDebounce'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { runDetachRefs, runRotateAuditLogs, runSyncStats } from './api'
 import {
@@ -53,11 +59,13 @@ function summarizeStats(stats: Record<string, number>): string {
 
 export function TasksPage() {
   const { message, modal } = App.useApp()
+  const { token } = theme.useToken()
   const [runningId, setRunningId] = useState<TaskId | null>(null)
   const [progress, setProgress] = useState(0)
   const [rotationDays, setRotationDays] = useState(45)
   const [logs, setLogs] = useState<TaskRunLog[]>(() => loadTaskLogs())
   const [logSearch, setLogSearch] = useState('')
+  const debouncedLogSearch = useDebounce(logSearch, 300)
 
   const finishRun = (task: TaskDef, startedAt: number, summary: string) => {
     setRunningId(null)
@@ -130,58 +138,80 @@ export function TasksPage() {
   }
 
   const filteredLogs = useMemo(() => {
-    const term = logSearch.trim().toLowerCase()
+    const term = debouncedLogSearch.trim().toLowerCase()
     if (!term) return logs
     return logs.filter((l) => {
       const taskLabel = TASKS.find((t) => t.id === l.taskId)?.label.toLowerCase() ?? ''
       return taskLabel.includes(term) || l.summary.toLowerCase().includes(term)
     })
-  }, [logs, logSearch])
+  }, [logs, debouncedLogSearch])
 
   const successCount = logs.filter((l) => l.ok).length
+  const lastRun = logs[0]
 
-  const logColumns: TableColumnsType<TaskRunLog> = [
-    {
-      title: 'Tugas',
-      dataIndex: 'taskId',
-      key: 'taskId',
-      render: (id: TaskId) => TASKS.find((t) => t.id === id)?.label ?? id,
-    },
-    {
-      title: 'Ringkasan',
-      dataIndex: 'summary',
-      key: 'summary',
-      render: (v: string) => <span style={{ fontSize: 12.5 }}>{v}</span>,
-    },
-    {
-      title: 'Durasi',
-      dataIndex: 'durationMs',
-      key: 'durationMs',
-      width: 110,
-      render: (v: number) => formatDuration(v),
-    },
-    {
-      title: 'Waktu',
-      dataIndex: 'startedAt',
-      key: 'startedAt',
-      width: 160,
-      render: (v: string) => dayjs(v).format('DD MMM YYYY HH:mm'),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'ok',
-      key: 'ok',
-      width: 90,
-      render: (ok: boolean) => (ok ? <Tag color="success">Sukses</Tag> : <Tag color="error">Gagal</Tag>),
-    },
-  ]
+  const logColumns = useMemo<TableColumnsType<TaskRunLog>>(
+    () => [
+      {
+        title: 'Tugas',
+        dataIndex: 'taskId',
+        key: 'taskId',
+        width: 200,
+        render: (id: TaskId) => TASKS.find((t) => t.id === id)?.label ?? id,
+      },
+      {
+        title: 'Ringkasan',
+        dataIndex: 'summary',
+        key: 'summary',
+        render: (v: string) => <span style={{ fontSize: 12.5 }}>{v}</span>,
+      },
+      {
+        title: 'Durasi',
+        dataIndex: 'durationMs',
+        key: 'durationMs',
+        width: 110,
+        render: (v: number) => (
+          <Tag style={{ borderRadius: 999, fontVariantNumeric: 'tabular-nums' }}>{formatDuration(v)}</Tag>
+        ),
+      },
+      {
+        title: 'Waktu',
+        dataIndex: 'startedAt',
+        key: 'startedAt',
+        width: 160,
+        render: (v: string) => dayjs(v).format('DD MMM YYYY HH:mm'),
+      },
+      {
+        title: 'Status',
+        dataIndex: 'ok',
+        key: 'ok',
+        width: 100,
+        render: (ok: boolean) =>
+          ok ? (
+            <Tag color="success" style={{ borderRadius: 999 }}>
+              Sukses
+            </Tag>
+          ) : (
+            <Tag color="error" style={{ borderRadius: 999 }}>
+              Gagal
+            </Tag>
+          ),
+      },
+    ],
+    [],
+  )
 
   return (
     <div>
       <PageHeader
         title="Otomasi"
         subtitle="Picu tugas pemeliharaan berat secara manual — tanpa menunggu jadwal"
-        extra={<Tag icon={<ThunderboltOutlined />} color="geekblue">Direct Query</Tag>}
+        extra={
+          <Tooltip title="Tugas dijalankan langsung dari browser (direct query)">
+            <Tag icon={<ThunderboltOutlined />} color="geekblue" style={{ borderRadius: 999 }}>
+              Direct Query
+            </Tag>
+          </Tooltip>
+        }
       />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -191,35 +221,39 @@ export function TasksPage() {
             <Col xs={24} md={8} key={task.id}>
               <Card
                 size="small"
-                style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-                styles={{ body: { display: 'flex', flexDirection: 'column', flex: 1 } }}
+                style={{ height: '100%' }}
+                styles={{ body: { display: 'flex', flexDirection: 'column', height: '100%' } }}
               >
-                <Space size={10} align="start">
+                <Space size={12} align="start" style={{ width: '100%' }}>
                   <div
                     style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 9,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
                       flexShrink: 0,
-                      background: task.destructive ? '#fff1f2' : '#eef2ff',
-                      color: task.destructive ? '#f43f5e' : '#4f46e5',
+                      background: task.destructive ? 'rgba(244, 63, 94, 0.08)' : `${token.colorPrimary}1A`,
+                      color: task.destructive ? '#f43f5e' : token.colorPrimary,
                       display: 'grid',
                       placeItems: 'center',
-                      fontSize: 15,
+                      fontSize: 16,
                     }}
                   >
                     {isRunning ? <LoadingOutlined /> : <ThunderboltOutlined />}
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <Space size={8} align="center">
-                      <b>{task.label}</b>
+                      <b style={{ fontSize: 13.5 }}>{task.label}</b>
                       {task.destructive ? (
-                        <Tag color="error">Destruktif</Tag>
+                        <Tag color="error" style={{ borderRadius: 999 }}>
+                          Destruktif
+                        </Tag>
                       ) : (
-                        <Tag color="success">Aman</Tag>
+                        <Tag color="success" style={{ borderRadius: 999 }}>
+                          Aman
+                        </Tag>
                       )}
                     </Space>
-                    <Typography.Paragraph type="secondary" style={{ fontSize: 12.5, marginTop: 6, marginBottom: 10 }}>
+                    <Typography.Paragraph type="secondary" style={{ fontSize: 12.5, marginTop: 6, marginBottom: 10, flex: 1 }}>
                       {task.description}
                     </Typography.Paragraph>
 
@@ -240,7 +274,7 @@ export function TasksPage() {
                     )}
 
                     {isRunning ? (
-                      <Progress percent={progress} size="small" strokeColor="#4f46e5" />
+                      <Progress percent={progress} size="small" strokeColor={token.colorPrimary} />
                     ) : (
                       <Button
                         type={task.destructive ? 'default' : 'primary'}
@@ -282,6 +316,7 @@ export function TasksPage() {
             <Button
               size="small"
               icon={<DeleteOutlined />}
+              disabled={logs.length === 0}
               onClick={() =>
                 modal.confirm({
                   title: 'Hapus semua riwayat?',
@@ -302,14 +337,21 @@ export function TasksPage() {
           </Space>
         }
       >
-        <Space size={16} style={{ marginBottom: 12 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-            Total eksekusi: <b>{logs.length}</b>
-          </Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-            Berhasil: <b>{successCount}</b>
-          </Typography.Text>
-        </Space>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <StatChip icon={<HistoryOutlined />} label="Total Eksekusi" value={logs.length} color="indigo" />
+          <StatChip
+            icon={<CheckCircleOutlined />}
+            label="Berhasil"
+            value={successCount}
+            color="emerald"
+          />
+          <StatChip
+            icon={<ClockCircleOutlined />}
+            label="Terakhir"
+            value={lastRun ? formatDuration(lastRun.durationMs) : '–'}
+            color="amber"
+          />
+        </div>
         <Table<TaskRunLog>
           rowKey="id"
           size="small"
@@ -317,7 +359,7 @@ export function TasksPage() {
           dataSource={filteredLogs}
           pagination={logs.length > 8 ? { pageSize: 8, showSizeChanger: false } : false}
           locale={{
-            emptyText: <Empty description="Belum ada riwayat — jalankan salah satu tugas di atas" />,
+            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada riwayat — jalankan salah satu tugas di atas" />,
           }}
         />
       </Card>
