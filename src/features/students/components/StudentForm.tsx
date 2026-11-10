@@ -88,6 +88,8 @@ export function StudentForm({ open, student, submitting, onCancel, onSubmit }: S
   const dormsQuery = useDormsBrief()
   // Data ayah/ibu/wali ada di tabel terpisah (0020) — diambil saat edit
   const guardiansQuery = useStudentGuardians(student?.id, open && !!student)
+  // Alumni (status lulus) tidak punya class_id — kelas hanya wajib untuk siswa aktif
+  const statusValue = Form.useWatch('status', form)
 
   useEffect(() => {
     if (!open) return
@@ -325,7 +327,7 @@ export function StudentForm({ open, student, submitting, onCancel, onSubmit }: S
             <Form.Item
               name="class_id"
               label="Kelas"
-              rules={[{ required: true, message: 'Kelas wajib dipilih' }]}
+              rules={[{ required: statusValue !== 'graduated', message: 'Kelas wajib dipilih' }]}
             >
               <Select
                 placeholder="Pilih kelas"

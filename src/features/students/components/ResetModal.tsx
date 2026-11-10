@@ -3,7 +3,7 @@ import { Alert, App, Button, Input, Select, Tooltip, Typography } from 'antd'
 import { ClearOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import { useClassesBrief, useResetPoints, useStudentStats } from '../hooks'
-import { useClassSizes } from '../../classes/hooks'
+import { useClassGenderCounts } from '../../classes/hooks'
 
 const { Text } = Typography
 
@@ -20,7 +20,7 @@ export function ResetModal({ open, onClose, defaultClassId }: ResetModalProps) {
   const classesQuery = useClassesBrief()
   const resetMutation = useResetPoints()
   const statsQuery = useStudentStats()
-  const sizesQuery = useClassSizes()
+  const countsQuery = useClassGenderCounts()
   const [classId, setClassId] = useState<string | null>(defaultClassId ?? null)
   const [confirmation, setConfirmation] = useState('')
 
@@ -29,7 +29,7 @@ export function ResetModal({ open, onClose, defaultClassId }: ResetModalProps) {
   // Blast radius — jumlah siswa yang terkena sesuai cakupan, terlihat
   // SEBELUM konfirmasi (bukan baru setelah reset selesai)
   const affectedCount = classId
-    ? (sizesQuery.data ?? []).find((s) => s.class_id === classId)?.total
+    ? countsQuery.data?.get(classId)?.total
     : statsQuery.data?.total
   const scopeLabel = classId
     ? ((classesQuery.data ?? []).find((c) => c.id === classId)?.name ?? 'kelas terpilih')

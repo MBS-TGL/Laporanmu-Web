@@ -47,6 +47,24 @@ export class RouteErrorBoundary extends Component<Props, State> {
             <>
               Halaman ini gagal ditampilkan. Coba muat ulang — jika masih berlanjut,
               hubungi administrator.
+              {import.meta.env.DEV && error.message && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    background: '#fef2f2',
+                    color: '#b91c1c',
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    textAlign: 'left',
+                    maxWidth: 560,
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {error.message}
+                </div>
+              )}
             </>
           }
           extra={

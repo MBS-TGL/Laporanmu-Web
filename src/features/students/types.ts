@@ -1,6 +1,12 @@
 export type StudentStatus = 'active' | 'graduated' | 'transferred' | 'left'
 export type Gender = 'L' | 'P'
 
+/** Snapshot jejak kelulusan — dipakai untuk undo pembatalan kelulusan massal */
+export type GraduationSnapshot = Pick<
+  Student,
+  'id' | 'graduated_at' | 'graduation_year' | 'last_class_id'
+>
+
 /** Hubungan orang tua/wali — baris student_guardians (0020) */
 export type GuardianRelation = 'father' | 'mother' | 'guardian'
 
@@ -121,6 +127,9 @@ export type SortOption =
   | 'points_asc'
   | 'updated_desc'
   | 'graduated_desc'
+  | 'graduated_asc'
+  | 'year_desc'
+  | 'year_asc'
 
 export type MissingField = 'photo' | 'phone' | 'nisn' | 'any'
 export type PointMode = 'negative' | 'positive'
@@ -133,6 +142,9 @@ export interface StudentFilters {
   sortBy?: SortOption
   missing?: MissingField
   pointMode?: PointMode
+  /** filter khusus alumni (halaman Alumni) */
+  graduationYear?: number
+  lastClassId?: string
   page: number
   pageSize: number
 }

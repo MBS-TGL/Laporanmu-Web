@@ -28,6 +28,9 @@ const AlumniPage = lazy(() =>
 const TeachersPage = lazy(() =>
   import('../features/teachers/TeachersPage').then((m) => ({ default: m.TeachersPage })),
 )
+const TeacherArchive = lazy(() =>
+  import('../features/teachers/ArchivePage').then((m) => ({ default: m.ArchivePage })),
+)
 const ClassesPage = lazy(() =>
   import('../features/classes/ClassesPage').then((m) => ({ default: m.ClassesPage })),
 )
@@ -210,6 +213,14 @@ export const appRouter = createBrowserRouter([
             element: (
               <Suspense fallback={<PageFallback />}>
                 <TeachersPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'master/teachers/archive',
+            element: (
+              <Suspense fallback={<PageFallback />}>
+                <TeacherArchive />
               </Suspense>
             ),
           },

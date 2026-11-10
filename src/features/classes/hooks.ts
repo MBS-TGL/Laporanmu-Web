@@ -1,6 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { createClass, fetchClasses, softDeleteClass, updateClass } from './api'
+import { logAudit } from '../../shared/utils/auditLogger'
+import {
+  createClass,
+  fetchClasses,
+  fetchClassGenderCounts,
+  setClassesHomeroomBulk,
+  softDeleteClass,
+  softDeleteClassesBulk,
+  updateClass,
+} from './api'
 import type { ClassFilters, ClassFormValues } from './types'
 
 export function useClasses(filters: ClassFilters) {
@@ -44,9 +53,16 @@ export function useCreateClass() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (values: ClassFormValues) => createClass(values),
-    onSuccess: () => {
+    onSuccess: (created) => {
       void qc.invalidateQueries({ queryKey: ['classes'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'INSERT',
+        source: 'MASTER',
+        tableName: 'classes',
+        recordId: created.id,
+        newData: created,
+      })
     },
   })
 }
@@ -56,8 +72,15 @@ export function useUpdateClass() {
   return useMutation({
     mutationFn: ({ id, values }: { id: string; values: ClassFormValues }) =>
       updateClass(id, values),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['classes'] })
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'classes',
+        recordId: updated.id,
+        newData: updated,
+      })
     },
   })
 }
@@ -66,30 +89,68 @@ export function useDeleteClass() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => softDeleteClass(id),
-    onSuccess: () => {
+    onSuccess: (_void, id) => {
       void qc.invalidateQueries({ queryKey: ['classes'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'DELETE',
+        source: 'MASTER',
+        tableName: 'classes',
+        recordId: id,
+      })
     },
   })
 }
 
-export interface ClassSize {
-  class_id: string
-  total: number
+export function useBulkDeleteClasses() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => softDeleteClassesBulk(ids),
+    onSuccess: (_void, ids) => {
+      void qc.invalidateQueries({ queryKey: ['classes'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'DELETE',
+        source: 'MASTER',
+        tableName: 'classes',
+        recordId: null,
+        newData: { bulk_ids: ids },
+      })
+    },
+  })
 }
 
-// View class_sizes (0009_views.sql) — jumlah santri AKTIF per kelas.
-// Kalau view belum ada, kembalikan array kosong agar halaman tetap jalan.
-export function useClassSizes() {
+export function useSetClassesHomeroomBulk() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, teacherId }: { ids: string[]; teacherId: string | null }) =>
+      setClassesHomeroomBulk(ids, teacherId),
+    onSuccess: (_void, { ids, teacherId }) => {
+      void qc.invalidateQueries({ queryKey: ['classes'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'classes',
+        recordId: null,
+        newData: { bulk_homeroom: { count: ids.length, teacher_id: teacherId } },
+      })
+    },
+  })
+}
+
+// Jumlah santri aktif + split gender per kelas. Key di bawah prefix ['classes']
+// agar ikut ter-invalidate setiap mutasi kelas, dan di-invalidate eksplisit
+// oleh mutasi siswa (pindah/buat/hapus) di features/students/hooks.
+export function useClassGenderCounts() {
   return useQuery({
-    queryKey: ['class-sizes'],
-    queryFn: async (): Promise<ClassSize[]> => {
+    queryKey: ['classes', 'gender-counts'],
+    queryFn: async () => {
       try {
-        const { data, error } = await supabase.from('class_sizes').select('*')
-        if (error) return []
-        return (data ?? []) as ClassSize[]
+        return await fetchClassGenderCounts()
       } catch {
-        return []
+        // Kalau query gagal (mis. RLS), halaman tetap jalan tanpa angka.
+        return new Map<string, { total: number; male: number; female: number }>()
       }
     },
     staleTime: 60_000,

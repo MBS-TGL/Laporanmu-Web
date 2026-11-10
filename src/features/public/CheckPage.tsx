@@ -18,12 +18,14 @@ import {
   KeyOutlined,
   NotificationOutlined,
   NumberOutlined,
+  QuestionCircleOutlined,
+  SafetyOutlined,
   SearchOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { fetchPublicAnnouncements, type PublicAnnouncement } from '../announcements/api'
+import { usePublicAnnouncements } from '../announcements/hooks'
 import { CATEGORY_COLORS } from '../announcements/types'
 import { PublicShell } from './PublicShell'
 import { PortalCard } from './PortalCard'
@@ -138,25 +140,13 @@ export function CheckPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CheckStudentResult | null>(null)
-  const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>([])
 
   useEffect(() => {
     document.title = 'Cek Wali Santri · Laporanmu'
   }, [])
 
-  // Pengumuman publik untuk wali santri — gagal fetch diabaikan
-  // (bukan data kritis; form cek tetap harus berfungsi)
-  useEffect(() => {
-    let cancelled = false
-    fetchPublicAnnouncements()
-      .then((rows) => {
-        if (!cancelled) setAnnouncements(rows)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // Pengumuman publik — cache 5 menit; gagal fetch diperlakukan non-kritis
+  const { data: announcements = [] } = usePublicAnnouncements()
 
   const deepCode = searchParams.get('code') ?? ''
   const deepPin = searchParams.get('pin') ?? ''
@@ -546,6 +536,84 @@ export function CheckPage() {
             </Button>
           </Form>
         </PortalCard>
+      )}
+
+      {/* Bantuan singkat — hanya pada tampilan form */}
+      {!result && (
+        <Row gutter={[12, 12]} style={{ marginTop: 16 }}>
+          <Col xs={24} sm={12}>
+            <Card
+              size="small"
+              style={{ borderRadius: 14, border: '1px solid #eef2f7', height: '100%' }}
+            >
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: '#fff7ed',
+                    color: '#ea580c',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 16,
+                    flexShrink: 0,
+                  }}
+                >
+                  <QuestionCircleOutlined />
+                </div>
+                <div>
+                  <Typography.Text strong style={{ fontSize: 13.5 }}>
+                    Lupa PIN?
+                  </Typography.Text>
+                  <Typography.Paragraph
+                    type="secondary"
+                    style={{ fontSize: 12.5, marginTop: 2, marginBottom: 0, lineHeight: 1.6 }}
+                  >
+                    PIN hanya diketahui wali dan pihak sekolah. Hubungi musyrif / pengasuhan
+                    melalui kontak resmi untuk mengatur ulang PIN.
+                  </Typography.Paragraph>
+                </div>
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Card
+              size="small"
+              style={{ borderRadius: 14, border: '1px solid #eef2f7', height: '100%' }}
+            >
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: '#eef2ff',
+                    color: '#4f46e5',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 16,
+                    flexShrink: 0,
+                  }}
+                >
+                  <SafetyOutlined />
+                </div>
+                <div>
+                  <Typography.Text strong style={{ fontSize: 13.5 }}>
+                    Keamanan Data
+                  </Typography.Text>
+                  <Typography.Paragraph
+                    type="secondary"
+                    style={{ fontSize: 12.5, marginTop: 2, marginBottom: 0, lineHeight: 1.6 }}
+                  >
+                    Data hanya terbuka dengan kode registrasi + PIN pribadi, dan percobaan
+                    gagal dibatasi otomatis oleh sistem.
+                  </Typography.Paragraph>
+                </div>
+              </div>
+            </Card>
+          </Col>
+        </Row>
       )}
 
       {announcements.length > 0 && (

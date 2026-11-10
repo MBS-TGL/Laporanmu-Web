@@ -141,6 +141,7 @@ export function VerifyPage() {
               name="studentId"
               label="ID Santri"
               rules={[{ required: true, message: 'ID santri wajib diisi' }]}
+              extra="ID santri adalah kode panjang yang tertera pada QR/tautan rapor — bukan NISN."
             >
               <Input placeholder="Tempel ID santri di sini" disabled={loading} allowClear size="large" />
             </Form.Item>
@@ -160,6 +161,51 @@ export function VerifyPage() {
             </Button>
           </Form>
         </PortalCard>
+      )}
+
+      {/* Panduan 3 langkah — hanya pada tampilan form */}
+      {!result && (
+        <Card size="small" style={{ marginTop: 16, borderRadius: 14, border: '1px solid #eef2f7' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+            {(
+              [
+                ['1', 'Salin ID santri', 'Dari QR atau tautan pada dokumen rapor.'],
+                ['2', 'Tempel & verifikasi', 'Sistem mencocokkan dengan arsip resmi sekolah.'],
+                ['3', 'Bandingkan hasil', 'Cocokkan nilai dengan rapor yang Anda terima.'],
+              ] as const
+            ).map(([no, title, desc]) => (
+              <div key={no} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 999,
+                    background: '#ecfdf5',
+                    color: '#059669',
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {no}
+                </span>
+                <div>
+                  <Typography.Text strong style={{ fontSize: 13 }}>
+                    {title}
+                  </Typography.Text>
+                  <Typography.Paragraph
+                    type="secondary"
+                    style={{ fontSize: 12, marginTop: 2, marginBottom: 0, lineHeight: 1.55 }}
+                  >
+                    {desc}
+                  </Typography.Paragraph>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       {result && (

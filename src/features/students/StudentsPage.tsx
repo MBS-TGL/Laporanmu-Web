@@ -22,13 +22,9 @@ import {
   type TableColumnsType,
   type TableProps,
 } from 'antd'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
   CameraOutlined,
-  CaretDownOutlined,
-  CaretUpOutlined,
   CheckSquareOutlined,
   CloseOutlined,
   DeleteOutlined,
@@ -56,6 +52,10 @@ import {
 } from '@ant-design/icons'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
+import { BulkActionBar } from '../../shared/components/BulkActionBar'
+import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
+import { TableSortIcon } from '../../shared/components/TableSortIcon'
+import { columnSortOrder, sortByFromTableChange } from '../../shared/utils/tableSort'
 import { Kbd, ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../shared/hooks/useDebounce'
@@ -139,6 +139,14 @@ const POINT_OPTIONS: { value: PointMode; label: string }[] = [
 
 const MASK = '••••••'
 
+// Pasangan [asc, desc] per kolom — dipakai header tabel, dropdown "Urutkan", dan onChange sorter
+const SORT_PAIRS = {
+  name: ['name_asc', 'name_desc'],
+  class: ['class_asc', 'class_desc'],
+  status: ['status_asc', 'status_desc'],
+  total_points: ['points_asc', 'points_desc'],
+} as const
+
 function initials(name: string): string {
   return name.charAt(0).toUpperCase()
 }
@@ -148,9 +156,11 @@ export function StudentsPage() {
   const { token } = theme.useToken()
   const { canWrite, canDelete } = usePermissions()
   const navigate = useNavigate()
+  // Deep-link dari halaman lain (mis. ClassDrawer "Kelola santri") — dibaca sekali saat mount
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 350)
-  const [classId, setClassId] = useState<string | undefined>()
+  const [classId, setClassId] = useState<string | undefined>(() => searchParams.get('classId') ?? undefined)
   const [gender, setGender] = useState<Gender | undefined>()
   const [status, setStatus] = useState<StudentStatus | ''>('')
   const [sortBy, setSortBy] = useState<SortOption | undefined>()
@@ -257,6 +267,10 @@ export function StudentsPage() {
       updated_desc: cmpUpdated,
       graduated_desc: (a, b) =>
         (b.graduated_at ?? '').localeCompare(a.graduated_at ?? '') || cmpName(a, b),
+      graduated_asc: (a, b) =>
+        (a.graduated_at ?? '').localeCompare(b.graduated_at ?? '') || cmpName(a, b),
+      year_desc: (a, b) => (b.graduation_year ?? 0) - (a.graduation_year ?? 0) || cmpName(a, b),
+      year_asc: (a, b) => (a.graduation_year ?? 0) - (b.graduation_year ?? 0) || cmpName(a, b),
     }
     return [...data].sort(comparators[sortBy ?? 'name_asc'])
   }, [allStudents, debouncedSearch, classId, gender, status, missing, pointMode, sortBy])
@@ -285,7 +299,7 @@ export function StudentsPage() {
   const advFilterCount = [classId, sortBy, missing, pointMode].filter(Boolean).length
 
   // Chip filter aktif — bisa dihapus satu per satu
-  const filterChips = useMemo(() => {
+  const filterChips = useMemo<FilterChip[]>(() => {
     const chips: { key: string; label: string; onClear: () => void }[] = []
     if (debouncedSearch.trim())
       chips.push({
@@ -768,54 +782,21 @@ export function StudentsPage() {
   // Kolom tabel
   // -------------------------------------------------------------------------
 
-  // Ikon sorter gaya Esceha.id: nonaktif = dua arah kecil sangat redup
-  // (lebih pudar dari teks header), aktif = satu panah solid primary
-  const sortIcon = ({ sortOrder }: { sortOrder?: 'ascend' | 'descend' | null }) => {
-    if (sortOrder === 'ascend')
-      return <ArrowUpOutlined style={{ fontSize: 12, color: token.colorPrimary }} />
-    if (sortOrder === 'descend')
-      return <ArrowDownOutlined style={{ fontSize: 12, color: token.colorPrimary }} />
-    return (
-      <span
-        style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1, color: token.colorTextQuaternary }}
-      >
-        <CaretUpOutlined style={{ fontSize: 10, marginBottom: -3 }} />
-        <CaretDownOutlined style={{ fontSize: 10 }} />
-      </span>
-    )
-  }
+  // Ikon sorter gaya Esceha.id — template di shared/components/TableSortIcon.
+  // Dibungkus fungsi: antd memanggil sortIcon sebagai fungsi biasa, jadi komponen
+  // harus dirender sebagai elemen agar hooks-nya legal.
+  const sortIcon = ({ sortOrder }: { sortOrder?: 'ascend' | 'descend' | null }) => (
+    <TableSortIcon sortOrder={sortOrder} />
+  )
 
   // Urutan kolom sinkron dengan state sortBy (dipakai juga dropdown "Urutkan")
-  const sortOrderOf = (key: 'name' | 'class' | 'status' | 'total_points'): 'ascend' | 'descend' | null => {
-    switch (key) {
-      case 'name':
-        return sortBy === 'name_asc' ? 'ascend' : sortBy === 'name_desc' ? 'descend' : null
-      case 'class':
-        return sortBy === 'class_asc' ? 'ascend' : sortBy === 'class_desc' ? 'descend' : null
-      case 'status':
-        return sortBy === 'status_asc' ? 'ascend' : sortBy === 'status_desc' ? 'descend' : null
-      case 'total_points':
-        return sortBy === 'points_asc' ? 'ascend' : sortBy === 'points_desc' ? 'descend' : null
-    }
-  }
+  const sortOrderOf = (key: keyof typeof SORT_PAIRS) =>
+    columnSortOrder(sortBy, key, SORT_PAIRS)
 
   const handleTableChange: TableProps<Student>['onChange'] = (_pagination, _filters, sorter, extra) => {
     if (extra.action !== 'sort') return
     const s = Array.isArray(sorter) ? sorter[0] : sorter
-    if (!s.order || !s.column) {
-      setSortBy(undefined)
-      resetPage()
-      return
-    }
-    const key = s.column.key as 'name' | 'class' | 'status' | 'total_points'
-    const pair: Record<typeof key, [SortOption, SortOption]> = {
-      name: ['name_asc', 'name_desc'],
-      class: ['class_asc', 'class_desc'],
-      status: ['status_asc', 'status_desc'],
-      total_points: ['points_asc', 'points_desc'],
-    }
-    const [asc, desc] = pair[key]
-    setSortBy(s.order === 'ascend' ? asc : desc)
+    setSortBy(sortByFromTableChange(s, SORT_PAIRS))
     resetPage()
   }
 
@@ -1174,25 +1155,7 @@ export function StudentsPage() {
           </div>
         )}
 
-        {filterChips.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12, marginTop: showAdvanced ? 0 : 12 }}>
-            {filterChips.map((chip) => (
-              <Tag
-                key={chip.key}
-                closable
-                onClose={chip.onClear}
-                style={{
-                  borderRadius: 999,
-                  background: token.colorFillQuaternary,
-                  border: 'none',
-                  paddingInline: 10,
-                }}
-              >
-                {chip.label}
-              </Tag>
-            ))}
-          </div>
-        )}
+        <FilterChips chips={filterChips} marginTop={showAdvanced ? 0 : 12} />
 
         {isTruncated && (
           <Alert
@@ -1254,62 +1217,39 @@ export function StudentsPage() {
       </Card>
 
       {/* Bar aksi massal — muncul saat ada siswa yang dipilih */}
-      {selectedIds.length > 0 && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 24,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '8px 12px',
-            borderRadius: 14,
-            background: token.colorBgContainer,
-            border: `1px solid ${token.colorBorderSecondary}`,
-            boxShadow: '0 12px 32px rgba(15, 23, 42, 0.14)',
-          }}
-        >
-          <Tag color="processing" style={{ borderRadius: 999, fontWeight: 700, marginInlineEnd: 2 }}>
-            {selectedIds.length}
-          </Tag>
-          <span style={{ color: token.colorTextSecondary, fontSize: 13 }}>Dipilih</span>
-          <Button size="small" icon={<ExportOutlined />} onClick={() => openExport('selected')}>
-            Ekspor
+      <BulkActionBar count={selectedIds.length} onClear={() => setSelectedIds([])}>
+        <Button size="small" icon={<ExportOutlined />} onClick={() => openExport('selected')}>
+          Ekspor
+        </Button>
+        <Button size="small" icon={<IdcardOutlined />} onClick={() => setCardStudents(selectedStudents)}>
+          Kartu
+        </Button>
+        {canWrite && (
+          <Button size="small" icon={<KeyOutlined />} onClick={confirmBulkGeneratePins}>
+            Buat PIN
           </Button>
-          <Button size="small" icon={<IdcardOutlined />} onClick={() => setCardStudents(selectedStudents)}>
-            Kartu
+        )}
+        {canWrite && (
+          <Button size="small" icon={<SwapOutlined />} onClick={() => setMoveOpen(true)}>
+            Kelas
           </Button>
-          {canWrite && (
-            <Button size="small" icon={<KeyOutlined />} onClick={confirmBulkGeneratePins}>
-              Buat PIN
-            </Button>
-          )}
-          {canWrite && (
-            <Button size="small" icon={<SwapOutlined />} onClick={() => setMoveOpen(true)}>
-              Kelas
-            </Button>
-          )}
-          {canWrite && (
-            <Button size="small" icon={<SafetyCertificateOutlined style={{ color: token.colorPrimary }} />} onClick={() => setGraduateOpen(true)}>
-              Luluskan
-            </Button>
-          )}
-          {canWrite && (
-            <Button size="small" icon={<WhatsAppOutlined style={{ color: token.colorSuccess }} />} onClick={() => setWaOpen(true)}>
-              WA
-            </Button>
-          )}
-          {canWrite && (
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={confirmBulkArchive}>
-              Arsipkan
-            </Button>
-          )}
-          <Button size="small" type="text" style={{ color: token.colorTextQuaternary }} icon={<CloseOutlined />} onClick={() => setSelectedIds([])} />
-        </div>
-      )}
+        )}
+        {canWrite && (
+          <Button size="small" icon={<SafetyCertificateOutlined style={{ color: token.colorPrimary }} />} onClick={() => setGraduateOpen(true)}>
+            Luluskan
+          </Button>
+        )}
+        {canWrite && (
+          <Button size="small" icon={<WhatsAppOutlined style={{ color: token.colorSuccess }} />} onClick={() => setWaOpen(true)}>
+            WA
+          </Button>
+        )}
+        {canWrite && (
+          <Button size="small" danger icon={<DeleteOutlined />} onClick={confirmBulkArchive}>
+            Arsipkan
+          </Button>
+        )}
+      </BulkActionBar>
 
       <StudentForm
         open={formOpen}

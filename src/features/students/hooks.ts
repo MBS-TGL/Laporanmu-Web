@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import {
@@ -14,6 +14,7 @@ import {
   graduateStudentsBulk,
   moveStudentsBulk,
   resetPoints,
+  restoreGraduationSnapshot,
   restoreStudent,
   restoreStudentsBulk,
   revertGraduation,
@@ -25,26 +26,31 @@ import {
   updateWaSettings,
   type WaRecipient,
 } from './api'
-import type { StudentFilters, StudentFormValues, StudentGuardianInput } from './types'
+import type { GraduationSnapshot, StudentFilters, StudentFormValues, StudentGuardianInput } from './types'
 
 export interface ClassBrief {
   id: string
   name: string
 }
 
-/** Daftar alumni (siswa berstatus lulus) untuk halaman Alumni */
-export function useAlumni(search: string) {
+/** Keanggotaan/status siswa berubah → angka jumlah santri per kelas di ClassesPage ikut basi */
+function invalidateClassCounts(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: ['classes', 'gender-counts'] })
+}
+
+/** Daftar alumni (siswa berstatus lulus) untuk halaman Alumni — fetch sekali, filter di memori.
+ *  `total` dari server dipakai untuk warning bila melebihi batas fetch 1000 baris. */
+export function useAlumni() {
   return useQuery({
-    queryKey: ['students', 'alumni', search],
+    queryKey: ['students', 'alumni'],
     queryFn: async () => {
-      const { data } = await fetchStudents({
+      const { data, total } = await fetchStudents({
         status: 'graduated',
-        search: search || undefined,
         sortBy: 'graduated_desc',
         page: 1,
-        pageSize: 500,
+        pageSize: 1000,
       })
-      return data
+      return { data, total }
     },
   })
 }
@@ -121,6 +127,7 @@ export function useCreateStudent() {
       void logAudit({ action: 'INSERT', source: 'MASTER', tableName: 'students', recordId: student.id, newData: { name: student.name, registration_code: student.registration_code } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -133,6 +140,7 @@ export function useUpdateStudent() {
     onSuccess: (student) => {
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', recordId: student.id, newData: { name: student.name } })
       void qc.invalidateQueries({ queryKey: ['students'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -145,6 +153,7 @@ export function useDeleteStudent() {
       void logAudit({ action: 'DELETE', source: 'MASTER', tableName: 'students', recordId: variables, newData: { soft_deleted: true } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -157,6 +166,7 @@ export function useBulkDeleteStudents() {
       void logAudit({ action: 'DELETE', source: 'MASTER', tableName: 'students', newData: { bulk_soft_deleted: ids.length } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -169,6 +179,7 @@ export function useRestoreStudent() {
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', recordId: id, newData: { restored: true } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -181,6 +192,7 @@ export function useBulkRestoreStudents() {
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_restored: ids.length } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -194,6 +206,7 @@ export function useBulkMoveClassStudents() {
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_move_class: ids.length, class_id: classId } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -207,6 +220,7 @@ export function useGraduateStudentsBulk() {
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_graduated: ids.length, graduation_year: graduationYear } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }
@@ -219,6 +233,41 @@ export function useRevertGraduation() {
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', recordId: id, newData: { graduation_reverted: true } })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
+    },
+  })
+}
+
+/** Pembatalan kelulusan massal (halaman Alumni) — revert berurutan, invalidasi & audit sekali di akhir */
+export function useBulkRevertGraduation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) await revertGraduation(id)
+      return ids
+    },
+    onSuccess: (_data, ids) => {
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { bulk_graduation_reverted: ids.length } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
+    },
+  })
+}
+
+/** Undo pembatalan kelulusan massal — pulihkan jejak kelulusan dari snapshot yang diambil sebelum revert */
+export function useRestoreGraduationSnapshots() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (rows: GraduationSnapshot[]) => {
+      for (const row of rows) await restoreGraduationSnapshot(row)
+      return rows.length
+    },
+    onSuccess: (count) => {
+      void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'students', newData: { graduation_restored: count } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
     },
   })
 }

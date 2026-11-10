@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Form, Input, Select } from 'antd'
 import { BankOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { classNameExists } from '../api'
 import type { ClassFormValues, ClassRow } from '../types'
 import { useAcademicYearsBrief, useTeachersBriefForClasses } from '../hooks'
 
@@ -57,7 +58,20 @@ export function ClassForm({ open, cls, submitting, onCancel, onSubmit }: ClassFo
         <Form.Item
           name="name"
           label="Nama Kelas"
-          rules={[{ required: true, message: 'Nama kelas wajib diisi' }]}
+          dependencies={['academic_year_id']}
+          rules={[
+            { required: true, message: 'Nama kelas wajib diisi' },
+            {
+              validator: async (_rule, value: string) => {
+                if (!value?.trim()) return
+                const yearId = form.getFieldValue('academic_year_id') as string | undefined
+                if (!yearId) return
+                const exists = await classNameExists(value.trim(), yearId, cls?.id)
+                if (exists) throw new Error('Nama kelas sudah dipakai di tahun akademik ini')
+              },
+              validateTrigger: ['onChange', 'onBlur'],
+            },
+          ]}
         >
           <Input placeholder="Contoh: 7A" maxLength={40} />
         </Form.Item>

@@ -3,6 +3,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { isIncomplete, type CompletenessFields } from './completeness'
 import type {
+  GraduationSnapshot,
   SortOption,
   Student,
   StudentBrief,
@@ -22,7 +23,8 @@ export const RISK_THRESHOLD = -30
 type StudentQuery = ReturnType<ReturnType<typeof supabase.from>['select']>
 
 function applyStudentFilters(query: StudentQuery, filters: Partial<StudentFilters>): StudentQuery {
-  const { search, classId, gender, status, missing, pointMode } = filters
+  const { search, classId, gender, status, missing, pointMode, graduationYear, lastClassId } =
+    filters
 
   let q = query
   if (search) {
@@ -32,6 +34,8 @@ function applyStudentFilters(query: StudentQuery, filters: Partial<StudentFilter
   if (classId) q = q.eq('class_id', classId)
   if (gender) q = q.eq('gender', gender)
   if (status) q = q.eq('status', status)
+  if (graduationYear) q = q.eq('graduation_year', graduationYear)
+  if (lastClassId) q = q.eq('last_class_id', lastClassId)
   if (missing === 'photo') q = q.is('photo_url', null)
   if (missing === 'phone') q = q.is('phone', null)
   if (missing === 'nisn') q = q.is('nisn', null)
@@ -62,6 +66,20 @@ function applySort(query: StudentQuery, sortBy?: SortOption): StudentQuery {
     case 'graduated_desc':
       return query
         .order('graduated_at', { ascending: false, nullsFirst: false })
+        .order('name', { ascending: true })
+    case 'graduated_asc':
+      return query
+        .order('graduated_at', { ascending: true, nullsFirst: false })
+        .order('name', { ascending: true })
+    case 'year_desc':
+      return query
+        .order('graduation_year', { ascending: false, nullsFirst: false })
+        .order('graduated_at', { ascending: false, nullsFirst: false })
+        .order('name', { ascending: true })
+    case 'year_asc':
+      return query
+        .order('graduation_year', { ascending: true, nullsFirst: false })
+        .order('graduated_at', { ascending: true, nullsFirst: false })
         .order('name', { ascending: true })
     default:
       return query.order('name', { ascending: true })
@@ -139,7 +157,7 @@ function payload(values: StudentFormValues) {
   return {
     name: values.name,
     registration_code: values.registration_code,
-    class_id: values.class_id,
+    class_id: values.class_id || null,
     dorm_id: values.dorm_id || null,
     gender: values.gender ?? null,
     status: values.status,
@@ -216,14 +234,15 @@ export async function updateStudent(id: string, values: StudentFormValues): Prom
   if (values.status === 'graduated') {
     const { data: existing } = await supabase
       .from('students')
-      .select('graduated_at, graduation_year, class_id')
+      .select('graduated_at, graduation_year, class_id, last_class_id')
       .eq('id', id)
       .maybeSingle()
-    const row = existing as { graduated_at: string | null; graduation_year: number | null; class_id: string | null } | null
+    const row = existing as { graduated_at: string | null; graduation_year: number | null; class_id: string | null; last_class_id: string | null } | null
+    // Snapshot kelas terakhir yang sudah ada (mis. saat edit ulang alumni) jangan ditimpa
     extra = {
       graduated_at: row?.graduated_at ?? new Date().toISOString(),
       graduation_year: row?.graduation_year ?? new Date().getFullYear(),
-      last_class_id: row?.class_id ?? null,
+      last_class_id: row?.last_class_id ?? row?.class_id ?? null,
     }
   } else {
     const { data: existing } = await supabase
@@ -247,9 +266,24 @@ export async function updateStudent(id: string, values: StudentFormValues): Prom
   return data as Student
 }
 
+/** Pulihkan jejak kelulusan dari snapshot — untuk undo pembatalan kelulusan massal */
+export async function restoreGraduationSnapshot(
+  row: GraduationSnapshot,
+): Promise<void> {
+  const { error } = await supabase
+    .from('students')
+    .update({
+      status: 'graduated',
+      graduated_at: row.graduated_at ?? new Date().toISOString(),
+      graduation_year: row.graduation_year ?? new Date().getFullYear(),
+      last_class_id: row.last_class_id ?? null,
+    })
+    .eq('id', row.id)
+  if (error) throw error
+}
+
 /** Update tags/label siswa saja (dipakai popover Label di drawer detail) */
-export async function updateStudentTags(id: string, tags: string[]): Promise<Student> {
-  const { data, error } = await supabase
+export async function updateStudentTags(id: string, tags: string[]): Promise<Student> {  const { data, error } = await supabase
     .from('students')
     .update({ tags })
     .eq('id', id)

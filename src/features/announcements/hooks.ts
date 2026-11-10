@@ -4,6 +4,7 @@ import {
   createAnnouncement,
   deleteAnnouncement,
   fetchAnnouncements,
+  fetchPublicAnnouncements,
   updateAnnouncement,
   type AnnouncementFilters,
 } from './api'
@@ -65,5 +66,21 @@ export function useDeleteAnnouncement() {
       void logAudit({ action: 'DELETE', source: 'OPERATIONAL', tableName: 'announcements', recordId: id })
       void qc.invalidateQueries({ queryKey: ['announcements'] })
     },
+  })
+}
+
+// ------------------------------------------------------------
+// Portal publik (landing, /check) — cache 5 menit supaya navigasi
+// bolak-balik tidak refetch; gagal fetch diperlakukan non-kritis
+// ------------------------------------------------------------
+export function usePublicAnnouncements(limit?: number) {
+  return useQuery({
+    queryKey: ['announcements', 'public', limit ?? null],
+    queryFn: async () => {
+      const rows = await fetchPublicAnnouncements()
+      return limit ? rows.slice(0, limit) : rows
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   })
 }

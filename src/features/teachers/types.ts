@@ -38,10 +38,23 @@ export interface TeacherFormValues {
   notes?: string
 }
 
+export type TeacherSort =
+  | 'name_asc'
+  | 'name_desc'
+  | 'nbm_asc'
+  | 'nbm_desc'
+  | 'status_asc'
+  | 'status_desc'
+  | 'join_desc'
+  | 'join_asc'
+
 export interface TeacherFilters {
   search?: string
   status?: TeacherStatus
   gender?: Gender
+  /** Filter mapel — server-side (dipakai ekspor) & client-side di halaman */
+  subject?: string
+  sortBy?: TeacherSort
   page: number
   pageSize: number
 }
