@@ -42,6 +42,7 @@ export const MODULE_REGISTRY: RbacModuleMeta[] = [
   // Akademik
   { key: 'grades', label: 'Penilaian', actions: CRUD },
   { key: 'cbt', label: 'CBT', actions: CRUD },
+  { key: 'evaluasi', label: 'Pusat Evaluasi', actions: CRUD },
   { key: 'schedules', label: 'Jadwal KBM', actions: CRUD },
   { key: 'teaching_load', label: 'Beban Mengajar', actions: [{ key: 'read', label: 'Lihat' }] },
   { key: 'report_cards', label: 'Raport', actions: CRUD },
@@ -109,7 +110,7 @@ function operationalPermissions(): string[] {
  * modul lain hanya lihat. Sinkron dengan matrix di MEMORY.md.
  */
 const TEACHING_MODULES = ['attendance', 'grades', 'cbt', 'tahfidz', 'halaqah', 'report_cards']
-const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'disiplin', 'leave_permit', 'gate', 'library', 'ekskul', 'keuangan', 'savings', 'inventory', 'academic_years', 'announcements']
+const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'disiplin', 'leave_permit', 'gate', 'library', 'ekskul', 'keuangan', 'savings', 'inventory', 'academic_years', 'announcements', 'evaluasi']
 
 function teacherPermissions(): string[] {
   const perms: string[] = []

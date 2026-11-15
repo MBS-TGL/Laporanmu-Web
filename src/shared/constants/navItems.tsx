@@ -1,6 +1,7 @@
 import type { ComponentProps, ComponentType } from 'react'
 import {
   AccountBookOutlined,
+  FundProjectionScreenOutlined,
   ApartmentOutlined,
   AppstoreOutlined,
   AuditOutlined,
@@ -82,6 +83,7 @@ const BOARDING_ITEMS: NavItem[] = [
 // ─── Akademik: KBM dan penilaian ────────────────────────────────────────────
 const ACADEMIC_ITEMS: NavItem[] = [
   { to: '/grades', label: 'Penilaian', icon: FileDoneOutlined, desc: 'Nilai formatif, sumatif, PTS, PAS, dan leger', flag: 'module.grades', perm: 'grades:read' },
+  { to: '/instruments', label: 'Pusat Evaluasi', icon: FundProjectionScreenOutlined, desc: 'Angket AKPD, Sosiometri, MBTI, EDOM, dan kuesioner kustom', flag: 'module.evaluasi', perm: 'evaluasi:read' },
   { to: '/cbt', label: 'CBT', icon: FileProtectOutlined, desc: 'Bank soal, ujian ber-token, dan pemantauan ujian', flag: 'module.cbt', perm: 'cbt:read' },
   { to: '/schedules', label: 'Jadwal KBM', icon: ScheduleOutlined, desc: 'Jadwal mengajar per kelas, mapel, dan guru', flag: 'module.schedules', perm: 'schedules:read' },
   { to: '/teaching-load', label: 'Beban Mengajar', icon: FieldTimeOutlined, desc: 'Distribusi jam mengajar guru dan cakupan kelas', perm: 'teaching_load:read' },
@@ -92,12 +94,12 @@ const ACADEMIC_ITEMS: NavItem[] = [
 // ─── Kegiatan Santri: kegiatan pembinaan di luar KBM ────────────────────────
 const ACTIVITY_ITEMS: NavItem[] = [
   { to: '/halaqah', label: 'Halaqah', icon: DeploymentUnitOutlined, desc: 'Presensi halaqah, setoran hafalan (ziyadah & murojaah), dan kelompok', flag: 'module.halaqah', perm: 'halaqah:read' },
-  { to: '/ekskul', label: 'Ekstrakurikuler', icon: FlagOutlined, desc: 'Kegiatan ekstrakurikuler dan pembina', flag: 'module.ekskul', perm: 'ekskul:read' },
+  { to: '/extracurricular', label: 'Ekstrakurikuler', icon: FlagOutlined, desc: 'Kegiatan ekstrakurikuler dan pembina', flag: 'module.ekskul', perm: 'ekskul:read' },
 ]
 
 // ─── Keuangan & Aset ────────────────────────────────────────────────────────
 const FINANCE_ITEMS: NavItem[] = [
-  { to: '/keuangan', label: 'Keuangan SPP', icon: AccountBookOutlined, desc: 'Kewajiban biaya, pembayaran, dan tunggakan per santri', flag: 'module.keuangan_spp', perm: 'keuangan:read' },
+  { to: '/finance', label: 'Keuangan SPP', icon: AccountBookOutlined, desc: 'Kewajiban biaya, pembayaran, dan tunggakan per santri', flag: 'module.keuangan_spp', perm: 'keuangan:read' },
   { to: '/savings', label: 'Tabungan', icon: MoneyCollectOutlined, desc: 'Rekening tabungan, setor-tarik, dan buku tabungan', flag: 'module.savings', perm: 'savings:read' },
   { to: '/inventory', label: 'Inventaris', icon: InboxOutlined, desc: 'Aset dan barang beserta kondisinya', flag: 'module.inventory', perm: 'inventory:read' },
 ]

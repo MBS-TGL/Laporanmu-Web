@@ -88,8 +88,8 @@ const SchedulesPage = lazy(() =>
 const HalaqahPage = lazy(() =>
   import('../features/halaqah/HalaqahPage').then((m) => ({ default: m.HalaqahPage })),
 )
-const EkskulPage = lazy(() =>
-  import('../features/ekskul/EkskulPage').then((m) => ({ default: m.EkskulPage })),
+const ExtracurricularPage = lazy(() =>
+  import('../features/extracurricular/ExtracurricularPage').then((m) => ({ default: m.ExtracurricularPage })),
 )
 const LibraryPage = lazy(() =>
   import('../features/library/LibraryPage').then((m) => ({ default: m.LibraryPage })),
@@ -115,8 +115,14 @@ const CbtPage = lazy(() =>
 const ExamPage = lazy(() =>
   import('../features/public/ExamPage').then((m) => ({ default: m.ExamPage })),
 )
-const KeuanganPage = lazy(() =>
-  import('../features/keuangan/KeuanganPage').then((m) => ({ default: m.KeuanganPage })),
+const FinancePage = lazy(() =>
+  import('../features/finance/FinancePage').then((m) => ({ default: m.FinancePage })),
+)
+const EvaluationPage = lazy(() =>
+  import('../features/evaluation/EvaluationPage').then((m) => ({ default: m.EvaluationPage })),
+)
+const SurveyPage = lazy(() =>
+  import('../features/public/SurveyPage').then((m) => ({ default: m.SurveyPage })),
 )
 
 function PageFallback() {
@@ -213,7 +219,9 @@ const ALIAS_REDIRECTS: [path: string, to: string][] = [
   ['academic/schedules', '/schedules'],
   ['academic/tahfidz', '/halaqah?tab=setoran'],
   ['academic/halaqah', '/halaqah'],
-  ['academic/ekskul', '/ekskul'],
+  ['academic/ekskul', '/extracurricular'],
+  ['ekskul', '/extracurricular'],
+  ['keuangan', '/finance'],
   ['academic/library', '/library'],
   ['finance/savings', '/savings'],
   ['boarding/attendance', '/attendance'],
@@ -297,6 +305,8 @@ export const appRouter = createBrowserRouter([
   // Token TIDAK pernah lewat URL: santri mengetiknya di /exam, sesi disimpan
   // di sessionStorage dan di-replay lewat RPC yang sama saat refresh.
   { path: '/exam', element: <ErrorBoundary><ExamPage /></ErrorBoundary> },
+  // Angket evaluasi santri — token TIDAK lewat URL (diketik di /survey)
+  { path: '/survey/:token', element: <ErrorBoundary><SurveyPage /></ErrorBoundary> },
   {
     path: '/login',
     element: <PublicRoute />,
@@ -323,7 +333,7 @@ export const appRouter = createBrowserRouter([
           { path: 'inventory', ...guarded('inventory:read', <ModuleGuard flag="module.inventory"><InventoryPage /></ModuleGuard>) },
           { path: 'schedules', ...guarded('schedules:read', <ModuleGuard flag="module.schedules"><SchedulesPage /></ModuleGuard>) },
           { path: 'halaqah', ...guarded('halaqah:read', <ModuleGuard flag="module.halaqah"><HalaqahPage /></ModuleGuard>) },
-          { path: 'ekskul', ...guarded('ekskul:read', <ModuleGuard flag="module.ekskul"><EkskulPage /></ModuleGuard>) },
+          { path: 'extracurricular', ...guarded('ekskul:read', <ModuleGuard flag="module.ekskul"><ExtracurricularPage /></ModuleGuard>) },
           { path: 'library', ...guarded('library:read', <ModuleGuard flag="module.library"><LibraryPage /></ModuleGuard>) },
           { path: 'savings', ...guarded('savings:read', <ModuleGuard flag="module.savings"><SavingsPage /></ModuleGuard>) },
           { path: 'dorms', ...guarded('dorms:read', <ModuleGuard flag="module.dorms"><DormsPage /></ModuleGuard>) },
@@ -334,7 +344,8 @@ export const appRouter = createBrowserRouter([
           { path: 'grades/:classSubjectId', ...guarded('grades:read', <ModuleGuard flag="module.grades"><GradeInput /></ModuleGuard>) },
           { path: 'grades', ...guarded('grades:read', <ModuleGuard flag="module.grades"><GradesPage /></ModuleGuard>) },
           { path: 'cbt', ...guarded('cbt:read', <ModuleGuard flag="module.cbt"><CbtPage /></ModuleGuard>) },
-          { path: 'keuangan', ...guarded('keuangan:read', <ModuleGuard flag="module.keuangan_spp"><KeuanganPage /></ModuleGuard>) },
+          { path: 'finance', ...guarded('keuangan:read', <ModuleGuard flag="module.keuangan_spp"><FinancePage /></ModuleGuard>) },
+          { path: 'instruments', ...guarded('evaluasi:read', <ModuleGuard flag="module.evaluasi"><EvaluationPage /></ModuleGuard>) },
           { path: 'school', ...guarded('school:read', <ProfilePage />) },
           { path: 'attendance', ...guarded('attendance:read', <AttendancePage />) },
           { path: 'health', ...guarded('health:read', <ModuleGuard flag="module.health"><HealthPage /></ModuleGuard>) },

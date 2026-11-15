@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space } from 'antd'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { SectionDivider } from '../../../shared/components/SectionDivider'
-import { useEkskulByStudent } from '../../ekskul/hooks'
+import { useActivityByStudent } from '../../extracurricular/hooks'
 import { CATATAN_TEMPLATES, HAFALAN_PRESETS } from '../constants'
 import type { MonthlyDraft, ReportCardStudent, ReportCardType, SemesterDraft } from '../types'
 
@@ -30,7 +30,7 @@ export function ExtrasDrawer({
   const [form] = Form.useForm()
   const isMonthly = type === 'monthly'
   // Keikutsertaan ekskul santri — hanya relevan untuk raport semester
-  const ekskulQuery = useEkskulByStudent(!isMonthly && open ? student?.id : undefined)
+  const ekskulQuery = useActivityByStudent(!isMonthly && open ? student?.id : undefined)
 
   useEffect(() => {
     if (!open || !student) return
@@ -50,8 +50,8 @@ export function ExtrasDrawer({
     )
     const known = new Set(current.map((r) => r.name!.toLowerCase()))
     const additions = ekskulQuery.data
-      .filter((e) => e.ekskul && !known.has(e.ekskul.name.toLowerCase()))
-      .map((e) => ({ name: e.ekskul!.name, note: '' }))
+      .filter((e) => e.activity && !known.has(e.activity.name.toLowerCase()))
+      .map((e) => ({ name: e.activity!.name, note: '' }))
     if (additions.length > 0) {
       form.setFieldValue('ekskul', [...current, ...additions])
     }
