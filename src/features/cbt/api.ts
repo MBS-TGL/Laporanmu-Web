@@ -89,6 +89,8 @@ export async function createCbtExam(values: ExamFormValues, createdBy: string | 
       duration_minutes: values.duration_minutes,
       exam_type: values.exam_type,
       question_count: values.question_count || null,
+      show_explanations: values.show_explanations ?? false,
+      show_leaderboard: values.show_leaderboard ?? false,
       difficulty_mix: values.difficulty_mix ?? {},
       shuffle_questions: values.shuffle_questions,
       shuffle_options: values.shuffle_options,
@@ -109,6 +111,8 @@ export async function updateCbtExam(id: string, values: ExamFormValues): Promise
       duration_minutes: values.duration_minutes,
       exam_type: values.exam_type,
       question_count: values.question_count || null,
+      show_explanations: values.show_explanations ?? false,
+      show_leaderboard: values.show_leaderboard ?? false,
       difficulty_mix: values.difficulty_mix ?? {},
       shuffle_questions: values.shuffle_questions,
       shuffle_options: values.shuffle_options,
@@ -257,4 +261,45 @@ export async function rpcReportExamEvent(token: string, studentCode: string, eve
   })
   if (error) throw error
   return data
+}
+// ------------------------------------------------------------
+// Review jawaban pasca-ujian (publik, anon)
+// ------------------------------------------------------------
+export async function rpcReviewAnswers(token: string, studentCode: string) {
+  const { data, error } = await supabase.rpc('cbt_review_answers', {
+    p_token: token,
+    p_student_code: studentCode,
+  })
+  if (error) throw error
+  return data
+}
+// ------------------------------------------------------------
+// Papan peringkat anonim (publik, anon; hanya jika show_leaderboard)
+// ------------------------------------------------------------
+export async function rpcLeaderboard(token: string) {
+  const { data, error } = await supabase.rpc('cbt_leaderboard', { p_token: token })
+  if (error) throw error
+  return data
+}
+// ------------------------------------------------------------
+// Remedial: salin ujian (soal bank sama, token diaktifkan terpisah)
+// ------------------------------------------------------------
+export async function createRemedialExam(source: CbtExam, createdBy: string | null): Promise<CbtExam> {
+  const { data, error } = await supabase
+    .from('cbt_exams')
+    .insert({
+      title: source.title + ' (Remedial)',
+      class_subject_id: source.class_subject_id,
+      duration_minutes: source.duration_minutes,
+      exam_type: source.exam_type,
+      question_count: source.question_count,
+      shuffle_questions: source.shuffle_questions,
+      shuffle_options: source.shuffle_options,
+      is_remedial_of: source.id,
+      created_by: createdBy,
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as CbtExam
 }

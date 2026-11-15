@@ -829,6 +829,8 @@ export interface WaSettingsStatus {
   auto_savings_wa: boolean
   /** WA otomatis saat pembayaran SPP dicatat (migration 0046) */
   auto_spp_wa: boolean
+  /** WA otomatis skor ujian CBT (migration 0048) */
+  auto_cbt_wa: boolean
   updated_at: string | null
 }
 
@@ -837,7 +839,7 @@ export async function fetchWaSettingsStatus(): Promise<WaSettingsStatus> {
   if (error) throw error
   const res = data as unknown as WaSettingsStatus | { error: string } | null
   if (res && 'error' in res) throw new Error(res.error)
-  return res ?? { configured: false, sender_name: null, auto_violation_wa: false, auto_bk_wa: false, auto_savings_wa: false, auto_spp_wa: false, updated_at: null }
+  return res ?? { configured: false, sender_name: null, auto_violation_wa: false, auto_bk_wa: false, auto_savings_wa: false, auto_spp_wa: false, auto_cbt_wa: false, updated_at: null }
 }
 
 export async function updateWaSettings(
@@ -847,6 +849,7 @@ export async function updateWaSettings(
   autoBk?: boolean,
   autoSavings?: boolean,
   autoSpp?: boolean,
+  autoCbt?: boolean,
 ): Promise<void> {
   const { data, error } = await supabase.rpc('update_wa_settings', {
     p_token: token,
@@ -856,6 +859,7 @@ export async function updateWaSettings(
     p_auto_bk: autoBk ?? null,
     p_auto_savings: autoSavings ?? null,
     p_auto_spp: autoSpp ?? null,
+    p_auto_cbt: autoCbt ?? null,
   })
   if (error) throw error
   const res = data as unknown as { ok?: boolean; error?: string } | null

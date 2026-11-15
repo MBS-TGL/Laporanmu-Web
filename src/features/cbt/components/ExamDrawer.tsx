@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -16,6 +16,7 @@ import type { ColumnsType } from 'antd/es/table'
 import {
   CheckSquareOutlined,
   CopyOutlined,
+  ThunderboltOutlined,
   ExportOutlined,
   KeyOutlined,
   LinkOutlined,
@@ -36,7 +37,11 @@ import {
 import { EXAM_TYPE_LABEL, type CbtAttempt, type CbtExam } from '../types'
 import { formatCountdown, generateExamToken, remainingMs } from '../examUtil'
 import { useSubjectOptions } from '../useSubjectOptions'
+import { itemAnalysis, type ItemStat } from '../itemAnalysis'
+import { maybeSendCbtWa } from '../waAuto'
+import { supabase } from '../../../lib/supabase'
 import { EssayGradingModal } from './EssayGradingModal'
+import { RemedialModal } from './RemedialModal'
 
 interface ExamDrawerProps {
   open: boolean
@@ -60,6 +65,23 @@ export function ExamDrawer({ open, exam, onClose }: ExamDrawerProps) {
   const [tokenModal, setTokenModal] = useState<{ display: string; expiresAt: string } | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [gradingAttempt, setGradingAttempt] = useState<CbtAttempt | null>(null)
+  const [remedialOpen, setRemedialOpen] = useState(false)
+
+  // Realtime: refetch instan saat attempt berubah di DB (pendamping polling 15s)
+  useEffect(() => {
+    if (!open || !exam) return
+    const channel = supabase
+      .channel('cbt-attempts-' + exam.id)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cbt_attempts', filter: 'exam_id=eq.' + exam.id },
+        () => void attemptsQuery.refetch(),
+      )
+      .subscribe()
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [open, exam, attemptsQuery])
 
   const attempts = attemptsQuery.data ?? []
   const stats = useMemo(() => {
@@ -76,6 +98,31 @@ export function ExamDrawer({ open, exam, onClose }: ExamDrawerProps) {
       avg: scores.length ? Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10 : null,
     }
   }, [attempts])
+
+  const analytics = useMemo(() => {
+    if (!exam) return []
+    return itemAnalysis(questionsQuery.data ?? [], attempts)
+  }, [exam, questionsQuery.data, attempts])
+
+  const analyticsColumns: ColumnsType<ItemStat> = [
+    { title: 'Soal', render: (_, r) => (questionsQuery.data ?? []).find((q) => q.id === r.questionId)?.question?.slice(0, 60) ?? r.questionId },
+    { title: 'Dijawab', width: 80, align: 'right', render: (_, r) => r.answered },
+    { title: '% Benar', width: 90, align: 'right', render: (_, r) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.pCorrect}%</span> },
+    { title: 'Daya Beda', width: 90, align: 'right', render: (_, r) => (r.discrimination === null ? '-' : <span style={{ fontVariantNumeric: 'tabular-nums' }}>{r.discrimination.toFixed(2)}</span>) },
+    {
+      title: 'Kesimpulan',
+      width: 140,
+      render: (_, r) => {
+        const meta = {
+          baik: { label: 'Baik', color: 'green' },
+          mudah: { label: 'Terlalu Mudah', color: 'orange' },
+          sulit: { label: 'Terlalu Sulit', color: 'red' },
+          'beda-rendah': { label: 'Daya Beda Rendah', color: 'purple' },
+        }[r.verdict]
+        return <Tag color={meta.color}>{meta.label}</Tag>
+      },
+    },
+  ]
 
   if (!exam) return null
   // "now" dari dataUpdatedAt (bukan Date.now() di render — purity lint)
@@ -193,8 +240,9 @@ export function ExamDrawer({ open, exam, onClose }: ExamDrawerProps) {
             okButtonProps={{ loading: forceSubmit.isPending }}
             onConfirm={async () => {
               try {
-                await forceSubmit.mutateAsync(a.id)
+                const score = await forceSubmit.mutateAsync(a.id)
                 message.success('Ujian santri diselesaikan')
+                void maybeSendCbtWa(a, score)
               } catch (err) {
                 message.error((err as Error).message)
               }
@@ -302,6 +350,11 @@ export function ExamDrawer({ open, exam, onClose }: ExamDrawerProps) {
         <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
           Ekspor Rekap
         </Button>
+        {isPublished && (
+          <Button icon={<ThunderboltOutlined />} onClick={() => setRemedialOpen(true)}>
+            Terbitkan Remedial
+          </Button>
+        )}
       </Space>
 
       {!isPublished && (
@@ -332,6 +385,37 @@ export function ExamDrawer({ open, exam, onClose }: ExamDrawerProps) {
         attempt={gradingAttempt}
         questions={questionsQuery.data ?? []}
         onClose={() => setGradingAttempt(null)}
+      />
+
+      {analytics.length > 0 && (
+        <>
+          <Typography.Title level={5} style={{ marginBottom: 8 }}>
+            Analitik Butir Soal
+          </Typography.Title>
+          <Table
+            rowKey="questionId"
+            size="small"
+            columns={analyticsColumns}
+            dataSource={analytics}
+            pagination={false}
+            style={{ marginBottom: 16 }}
+            scroll={{ x: 'max-content' }}
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
+            Daya beda &gt; 0,3 = soal membedakan dengan baik. Soal "Terlalu Mudah/Sulit" dipertimbangkan untuk direvisi.
+          </Typography.Text>
+        </>
+      )}
+
+      <RemedialModal
+        open={remedialOpen}
+        exam={exam}
+        attempts={attempts}
+        onClose={() => setRemedialOpen(false)}
+        onCreated={(newExam: { display: string; expiresAt: string }) => {
+          setRemedialOpen(false)
+          setTokenModal({ display: newExam.display, expiresAt: newExam.expiresAt })
+        }}
       />
 
       <AppModal

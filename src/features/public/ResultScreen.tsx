@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { Button, Grid, Progress, Typography, theme } from 'antd'
 import { motion } from 'motion/react'
-import { CheckCircleFilled, FileProtectOutlined, SendOutlined } from '@ant-design/icons'
+import { CheckCircleFilled, FileProtectOutlined, FileSearchOutlined, SendOutlined } from '@ant-design/icons'
 import {
   EASE,
   pageShellItemTransition,
@@ -24,6 +24,10 @@ interface ResultScreenProps {
   typeLabel?: string
   result: CbtResult | null
   onDone: () => void
+  /** Pembuka modal review jawaban (jika guru mengaktifkan review). */
+  onReview?: () => void
+  /** Papan peringkat anonim (jika guru mengaktifkan). */
+  leaderboard?: { initial: string; score: number }[] | null
 }
 
 /** Statistik kecil hasil ujian (varian ringan dari StatTile di ExamPage). */
@@ -53,7 +57,15 @@ function CbtResultStat({ value, label, color }: { value: number; label: string; 
  * dan rincian benar/belum tepat. Semua angka dari server — tanpa data nyata
  * tidak ditampilkan (skor kosong → status "menyusul di rapor").
  */
-export function ResultScreen({ studentName, examTitle, typeLabel, result, onDone }: ResultScreenProps) {
+export function ResultScreen({
+  studentName,
+  examTitle,
+  typeLabel,
+  result,
+  onDone,
+  onReview,
+  leaderboard,
+}: ResultScreenProps) {
   const { token } = theme.useToken()
   const screens = Grid.useBreakpoint()
   const isDesktop = Boolean(screens.md)
@@ -244,15 +256,53 @@ export function ResultScreen({ studentName, examTitle, typeLabel, result, onDone
             </div>
           )}
 
-          <Button
-            type="primary"
-            size="large"
-            icon={<SendOutlined />}
-            style={{ marginTop: 20 }}
-            onClick={onDone}
-          >
-            Selesai
-          </Button>
+          <div style={{ marginTop: 20, display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {onReview && (
+              <Button size="large" icon={<FileSearchOutlined />} onClick={onReview}>
+                Review Jawaban
+              </Button>
+            )}
+            <Button
+              type="primary"
+              size="large"
+              icon={<SendOutlined />}
+              onClick={onDone}
+            >
+              Selesai
+            </Button>
+          </div>
+          {leaderboard && leaderboard.length > 0 && (
+            <div
+              style={{
+                marginTop: 22,
+                padding: '12px 16px',
+                borderRadius: 12,
+                background: token.colorFillQuaternary,
+                border: `1px solid \${token.colorBorderSecondary}`,
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Peringkat Teratas</div>
+              {leaderboard.slice(0, 5).map((row, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: 13,
+                    fontVariantNumeric: 'tabular-nums',
+                    padding: '3px 0',
+                    color: token.colorTextSecondary,
+                  }}
+                >
+                  <span>
+                    {i + 1}. {row.initial}**
+                  </span>
+                  <span style={{ fontWeight: 700, color: token.colorPrimary }}>{row.score}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </motion.div>
       </div>
     </motion.div>

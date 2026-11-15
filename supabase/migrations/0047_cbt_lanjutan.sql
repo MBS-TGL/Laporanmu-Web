@@ -573,6 +573,8 @@ begin
     'deadline_at', v_attempt.deadline_at,
     'answers', v_attempt.answers,
     'warnings', coalesce(v_attempt.client_meta ->> 'warnings', '0')::int,
+    'show_explanations', v_exam.show_explanations,
+    'show_leaderboard', v_exam.show_leaderboard,
     'questions', v_result
   );
 end;

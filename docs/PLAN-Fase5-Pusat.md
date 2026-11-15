@@ -12,7 +12,7 @@
 |---|---|---|---|
 | A — Keuangan SPP (`/finance`… dibuat sebagai `/keuangan`, normalisasi English menyusul) | `module.keuangan_spp` | 0046 ✅ dijalankan | ✅ inti selesai |
 | B — CBT Lanjutan (5 tipe soal, sebaran kesulitan, grading essay) | `module.cbt_lanjutan` | 0047 ⏳ menunggu dijalankan | ✅ inti selesai; analitik butir masuk P6 |
-| P6 — CBT Elit | `module.cbt_elite` | 0048 | ⬜ berikutnya |
+| P6 — CBT Elit | `module.cbt_elite` | 0048 | ✅ kode selesai (menunggu eksekusi migrasi) |
 | P1 — Pusat Evaluasi | `module.evaluasi` | 0049 | ⬜ |
 | P5 — Konektivitas (webhook/multi-lembaga/PWA) | `system.api` / `system.multi_entity` / `system.student_portal` | 0050–0053 | ⬜ |
 | P2 — Pusat Kehadiran | `module.presensi_mapel` | 0054 | ⬜ |

@@ -515,6 +515,7 @@ export function useUpdateWaSettings() {
       autoBk,
       autoSavings,
       autoSpp,
+      autoCbt,
     }: {
       token: string
       senderName: string
@@ -522,7 +523,8 @@ export function useUpdateWaSettings() {
       autoBk?: boolean
       autoSavings?: boolean
       autoSpp?: boolean
-    }) => updateWaSettings(token, senderName, autoViolation, autoBk, autoSavings, autoSpp),
+      autoCbt?: boolean
+    }) => updateWaSettings(token, senderName, autoViolation, autoBk, autoSavings, autoSpp, autoCbt),
     onSuccess: () => {
       // Token tidak di-log — kredensial akun Fonnte
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'wa_settings', newData: { updated: true } })

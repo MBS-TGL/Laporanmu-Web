@@ -24,6 +24,7 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
   const [autoBk, setAutoBk] = useState(false)
   const [autoSavings, setAutoSavings] = useState(false)
   const [autoSpp, setAutoSpp] = useState(false)
+  const [autoCbt, setAutoCbt] = useState(false)
 
   // Prefill nama pengirim & toggle saat data status pertama kali terbaca
   const [prevStatusLoaded, setPrevStatusLoaded] = useState(false)
@@ -35,6 +36,7 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
     setAutoBk(status.auto_bk_wa)
     setAutoSavings(status.auto_savings_wa)
     setAutoSpp(status.auto_spp_wa)
+    setAutoCbt(status.auto_cbt_wa)
   }
 
   // Reset field token tiap kali modal dibuka — token lama tidak pernah ditampilkan
@@ -50,7 +52,7 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
       return
     }
     updateMutation.mutate(
-      { token, senderName, autoViolation, autoBk, autoSavings, autoSpp },
+      { token, senderName, autoViolation, autoBk, autoSavings, autoSpp, autoCbt },
       {
         onSuccess: () => {
           message.success('Pengaturan WA disimpan')
@@ -145,6 +147,13 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
               checked={autoSpp}
               disabled={!configured || !canDelete}
               onChange={setAutoSpp}
+            />
+            <AutoWaRow
+              title="Saat nilai ujian difinalisasi"
+              description="Nilai CBT dikirim ke wali setelah grading selesai."
+              checked={autoCbt}
+              disabled={!configured || !canDelete}
+              onChange={setAutoCbt}
             />
           </Space>
         </div>

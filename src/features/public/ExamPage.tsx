@@ -37,7 +37,14 @@ import { AppModal } from '../../shared/components/AppModal'
 import { ModalFooter } from '../../shared/components/ModalFooter'
 import { PortalCard } from './PortalCard'
 import { ResultScreen } from './ResultScreen'
-import { rpcReportExamEvent, rpcSaveExamAnswers, rpcStartExam, rpcSubmitExam } from '../cbt/api'
+import {
+  rpcLeaderboard,
+  rpcReportExamEvent,
+  rpcReviewAnswers,
+  rpcSaveExamAnswers,
+  rpcStartExam,
+  rpcSubmitExam,
+} from '../cbt/api'
 import { EXAM_TYPE_LABEL, type PublicExamQuestion, type StartExamResult } from '../cbt/types'
 import { formatCountdown, remainingMs } from '../cbt/examUtil'
 import { ExamQuestionBody as QuestionBody, hasAnswer } from './ExamQuestionBody'
@@ -139,6 +146,10 @@ export function ExamPage() {
   const mainRef = useRef<HTMLDivElement | null>(null)
   const warnedRef = useRef<Set<number>>(new Set())
   const [submitting, setSubmitting] = useState(false)
+  const [answerReviewOpen, setAnswerReviewOpen] = useState(false)
+  const [reviewData, setReviewData] = useState<{ review: { question: string; response: unknown; correct: unknown; explanation: string | null; points: number; essay_score: number | null }[] } | null>(null)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [board, setBoard] = useState<{ initial: string; score: number }[] | null>(null)
   const [warnings, setWarnings] = useState(0)
   const [result, setResult] = useState<{
     score: number | null
@@ -473,14 +484,38 @@ export function ExamPage() {
   }
 
   // ── Fase: hasil ───────────────────────────────────────────────────────────
-  if (phase === 'result' || result) {
+  const resultPhase = phase === 'result' || Boolean(result)
+  useEffect(() => {
+    if (!resultPhase || !sessionRef.current || !exam?.show_leaderboard) return
+    rpcLeaderboard(sessionRef.current.token)
+      .then((r) => setBoard((r?.board as { initial: string; score: number }[] | undefined) ?? null))
+      .catch(() => setBoard(null))
+  }, [resultPhase, exam?.show_leaderboard, exam])
+
+  const openReview = () => {
+    if (!sessionRef.current) return
+    setAnswerReviewOpen(true)
+    setReviewLoading(true)
+    rpcReviewAnswers(sessionRef.current.token, sessionRef.current.code)
+      .then((r) => setReviewData(r as typeof reviewData))
+      .catch((err: Error) => {
+        setReviewData(null)
+        message.error(err.message)
+      })
+      .finally(() => setReviewLoading(false))
+  }
+
+  if (resultPhase) {
     return (
+      <>
       <ExamShell>
         <ResultScreen
           studentName={exam?.student_name ?? 'Santri'}
           examTitle={exam?.exam_title}
           typeLabel={exam?.exam_type ? EXAM_TYPE_LABEL[exam.exam_type] : undefined}
           result={result}
+          onReview={exam?.show_explanations ? openReview : undefined}
+          leaderboard={exam?.show_leaderboard ? board : null}
           onDone={() => {
             sessionStorage.removeItem(SESSION_KEY)
             sessionStorage.removeItem(FLAGS_KEY)
@@ -497,6 +532,50 @@ export function ExamPage() {
           }}
         />
       </ExamShell>
+      <AppModal
+        open={answerReviewOpen}
+        onCancel={() => setAnswerReviewOpen(false)}
+        footer={null}
+        width={720}
+        title="Review Jawaban"
+        subtitle="Bandingkan jawabanmu dengan kunci"
+      >
+        {reviewLoading ? (
+          <div style={{ textAlign: 'center', padding: 32 }}>
+            <Spin size="large" />
+          </div>
+        ) : reviewData ? (
+          <div style={{ display: 'grid', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
+            {reviewData.review?.map((r, i) => {
+              const ok = JSON.stringify(r.response ?? null) === JSON.stringify(r.correct ?? null)
+              return (
+                <div
+                  key={i}
+                  style={{
+                    border: `1px solid ${ok ? themeToken.colorSuccess : themeToken.colorError}`,
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    {i + 1}. {r.question}
+                  </div>
+                  <Typography.Text style={{ fontSize: 12.5 }}>
+                    Jawabanmu: <b>{JSON.stringify(r.response ?? null)}</b> · Kunci:{' '}
+                    <b>{JSON.stringify(r.correct ?? null)}</b>
+                  </Typography.Text>
+                  {r.explanation && (
+                    <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0, marginTop: 4 }}>
+                      Pembahasan: {r.explanation}
+                    </Typography.Paragraph>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+      </AppModal>
+      </>
     )
   }
 

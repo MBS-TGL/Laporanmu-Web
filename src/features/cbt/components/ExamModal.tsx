@@ -29,6 +29,8 @@ export function ExamModal({ open, onClose, initial, onSave }: ExamModalProps) {
         duration_minutes: initial.duration_minutes,
         exam_type: initial.exam_type,
         question_count: initial.question_count ?? undefined,
+        show_explanations: initial.show_explanations,
+        show_leaderboard: initial.show_leaderboard,
         shuffle_questions: initial.shuffle_questions,
         shuffle_options: initial.shuffle_options,
       })
@@ -39,6 +41,8 @@ export function ExamModal({ open, onClose, initial, onSave }: ExamModalProps) {
         exam_type: 'sumatif',
         question_count: undefined,
         difficulty_mix: undefined,
+        show_explanations: false,
+        show_leaderboard: false,
         shuffle_questions: true,
         shuffle_options: true,
       })
@@ -133,6 +137,16 @@ export function ExamModal({ open, onClose, initial, onSave }: ExamModalProps) {
         <Form.Item name="shuffle_options" label="Acak urutan opsi jawaban" valuePropName="checked">
           <Switch />
         </Form.Item>
+        {advanced && (
+          <Form.Item name="show_explanations" label="Review jawaban + pembahasan pasca-ujian" valuePropName="checked" style={{ marginBottom: 8 }}>
+            <Switch />
+          </Form.Item>
+        )}
+        {advanced && (
+          <Form.Item name="show_leaderboard" label="Papan peringkat anonim untuk santri" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+        )}
       </Form>
     </AppModal>
   )

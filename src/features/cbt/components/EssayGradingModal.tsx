@@ -3,6 +3,7 @@ import { App, InputNumber, Typography } from 'antd'
 import { CheckSquareOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import { useGradeEssays } from '../hooks'
+import { maybeSendCbtWa } from '../waAuto'
 import type { CbtAttempt, CbtQuestion } from '../types'
 
 interface EssayGradingModalProps {
@@ -49,6 +50,8 @@ export function EssayGradingModal({ open, attempt, questions, onClose }: EssayGr
     }
     try {
       const final = await gradeEssays.mutateAsync({ attemptId: attempt.id, scores: payload })
+      // skor final diketahui -> WA ke wali (fire-and-forget, toggle auto_cbt_wa)
+      void maybeSendCbtWa(attempt, final)
       message.success(
         pending > 0
           ? `Skor tersimpan. Masih ada ${pending} essay belum dinilai.`

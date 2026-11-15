@@ -88,6 +88,42 @@ revoke execute on function public.cbt_review_answers(text, text) from public, an
 grant execute on function public.cbt_review_answers(text, text) to anon, authenticated;
 
 -- ------------------------------------------------------------
+-- RPC publik: papan peringkat anonim (hanya jika toggle aktif)
+-- ------------------------------------------------------------
+create or replace function public.cbt_leaderboard(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_exam public.cbt_exams;
+  v_rows jsonb;
+begin
+  v_exam := public._cbt_check_exam_token(p_token);
+  if not v_exam.show_leaderboard then
+    return jsonb_build_object('enabled', false, 'board', '[]'::jsonb);
+  end if;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object('initial', left(split_part(s.name, ' ', 1), 1) || left(split_part(s.name, ' ', 2), 1),
+                       'score', a.score)
+    order by a.score desc
+  ), '[]'::jsonb)
+  into v_rows
+  from public.cbt_attempts a
+  join public.students s on s.id = a.student_id
+  where a.exam_id = v_exam.id and a.status = 'submitted'
+  limit 10;
+
+  return jsonb_build_object('enabled', true, 'board', v_rows);
+end;
+$$;
+
+revoke execute on function public.cbt_leaderboard(text) from public, anon, authenticated;
+grant execute on function public.cbt_leaderboard(text) to anon, authenticated;
+
+-- ------------------------------------------------------------
 -- Flag + toggle WA
 -- ------------------------------------------------------------
 insert into public.feature_flags (key, label, category, description, enabled, sort_order) values

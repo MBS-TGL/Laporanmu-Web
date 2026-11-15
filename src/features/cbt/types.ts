@@ -74,6 +74,9 @@ export interface CbtExam {
   token_expires_at: string | null
   is_published: boolean
   published_at: string | null
+  show_explanations: boolean
+  show_leaderboard: boolean
+  is_remedial_of: string | null
   created_at: string
   class_subject?: CbtQuestionClassSubject | null
 }
@@ -125,6 +128,8 @@ export interface ExamFormValues {
   difficulty_mix?: { mudah?: number; sedang?: number; sulit?: number } | null
   shuffle_questions: boolean
   shuffle_options: boolean
+  show_explanations?: boolean
+  show_leaderboard?: boolean
 }
 
 // ─── Hasil RPC publik (dikonsumsi halaman ujian santri) ─────────────────────
@@ -152,6 +157,8 @@ export interface StartExamResult {
   correct_count?: number | null
   submitted_at?: string | null
   warnings?: number
+  show_explanations?: boolean
+  show_leaderboard?: boolean
 }
 
 export interface SubmitExamResult {
