@@ -9,8 +9,8 @@ export function useInView<T extends HTMLElement>(threshold = 0.3) {
     const el = ref.current
     if (!el) return
     if (typeof IntersectionObserver === 'undefined') {
-      setInView(true)
-      return
+      const t = setTimeout(() => setInView(true), 0)
+      return () => clearTimeout(t)
     }
     const io = new IntersectionObserver(
       (entries) => {
@@ -38,8 +38,8 @@ export function useCountUp(target: number, run: boolean, durationMs = 1100): num
   useEffect(() => {
     if (!run) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setValue(target)
-      return
+      const t = setTimeout(() => setValue(target), 0)
+      return () => clearTimeout(t)
     }
     let raf = 0
     const start = performance.now()
@@ -49,7 +49,13 @@ export function useCountUp(target: number, run: boolean, durationMs = 1100): num
       if (p < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    // Jaring pengaman: di tab yang di-throttle rAF bisa beku — pastikan angka
+    // tetap sampai ke nilai akhir via timeout.
+    const fallback = setTimeout(() => setValue(target), durationMs + 100)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(fallback)
+    }
   }, [run, target, durationMs])
 
   return value

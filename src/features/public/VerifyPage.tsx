@@ -7,6 +7,19 @@ import { getGradePredicateMonthly } from '../report-cards/constants'
 import { PublicShell } from './PublicShell'
 import { PortalCard } from './PortalCard'
 
+interface LetterVerifyResult {
+  valid: boolean
+  letter_no: string
+  type: string
+  subject: string
+  body_text: string
+  issued_date: string
+  student_name: string
+  registration_code: string
+  class_name: string | null
+  error?: string
+}
+
 interface VerifyResult {
   student: {
     name: string
@@ -64,13 +77,36 @@ export function VerifyPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<VerifyResult | null>(null)
+  const [letterResult, setLetterResult] = useState<LetterVerifyResult | null>(null)
 
   const paramStudent = searchParams.get('s') ?? searchParams.get('id') ?? ''
   const paramNo = searchParams.get('no') ?? ''
+  const paramToken = searchParams.get('token') ?? ''
 
   useEffect(() => {
-    document.title = 'Verifikasi Rapor · Laporanmu'
+    document.title = 'Verifikasi Dokumen · Laporanmu'
   }, [])
+
+  // Jika terdapat token surat resmi (?token=LT-...)
+  useEffect(() => {
+    if (!paramToken) return
+    const verifyLetter = async () => {
+      setLoading(true)
+      setError(null)
+      const { data, error: rpcError } = await supabase.rpc('verify_official_letter', {
+        p_token: paramToken.trim(),
+      })
+      setLoading(false)
+      const res = data as unknown as LetterVerifyResult
+      if (rpcError || !res || !res.valid) {
+        setError(res?.error || rpcError?.message || 'Surat resmi tidak ditemukan atau token tidak valid.')
+        setLetterResult(null)
+        return
+      }
+      setLetterResult(res)
+    }
+    void verifyLetter()
+  }, [paramToken])
 
   // Periode dari nomor rapor pada deep-link (?no=RPT/.../NOV2026/1)
   const deepPeriod = useMemo(() => parseReportNo(paramNo), [paramNo])
@@ -109,9 +145,50 @@ export function VerifyPage() {
   }
 
   return (
-    <PublicShell tint="green" footerLabel="Portal Verifikasi Publik">
+    <PublicShell tint={letterResult ? 'indigo' : 'green'} footerLabel="Portal Verifikasi Publik">
+      {letterResult && (
+        <Card style={{ borderRadius: 16, border: '2px solid #6366f1' }}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <Tag color="success" style={{ fontSize: 13, padding: '4px 14px', borderRadius: 999 }}>
+              ✓ Dokumen Surat Resmi Sah & Terdaftar
+            </Tag>
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
+              Surat ini diterbitkan secara sah melalui sistem administrasi SMP Muhammadiyah 4 Tanggul.
+            </Typography.Paragraph>
+          </div>
+
+          <div style={{ background: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', fontSize: 13 }}>
+              <span style={{ color: '#64748b' }}>Nomor Surat:</span>
+              <b>{letterResult.letter_no}</b>
+              <span style={{ color: '#64748b' }}>Jenis Surat:</span>
+              <span style={{ textTransform: 'capitalize' }}>{letterResult.type}</span>
+              <span style={{ color: '#64748b' }}>Perihal:</span>
+              <b>{letterResult.subject}</b>
+              <span style={{ color: '#64748b' }}>Tanggal Terbit:</span>
+              <span>{new Date(letterResult.issued_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              <span style={{ color: '#64748b' }}>Nama Santri:</span>
+              <b>{letterResult.student_name} ({letterResult.registration_code})</b>
+              <span style={{ color: '#64748b' }}>Kelas:</span>
+              <span>{letterResult.class_name ?? '—'}</span>
+            </div>
+          </div>
+
+          <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>
+            Ringkasan Isi Surat:
+          </Typography.Text>
+          <div style={{ whiteSpace: 'pre-wrap', background: '#fff', border: '1px solid #e2e8f0', padding: 12, borderRadius: 8, fontSize: 12.5, color: '#334155' }}>
+            {letterResult.body_text}
+          </div>
+
+          <div style={{ marginTop: 20, textAlign: 'center' }}>
+            <Button onClick={() => window.print()}>Cetak Bukti Verifikasi</Button>
+          </div>
+        </Card>
+      )}
+
       {/* Form tetap ter-mount saat loading agar tidak ada layout jump */}
-      {!result && (
+      {!result && !letterResult && (
         <PortalCard
           tint="green"
           icon={<SafetyCertificateOutlined />}

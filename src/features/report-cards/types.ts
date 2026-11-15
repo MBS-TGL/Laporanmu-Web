@@ -73,6 +73,8 @@ export interface SemesterReport {
     absent_days?: number
     early_leave_days?: number
     notes?: string | null
+    /** Penilaian ekskul semester (Kurikulum Merdeka) — nama + keterangan/capaian */
+    ekskul?: { name: string; note: string | null }[]
   }
   musyrif_name: string | null
   created_at?: string
@@ -94,6 +96,7 @@ export interface ReportCardStudent {
   id: string
   name: string
   registration_code: string
+  nisn?: string | null
   gender: 'L' | 'P' | null
   dorm_id: string | null
   guardian_name: string | null
@@ -158,4 +161,5 @@ export interface SemesterDraft {
   absent_days?: number
   early_leave_days?: number
   notes?: string
+  ekskul?: { name: string; note: string | null }[]
 }

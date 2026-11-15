@@ -69,7 +69,7 @@ export function YearForm({
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={submitting}
-      width={520}
+      size="md"
       destroyOnHidden
     >
       <Form<FormState> form={form} layout="vertical" onFinish={handleFinish} disabled={submitting}>

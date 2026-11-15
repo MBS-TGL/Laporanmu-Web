@@ -1,5 +1,14 @@
+import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
-import type { Dorm, DormFilters, DormFormValues, DormRoom, Placement, PlacementFilters } from './types'
+import type {
+  DistribAssignment,
+  Dorm,
+  DormFilters,
+  DormFormValues,
+  DormRoom,
+  Placement,
+  PlacementFilters,
+} from './types'
 
 const SELECT_STR = '*, musyrif:teachers!dorms_musyrif_id_fkey(name)'
 
@@ -72,12 +81,49 @@ export async function softDeleteDorm(id: string): Promise<void> {
 }
 
 // ------------------------------------------------------------
+// Import bulk — insert array sekaligus; bila batch gagal, fallback
+// per-baris agar baris yang bermasalah bisa dilaporkan satu per satu
+// ------------------------------------------------------------
+export interface BulkCreateResult {
+  inserted: number
+  failed: { name: string; error: string }[]
+}
+
+export async function bulkCreateDorms(values: DormFormValues[]): Promise<BulkCreateResult> {
+  if (values.length === 0) return { inserted: 0, failed: [] }
+  const { error } = await supabase.from('dorms').insert(values.map(payload))
+  if (!error) return { inserted: values.length, failed: [] }
+
+  const failed: BulkCreateResult['failed'] = []
+  let inserted = 0
+  for (const value of values) {
+    const { error: rowError } = await supabase.from('dorms').insert(payload(value))
+    if (rowError) failed.push({ name: value.name, error: rowError.message })
+    else inserted++
+  }
+  return { inserted, failed }
+}
+
+// ------------------------------------------------------------
+// Distribusi otomatis — satu update .in() per kamar tujuan
+// ------------------------------------------------------------
+export async function distributeApply(assignments: DistribAssignment[]): Promise<number> {
+  let moved = 0
+  for (const { roomId, studentIds } of assignments) {
+    const { error } = await supabase.from('students').update({ dorm_id: roomId }).in('id', studentIds)
+    if (error) throw error
+    moved += studentIds.length
+  }
+  return moved
+}
+
+// ------------------------------------------------------------
 // Kamar + okupansi (untuk modal penempatan & drawer detail)
 // ------------------------------------------------------------
 export async function fetchDormRooms(): Promise<DormRoom[]> {
   const { data, error } = await supabase
     .from('dorms')
-    .select('id, name, gender, capacity')
+    .select('id, name, gender, capacity, status')
     .is('deleted_at', null)
     .neq('status', 'inactive')
     .order('name', { ascending: true })
@@ -171,6 +217,83 @@ export async function assignStudents(ids: string[], dormId: string | null): Prom
   if (ids.length === 0) return
   const { error } = await supabase.from('students').update({ dorm_id: dormId }).in('id', ids)
   if (error) throw error
+}
+
+/** Semua santri sesuai filter tab penempatan, tanpa pagination — untuk export CSV */
+export async function fetchPlacementsForExport(
+  filters: Omit<PlacementFilters, 'page' | 'pageSize'>,
+): Promise<Placement[]> {
+  let query = supabase
+    .from('students')
+    .select(PLACEMENT_SELECT)
+    .is('deleted_at', null)
+
+  if (filters.search) query = query.ilike('name', `%${filters.search}%`)
+  if (filters.gender) query = query.eq('gender', filters.gender)
+  if (filters.classId) query = query.eq('class_id', filters.classId)
+  if (filters.placement === 'unassigned') query = query.is('dorm_id', null)
+  if (filters.placement === 'assigned') query = query.not('dorm_id', 'is', null)
+
+  const { data, error } = await query.order('name', { ascending: true }).limit(2000)
+  if (error) throw error
+  return (data ?? []) as unknown as Placement[]
+}
+
+/** Hanya id penghuni satu kamar — untuk aksi "kosongkan kamar" */
+export async function fetchDormResidentIds(dormId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('students')
+    .select('id')
+    .is('deleted_at', null)
+    .eq('dorm_id', dormId)
+  if (error) throw error
+  return (data ?? []).map((r) => r.id as string)
+}
+
+// ------------------------------------------------------------
+// Export Excel (konvensi gate/attendance: lazy import('xlsx'))
+// ------------------------------------------------------------
+export interface DormExportRow {
+  name: string
+  gender: string | null
+  capacity: number
+  occupied: number
+  musyrifName: string | null
+  status: string
+}
+
+export async function downloadDormsXlsx(rows: DormExportRow[]): Promise<void> {
+  const XLSX = await import('xlsx')
+  const sheet = XLSX.utils.json_to_sheet(
+    rows.map((d) => ({
+      Kamar: d.name,
+      Gender: d.gender ?? '',
+      Kapasitas: d.capacity,
+      Terisi: d.occupied,
+      'Okupansi %':
+        d.capacity > 0 ? Math.round((d.occupied / d.capacity) * 100) : 0,
+      Musyrif: d.musyrifName ?? '',
+      Status: d.status,
+    })),
+  )
+  const book = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(book, sheet, 'Kamar')
+  XLSX.writeFile(book, `asrama-${dayjs().format('YYYY-MM-DD')}.xlsx`)
+}
+
+export async function downloadPlacementsXlsx(rows: Placement[]): Promise<void> {
+  const XLSX = await import('xlsx')
+  const sheet = XLSX.utils.json_to_sheet(
+    rows.map((p) => ({
+      'Nama Santri': p.name,
+      Kelas: p.classes?.name ?? '',
+      Gender: p.gender ?? '',
+      Asrama: p.dorms?.name ?? '',
+    })),
+  )
+  const book = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(book, sheet, 'Penempatan')
+  XLSX.writeFile(book, `penempatan-santri-${dayjs().format('YYYY-MM-DD')}.xlsx`)
 }
 
 export async function fetchClassesBrief(): Promise<{ id: string; name: string }[]> {

@@ -348,9 +348,9 @@ export function RulesPage() {
           <Tooltip key="shortcuts" title="Palet shortcut (?)">
             <Button type="text" icon={<QuestionCircleOutlined />} onClick={() => toggle()} />
           </Tooltip>,
-          <Button key="export" icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
-            CSV
-          </Button>,
+          <Tooltip key="export" title="Ekspor data aturan (CSV)">
+            <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport} />
+          </Tooltip>,
           ...(canWrite
             ? [
                 <Button key="add" type="primary" icon={<PlusOutlined />} onClick={openCreate}>

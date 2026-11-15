@@ -1,4 +1,4 @@
-import { theme, Tooltip } from 'antd'
+import { Popover, theme } from 'antd'
 import {
   CrownFilled,
   ExclamationCircleOutlined,
@@ -49,7 +49,7 @@ export function StatsRow({
 
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: stats?.topPerformer || worst ? 10 : 0 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         <StatChip
           icon={<TeamOutlined />}
           label="Total Siswa"
@@ -75,15 +75,17 @@ export function StatsRow({
           active={gender === 'P'}
           onClick={() => onGenderToggle('P')}
         />
-        <StatChip
-          icon={<TrophyOutlined />}
-          label="Rata-rata Poin"
-          value={stats ? (stats.avgPoints > 0 ? `+${stats.avgPoints}` : stats.avgPoints) : '–'}
-          color="emerald"
-          loading={loading}
-          active={pointMode === 'positive'}
-          onClick={() => onPointMode('positive')}
-        />
+        {(!stats || stats.avgPoints !== 0) && (
+          <StatChip
+            icon={<TrophyOutlined />}
+            label="Rata-rata Poin"
+            value={stats ? (stats.avgPoints > 0 ? `+${stats.avgPoints}` : stats.avgPoints) : '–'}
+            color="emerald"
+            loading={loading}
+            active={pointMode === 'positive'}
+            onClick={() => onPointMode('positive')}
+          />
+        )}
         {(stats?.riskCount ?? 0) > 0 && (
           <StatChip
             icon={<WarningOutlined />}
@@ -103,7 +105,7 @@ export function StatsRow({
           active={missing === 'any'}
           onClick={() => onMissing('any')}
         />
-        {trend !== null && trend !== undefined && (
+        {trend !== null && trend !== undefined && trend !== 0 && (
           <StatChip
             icon={trend < 0 ? <FallOutlined /> : <RiseOutlined />}
             label="Tren 7 hari"
@@ -112,94 +114,169 @@ export function StatsRow({
             loading={loading}
           />
         )}
-      </div>
 
-      {(stats?.topPerformer || worst || worstCompl) && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '4px 20px',
-            padding: '7px 14px',
-            borderRadius: 10,
-            border: `1px solid ${token.colorBorderSecondary}`,
-            background: token.colorFillQuaternary,
-            fontSize: 12.5,
-          }}
-        >
-          {stats?.topPerformer && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <CrownFilled style={{ color: '#f59e0b' }} />
-              <span style={{ color: token.colorTextSecondary }}>Terbaik:</span>
-              <span style={{ fontWeight: 600 }}>{stats.topPerformer.name}</span>
-              <span style={{ fontWeight: 700, color: '#16a34a' }}>+{stats.topPerformer.points}</span>
-            </span>
-          )}
-          {worst && (
+        {/* Insight Terbaik / Terendah / Kelengkapan — sejajar di baris chip, bukan band terpisah */}
+        {stats?.topPerformer && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '12px 14px',
+              borderRadius: 12,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              background: token.colorBgContainer,
+              fontSize: 12.5,
+              minHeight: 44,
+            }}
+          >
+            <CrownFilled style={{ color: '#f59e0b' }} />
+            <span style={{ color: token.colorTextSecondary }}>Terbaik:</span>
+            <span style={{ fontWeight: 600 }}>{stats.topPerformer.name}</span>
+            <span style={{ fontWeight: 700, color: '#16a34a' }}>+{stats.topPerformer.points}</span>
+          </span>
+        )}
+        {worst && (
+          <button
+            type="button"
+            onClick={() => onWorstClass(worst.id)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '12px 14px',
+              borderRadius: 12,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              background: token.colorBgContainer,
+              font: 'inherit',
+              fontSize: 12.5,
+              minHeight: 44,
+              cursor: 'pointer',
+            }}
+            title={`Filter siswa kelas ${worst.name}`}
+          >
+            <WarningOutlined style={{ color: '#dc2626' }} />
+            <span style={{ color: token.colorTextSecondary }}>Terendah:</span>
+            <span style={{ fontWeight: 600, color: '#dc2626' }}>{worst.name}</span>
+            <span style={{ fontWeight: 700, color: '#dc2626' }}>({worst.avg})</span>
+          </button>
+        )}
+        {worstCompl && (
+          // Popover, bukan Tooltip — isi berupa daftar per kelas butuh judul proper,
+          // padding lega, dan lebar terkontrol (Tooltip menyebabkan wrap per kata).
+          <Popover
+            trigger="hover"
+            placement="bottomLeft"
+            title="Kelengkapan data per kelas"
+            content={
+              <div style={{ width: 330, maxHeight: 280, overflowY: 'auto', marginInline: -4 }}>
+                {[...(stats?.classCompleteness ?? [])]
+                  .sort((a, b) => a.percent - b.percent || a.name.localeCompare(b.name, 'id'))
+                  .map((c) => {
+                    const color = c.percent < 50 ? '#dc2626' : c.percent < 80 ? '#f59e0b' : '#16a34a'
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="completeness-row"
+                        onClick={() => onWorstCompleteness(c.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          width: '100%',
+                          background: 'none',
+                          border: 'none',
+                          padding: '5px 6px',
+                          font: 'inherit',
+                          fontSize: 12.5,
+                          color: token.colorText,
+                          cursor: 'pointer',
+                          borderRadius: 6,
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {c.name}
+                        </span>
+                        {/* Bar mini kelengkapan — warna sesuai tingkat */}
+                        <span
+                          style={{
+                            width: 72,
+                            height: 6,
+                            borderRadius: 4,
+                            background: token.colorFillSecondary,
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                            display: 'inline-block',
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: 'block',
+                              width: `${c.percent}%`,
+                              height: '100%',
+                              background: color,
+                            }}
+                          />
+                        </span>
+                        <span
+                          style={{
+                            width: 104,
+                            flexShrink: 0,
+                            textAlign: 'right',
+                            fontVariantNumeric: 'tabular-nums',
+                            color,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {c.percent}% · {c.incomplete}/{c.total}
+                        </span>
+                      </button>
+                    )
+                  })}
+                <div style={{ marginTop: 6, paddingInline: 6, fontSize: 11, color: token.colorTextTertiary }}>
+                  Urut dari kelengkapan terendah, klik kelas untuk memfilter siswa yang belum lengkap
+                </div>
+              </div>
+            }
+          >
             <button
               type="button"
-              onClick={() => onWorstClass(worst.id)}
+              onClick={() => onWorstCompleteness(worstCompl.id)}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                background: 'none',
-                border: 'none',
-                padding: 0,
+                padding: '12px 14px',
+                borderRadius: 12,
+                border: `1px solid ${token.colorBorderSecondary}`,
+                background: token.colorBgContainer,
                 font: 'inherit',
+                fontSize: 12.5,
+                minHeight: 44,
                 cursor: 'pointer',
               }}
-              title={`Filter siswa kelas ${worst.name}`}
             >
-              <WarningOutlined style={{ color: '#dc2626' }} />
-              <span style={{ color: token.colorTextSecondary }}>Terendah:</span>
-              <span style={{ fontWeight: 600, color: '#dc2626' }}>{worst.name}</span>
-              <span style={{ fontWeight: 700, color: '#dc2626' }}>({worst.avg})</span>
+              <FileDoneOutlined style={{ color: '#f59e0b' }} />
+              <span style={{ color: token.colorTextSecondary }}>Kelengkapan:</span>
+              <span style={{ fontWeight: 600, color: '#f59e0b' }}>{worstCompl.name}</span>
+              <span style={{ fontWeight: 700, color: '#f59e0b' }}>
+                {worstCompl.percent}% ({worstCompl.incomplete}/{worstCompl.total})
+              </span>
             </button>
-          )}
-          {worstCompl && (
-            <Tooltip
-              title={
-                <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>Kelengkapan data per kelas</div>
-                  {(stats?.classCompleteness ?? []).map((c) => (
-                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-                      <span>{c.name}</span>
-                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {c.percent}% · {c.incomplete}/{c.total} belum lengkap
-                      </span>
-                    </div>
-                  ))}
-                  <div style={{ marginTop: 4, opacity: 0.75 }}>Klik untuk filter kelas ini</div>
-                </div>
-              }
-            >
-              <button
-                type="button"
-                onClick={() => onWorstCompleteness(worstCompl.id)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  font: 'inherit',
-                  cursor: 'pointer',
-                }}
-              >
-                <FileDoneOutlined style={{ color: '#f59e0b' }} />
-                <span style={{ color: token.colorTextSecondary }}>Kelengkapan:</span>
-                <span style={{ fontWeight: 600, color: '#f59e0b' }}>{worstCompl.name}</span>
-                <span style={{ fontWeight: 700, color: '#f59e0b' }}>
-                  {worstCompl.percent}% ({worstCompl.incomplete}/{worstCompl.total})
-                </span>
-              </button>
-            </Tooltip>
-          )}
-        </div>
-      )}
+          </Popover>
+        )}
+      </div>
     </div>
   )
 }

@@ -131,6 +131,43 @@ export function getCriteria(type: ReportCardType, grade: string | null): Criteri
   return SEMESTER_CRITERIA[type as SemesterType][level]
 }
 
+/**
+ * Versi getCriteria untuk rapor 'general' yang membaca dari tabel subjects.
+ * Jika subjectsList diberikan (dari hook useSubjects), pakai itu;
+ * jika kosong/undefined, fallback ke hardcode SEMESTER_CRITERIA.general.
+ * Ini memungkinkan transisi bertahap — rapor pondok tetap hardcode,
+ * rapor umum bisa dinamis begitu tabel subjects terisi.
+ */
+export function getGeneralCriteriaFromSubjects(
+  subjectsList?: { id: string; name: string; sort_order: number }[],
+): Criterion[] {
+  if (!subjectsList || subjectsList.length === 0) {
+    return SEMESTER_CRITERIA.general.smp // fallback ke hardcode
+  }
+  return subjectsList
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'id'))
+    .map((s) => ({ key: s.id, label: s.name }))
+}
+
+/**
+ * getCriteria versi enhanced — menerima opsional subjects list.
+ * Untuk type='general': jika subjects tersedia, pakai itu;
+ * untuk type lain: selalu hardcode.
+ */
+export function getCriteriaEnhanced(
+  type: ReportCardType,
+  grade: string | null,
+  subjectsList?: { id: string; name: string; sort_order: number }[],
+): Criterion[] {
+  if (type === 'monthly') return BULANAN_CRITERIA
+  if (type === 'general' && subjectsList && subjectsList.length > 0) {
+    return getGeneralCriteriaFromSubjects(subjectsList)
+  }
+  const level = isSmaClass(grade) ? 'sma' : 'smp'
+  return SEMESTER_CRITERIA[type as SemesterType][level]
+}
+
 export function isSmaClass(grade: string | null): boolean {
   const g = Number(grade)
   return g === 10 || g === 11 || g === 12
@@ -189,8 +226,9 @@ export function calcAverage(
   type: ReportCardType,
   scores: Record<string, number | null>,
   grade: string | null,
+  subjectsList?: { id: string; name: string; sort_order: number }[],
 ): number | null {
-  const criteria = getCriteria(type, grade)
+  const criteria = getCriteriaEnhanced(type, grade, subjectsList)
   const values = criteria
     .filter((c) => !PRACTICAL_KEYS.has(c.key))
     .map((c) => scores[c.key])
@@ -204,8 +242,9 @@ export function isComplete(
   type: ReportCardType,
   scores: Record<string, number | null>,
   grade: string | null,
+  subjectsList?: { id: string; name: string; sort_order: number }[],
 ): boolean {
-  const criteria = getCriteria(type, grade)
+  const criteria = getCriteriaEnhanced(type, grade, subjectsList)
   return criteria.every((c) => typeof scores[c.key] === 'number')
 }
 

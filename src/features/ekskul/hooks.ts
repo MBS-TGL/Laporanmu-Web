@@ -1,16 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
+import { softDeleteMany } from '../../shared/api/crud'
 import {
   addEkskulMembers,
+  bulkCreateEkskul,
   createEkskul,
   fetchEkskul,
+  fetchEkskulAttendance,
+  fetchEkskulByStudent,
   fetchEkskulMembers,
+  fetchStudentsByClasses,
   removeEkskulMember,
+  removeEkskulMembers,
+  saveEkskulAttendance,
   setMemberRole,
   softDeleteEkskul,
   updateEkskul,
 } from './api'
-import type { EkskulFormValues } from './types'
+import type { EkskulAttendanceUpsert, EkskulFormValues } from './types'
 
 export function useEkskul() {
   return useQuery({
@@ -24,6 +32,63 @@ export function useEkskulMembers(ekskulId: string | undefined) {
     queryKey: ['ekskul-members', ekskulId],
     queryFn: () => fetchEkskulMembers(ekskulId as string),
     enabled: !!ekskulId,
+  })
+}
+
+export function useEkskulAttendance(
+  ekskulId: string | undefined,
+  year: number,
+  month: number,
+) {
+  return useQuery({
+    queryKey: ['ekskul-attendance', ekskulId, year, month],
+    queryFn: () => fetchEkskulAttendance(ekskulId as string, year, month),
+    enabled: !!ekskulId,
+  })
+}
+
+/** Keikutsertaan ekskul satu santri — dipakai penilaian raport semester. */
+export function useEkskulByStudent(studentId: string | undefined) {
+  return useQuery({
+    queryKey: ['ekskul', 'by-student', studentId],
+    queryFn: () => fetchEkskulByStudent(studentId as string),
+    enabled: !!studentId,
+  })
+}
+
+/** Upsert presensi bulanan — pola useSaveHalaqahAttendance (updated_by + audit + invalidate). */
+export function useSaveEkskulAttendance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: EkskulAttendanceUpsert[]) => {
+      const { data: userData } = await supabase.auth.getUser()
+      const updatedBy = userData.user?.id ?? null
+      return saveEkskulAttendance(payload.map((p) => ({ ...p, updated_by: updatedBy })))
+    },
+    onSuccess: (_data, payload) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'OPERATIONAL',
+        tableName: 'ekskul_attendance',
+        newData: {
+          ekskul_id: payload[0]?.ekskul_id,
+          year: payload[0]?.year,
+          month: payload[0]?.month,
+          members: payload.length,
+        },
+      })
+      void qc.invalidateQueries({ queryKey: ['ekskul-attendance'] })
+    },
+  })
+}
+
+/** Santri aktif dari kelas-kelas terpilih — urutan id dinormalkan agar cache stabil. */
+export function useStudentsByClasses(classIds: string[]) {
+  const sortedKey = [...classIds].sort()
+  return useQuery({
+    queryKey: ['students', 'by-classes', sortedKey],
+    queryFn: () => fetchStudentsByClasses(sortedKey),
+    enabled: sortedKey.length > 0,
   })
 }
 
@@ -78,6 +143,42 @@ export function useDeleteEkskul() {
   })
 }
 
+export function useBulkCreateEkskul() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (values: EkskulFormValues[]) => bulkCreateEkskul(values),
+    onSuccess: (res) => {
+      if (res.inserted > 0) {
+        void logAudit({
+          action: 'INSERT',
+          source: 'OPERATIONAL',
+          tableName: 'extracurriculars',
+          newData: { bulk_imported: res.inserted },
+        })
+      }
+      void qc.invalidateQueries({ queryKey: ['ekskul'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useBulkDeleteEkskul() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => softDeleteMany('extracurriculars', ids),
+    onSuccess: (_data, ids) => {
+      void logAudit({
+        action: 'DELETE',
+        source: 'OPERATIONAL',
+        tableName: 'extracurriculars',
+        newData: { bulk_archived: ids.length },
+      })
+      void qc.invalidateQueries({ queryKey: ['ekskul'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
 export function useAddEkskulMembers() {
   const qc = useQueryClient()
   return useMutation({
@@ -106,6 +207,23 @@ export function useRemoveEkskulMember() {
         source: 'OPERATIONAL',
         tableName: 'extracurricular_members',
         recordId: memberId,
+      })
+      void qc.invalidateQueries({ queryKey: ['ekskul-members'] })
+      void qc.invalidateQueries({ queryKey: ['ekskul'] })
+    },
+  })
+}
+
+export function useRemoveEkskulMembers() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (memberIds: string[]) => removeEkskulMembers(memberIds),
+    onSuccess: (_data, ids) => {
+      void logAudit({
+        action: 'DELETE',
+        source: 'OPERATIONAL',
+        tableName: 'extracurricular_members',
+        newData: { count: ids.length },
       })
       void qc.invalidateQueries({ queryKey: ['ekskul-members'] })
       void qc.invalidateQueries({ queryKey: ['ekskul'] })

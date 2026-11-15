@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Avatar, Button, Drawer, Empty, List, Space, Tag, Typography, theme } from 'antd'
-import { FallOutlined, RiseOutlined } from '@ant-design/icons'
+import { FallOutlined, PrinterOutlined, RiseOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { formatRupiah } from '../api'
 import { useSavingsTxns } from '../hooks'
+import { PrintModal } from './PrintModal'
 import type { SavingsAccount, SavingsTxn } from '../types'
 
 interface AccountDrawerProps {
@@ -15,6 +17,7 @@ interface AccountDrawerProps {
 
 export function AccountDrawer({ open, account, onClose, onDeposit, onWithdraw }: AccountDrawerProps) {
   const { token } = theme.useToken()
+  const [printOpen, setPrintOpen] = useState(false)
   const txnsQuery = useSavingsTxns(open ? account?.id : undefined)
   const txns = txnsQuery.data ?? []
 
@@ -73,6 +76,12 @@ export function AccountDrawer({ open, account, onClose, onDeposit, onWithdraw }:
             >
               Tarik
             </Button>
+            <Button
+              icon={<PrinterOutlined />}
+              onClick={() => setPrintOpen(true)}
+            >
+              Cetak Buku
+            </Button>
             {account.status === 'closed' && <Tag color="default">Rekening ditutup</Tag>}
           </Space>
 
@@ -128,6 +137,13 @@ export function AccountDrawer({ open, account, onClose, onDeposit, onWithdraw }:
                 </List.Item>
               )
             }}
+          />
+
+          <PrintModal
+            open={printOpen}
+            account={account}
+            transactions={txns}
+            onClose={() => setPrintOpen(false)}
           />
         </>
       )}

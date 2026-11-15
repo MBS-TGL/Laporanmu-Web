@@ -6,6 +6,10 @@ export interface Subject {
   category: string | null
   description: string | null
   is_active: boolean
+  kkm: number | null
+  phase: string | null
+  curriculum_group: string | null
+  sort_order: number
   deleted_at: string | null
   created_at?: string
   updated_at?: string
@@ -18,4 +22,8 @@ export interface SubjectFormValues {
   category?: string
   description?: string
   is_active: boolean
+  kkm?: number
+  phase?: string
+  curriculum_group?: string
+  sort_order?: number
 }

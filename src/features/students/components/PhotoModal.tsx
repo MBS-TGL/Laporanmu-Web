@@ -1,19 +1,22 @@
 import { useMemo, useState } from 'react'
-import { App, Button, Progress, Segmented, Select, Tag, Tooltip, Upload } from 'antd'
+import { App, Button, Progress, Segmented, Select, Tag, theme, Tooltip, Typography, Upload } from 'antd'
 import {
   CameraOutlined,
   CheckCircleOutlined,
   CloseOutlined,
-  InboxOutlined,
   LoadingOutlined,
   PlusOutlined,
   UserOutlined,
   WarningOutlined,
 } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalFooter } from '../../../shared/components/ModalFooter'
+import { UploadDropzone } from '../../../shared/components/UploadDropzone'
 import { compressImage } from '../../../shared/utils/imageCompress'
 import { useStudents, useUpdateStudentPhoto } from '../hooks'
 import type { Student } from '../types'
+
+const { Text } = Typography
 
 interface PhotoModalProps {
   open: boolean
@@ -53,6 +56,7 @@ function autoMatch(fileName: string, students: Student[]): string | undefined {
 /** Update foto siswa secara massal — nama file dicocokkan ke NISN/kode/nama */
 export function PhotoModal({ open, onClose }: PhotoModalProps) {
   const { message } = App.useApp()
+  const { token } = theme.useToken()
   const [entries, setEntries] = useState<PhotoEntry[]>([])
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
@@ -196,7 +200,7 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
     setUploading(false)
     setProgress(null)
     if (fail === 0) message.success(`${ok} foto berhasil diperbarui`)
-    else message.warning(`${ok} berhasil, ${fail} gagal — perbaiki lalu coba lagi`)
+    else message.warning(`${ok} berhasil, ${fail} gagal, perbaiki lalu coba lagi`)
   }
 
   const handlePrimary = () => void runUpload(targets)
@@ -228,7 +232,7 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
         )
       case 'duplicate':
         return (
-          <Tooltip title="Siswa sama dengan foto lain di daftar — foto pertama yang dipakai">
+          <Tooltip title="Siswa sama dengan foto lain di daftar: foto pertama yang dipakai">
             <Tag color="red" icon={<WarningOutlined />} style={{ borderRadius: 999, marginInlineEnd: 0 }}>
               Duplikat
             </Tag>
@@ -253,15 +257,15 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
 
   const rowBorder = (entry: PhotoEntry) => {
     const state = stateOf(entry)
-    if (state === 'success') return '#86efac'
-    if (state === 'error' || state === 'duplicate') return '#fca5a5'
-    return '#e2e8f0'
+    if (state === 'success') return token.colorSuccessBorder
+    if (state === 'error' || state === 'duplicate') return token.colorErrorBorder
+    return token.colorBorderSecondary
   }
 
   const footerSummary = () => {
     if (uploading && progress) return `Mengunggah ${progress.done}/${progress.total}…`
     if (entries.length === 0) return ' '
-    if (allFailed) return `${targets.length} foto gagal — coba lagi`
+    if (allFailed) return `${targets.length} foto gagal, coba lagi`
     const parts = [`${targets.length} dari ${entries.length} foto siap diperbarui`]
     if (errorCount > 0) parts.push(`${errorCount} gagal`)
     if (reviewCount > 0) parts.push(`${reviewCount} perlu ditinjau`)
@@ -277,46 +281,44 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
       title="Bulk Foto"
       subtitle="Update foto siswa secara massal via NISN"
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12.5, color: '#64748b' }}>{footerSummary()}</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button onClick={handleClose}>Tutup</Button>
-            <Button
-              type="primary"
-              disabled={targets.length === 0}
-              loading={uploading}
-              onClick={handlePrimary}
-            >
-              {allFailed ? `Coba Lagi (${targets.length})` : `Perbarui ${targets.length > 0 ? `${targets.length} ` : ''}Foto`}
-            </Button>
-          </div>
-        </div>
+        <ModalFooter
+          left={<Text type="secondary" style={{ fontSize: 12 }}>{footerSummary()}</Text>}
+          onCancel={handleClose}
+          cancelText="Tutup"
+          onOk={handlePrimary}
+          okText={allFailed ? `Coba Lagi (${targets.length})` : `Perbarui ${targets.length > 0 ? `${targets.length} ` : ''}Foto`}
+          okDisabled={targets.length === 0}
+          okLoading={uploading}
+        />
       }
     >
       {/* Dropzone — menyusut jadi satu baris saat daftar sudah terisi */}
-      <Upload.Dragger
-        multiple
-        accept="image/*"
-        showUploadList={false}
-        disabled={uploading}
-        beforeUpload={(file) => {
-          handleBeforeUpload(file)
-          return false
-        }}
-        style={{ marginBottom: 12 }}
-      >
-        {entries.length === 0 ? (
-          <>
-            <p className="ant-upload-drag-icon">
-              <InboxOutlined />
-            </p>
-            <p className="ant-upload-text">Klik atau seret foto ke sini</p>
-            <p className="ant-upload-hint">
-              Nama file dicocokkan otomatis ke NISN, NIS, kode registrasi, atau nama siswa —
-              contoh: <strong>0086230011.jpg</strong> atau <strong>Ahmad Fauzi.jpg</strong>
-            </p>
-          </>
-        ) : (
+      {entries.length === 0 ? (
+        <div style={{ marginBottom: 12 }}>
+          <UploadDropzone
+            multiple
+            accept="image/*"
+            disabled={uploading}
+            title="Klik atau seret foto ke sini"
+            hint="Nama file dicocokkan otomatis ke NISN, NIS, kode registrasi, atau nama siswa, contoh: 0086230011.jpg atau Ahmad Fauzi.jpg"
+            beforeUpload={(file) => {
+              handleBeforeUpload(file)
+              return false
+            }}
+          />
+        </div>
+      ) : (
+        <Upload.Dragger
+          multiple
+          accept="image/*"
+          showUploadList={false}
+          disabled={uploading}
+          beforeUpload={(file) => {
+            handleBeforeUpload(file)
+            return false
+          }}
+          style={{ marginBottom: 12 }}
+        >
           <div
             style={{
               display: 'flex',
@@ -324,15 +326,15 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
               justifyContent: 'center',
               gap: 8,
               padding: '2px 0',
-              color: '#4f46e5',
+              color: token.colorTextSecondary,
               fontSize: 13,
             }}
           >
             <PlusOutlined />
-            Tambah foto lagi — klik atau seret ke sini
+            Tambah foto lagi, klik atau seret ke sini
           </div>
-        )}
-      </Upload.Dragger>
+        </Upload.Dragger>
+      )}
 
       {/* Progress agregat */}
       {progress && (
@@ -422,7 +424,7 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
                 padding: '8px 10px',
                 borderRadius: 10,
                 border: `1px solid ${rowBorder(entry)}`,
-                background: entry.status === 'success' ? '#f0fdf4' : undefined,
+                background: entry.status === 'success' ? token.colorSuccessBg : undefined,
                 opacity: state === 'duplicate' ? 0.75 : undefined,
               }}
             >
@@ -476,10 +478,10 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
                   }
                 />
                 {entry.status === 'error' && entry.error && (
-                  <div style={{ fontSize: 11.5, color: '#dc2626', marginTop: 3 }}>{entry.error}</div>
+                  <div style={{ fontSize: 11.5, color: token.colorError, marginTop: 3 }}>{entry.error}</div>
                 )}
                 {state === 'duplicate' && student && (
-                  <div style={{ fontSize: 11.5, color: '#dc2626', marginTop: 3 }}>
+                  <div style={{ fontSize: 11.5, color: token.colorError, marginTop: 3 }}>
                     Duplikat dari foto lain untuk {student.name}
                   </div>
                 )}
@@ -498,20 +500,18 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
         })}
 
         {entries.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: '20px 0', color: token.colorTextTertiary }}>
             <UserOutlined style={{ fontSize: 26, display: 'block', marginBottom: 8 }} />
             <div style={{ fontSize: 13, fontWeight: 500 }}>Belum ada foto yang dipilih</div>
-            <div style={{ marginTop: 10, fontSize: 12.5, lineHeight: 2 }}>
-              <div>• Nama file = NISN / NIS / kode registrasi / nama siswa (contoh: 0086230011.jpg)</div>
-              <div>• JPG atau PNG — dikompres otomatis di bawah 450 KB</div>
-              <div>• Bisa seret banyak foto sekaligus</div>
+            <div style={{ marginTop: 4, fontSize: 12.5 }}>
+              Pilih foto untuk mulai memetakan ke NISN siswa. JPG atau PNG, dikompres otomatis di bawah 450 KB.
             </div>
           </div>
         )}
 
         {entries.length > 0 && visibleEntries.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: 13 }}>
-            Tidak ada foto yang perlu ditinjau — semua siap 🎉
+          <div style={{ textAlign: 'center', padding: '16px 0', color: token.colorTextTertiary, fontSize: 13 }}>
+            Tidak ada foto yang perlu ditinjau, semua siap
           </div>
         )}
       </div>

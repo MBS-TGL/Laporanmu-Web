@@ -22,6 +22,7 @@ export interface CounselingLog {
 
 export interface CounselingFormValues {
   student_id: string
+  additional_student_ids?: string[]
   counselor_name: string
   date: string
   time: string
@@ -32,3 +33,29 @@ export interface CounselingFormValues {
   urgency: CounselingUrgency
   status: CounselingStatus
 }
+
+/** Filter daftar sesi — dipakai fetch daftar (server-side) & ekspor. */
+export interface CounselingFilters {
+  search?: string
+  category?: CounselingCategory
+  urgency?: CounselingUrgency
+  status?: CounselingStatus
+  from?: string
+  to?: string
+}
+
+export interface CounselingListResult {
+  data: CounselingLog[]
+  total: number
+}
+
+/** Agregat statistik halaman — dihitung di DB (count head-only). */
+export interface CounselingStats {
+  total: number
+  inProgress: number
+  highUrgencyActive: number
+  completedThisMonth: number
+}
+
+/** Jenis daftar untuk drawer statistik. */
+export type CounselingStatListKind = 'in_progress' | 'high'

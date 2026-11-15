@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Alert, App, Button, Popconfirm, Typography } from 'antd'
+import { App, Button, Popconfirm, Typography } from 'antd'
 import { IdcardOutlined, KeyOutlined, PrinterOutlined } from '@ant-design/icons'
 import { QRCodeCanvas } from 'qrcode.react'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalFooter } from '../../../shared/components/ModalFooter'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
 import { useGenerateStudentPins } from '../hooks'
 import { GENDER_LABEL } from '../status'
 import type { Student } from '../types'
@@ -119,7 +121,7 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
         <div className="student-id-card-info">
           <div className="student-id-card-name">{s.name}</div>
           <div className="student-id-card-meta">
-            {s.classes?.name ?? '—'}
+            {s.classes?.name ?? '-'}
             {s.gender ? ` · ${GENDER_LABEL[s.gender]}` : ''}
           </div>
           <div className="student-id-card-code">{formatCode(s.registration_code)}</div>
@@ -149,35 +151,33 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
       subtitle="Berisi kode registrasi, PIN, dan QR untuk masuk portal wali"
       icon={<IdcardOutlined />}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Ukuran kartu asli 85,6 × 54 mm (ID-1) — tersusun 10 kartu per lembar A4, siap potong
-          </Typography.Text>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button onClick={onClose}>Tutup</Button>
-            <Button
-              type="primary"
-              icon={<PrinterOutlined />}
-              disabled={visible.length === 0}
-              onClick={() => {
-                message.info('Gunakan kertas A4 & margin "Default" pada dialog cetak')
-                setPrinting(true)
-              }}
-            >
-              Cetak
-            </Button>
-          </div>
-        </div>
+        <ModalFooter
+          left={
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Ukuran kartu asli 85,6 × 54 mm (ID-1), tersusun 10 kartu per lembar A4, siap potong
+            </Typography.Text>
+          }
+          onCancel={onClose}
+          cancelText="Tutup"
+          onOk={() => {
+            message.info('Gunakan kertas A4 & margin "Default" pada dialog cetak')
+            setPrinting(true)
+          }}
+          okText="Cetak"
+          okIcon={<PrinterOutlined />}
+          okDisabled={visible.length === 0}
+        />
       }
     >
       {overflow > 0 && (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 12, borderRadius: 10 }}
-          message={`Menampilkan ${MAX_CARDS} kartu pertama dari ${students.length} siswa`}
-          description="Pilih lebih sedikit siswa untuk mencetak semuanya."
-        />
+        <div style={{ marginBottom: 12 }}>
+          <ModalNotice
+            tone="info"
+            title={`Menampilkan ${MAX_CARDS} kartu pertama dari ${students.length} siswa`}
+          >
+            Pilih lebih sedikit siswa untuk mencetak semuanya.
+          </ModalNotice>
+        </div>
       )}
 
       {students.length === 1 && visible[0] && (
@@ -185,8 +185,8 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
           {visible[0].pin ? (
             <Popconfirm
               title="Buat ulang PIN?"
-              description="PIN lama berhenti berlaku — kartu yang sudah tercetak harus dicetak ulang."
-              okText="Buat Ulang"
+              description="PIN lama berhenti berlaku, kartu yang sudah tercetak harus dicetak ulang."
+              okText="Ya, Buat Ulang"
               cancelText="Batal"
               onConfirm={() => handleGenerate([visible[0]])}
             >
@@ -209,15 +209,11 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
       )}
 
       {missingPin > 0 && students.length > 1 && (
-        <Alert
-          type="warning"
-          showIcon
-          icon={<KeyOutlined />}
-          style={{ marginBottom: 12, borderRadius: 10 }}
-          message={`${missingPin} siswa belum memiliki PIN`}
-          description={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span>Wali memakai PIN untuk masuk ke portal — buat PIN sebelum kartu dibagikan.</span>
+        <div style={{ marginBottom: 12 }}>
+          <ModalNotice
+            tone="warning"
+            title={`${missingPin} siswa belum memiliki PIN`}
+            action={
               <Button
                 size="small"
                 type="primary"
@@ -228,17 +224,19 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
               >
                 Buat PIN untuk {missingPin} siswa
               </Button>
-            </div>
-          }
-        />
+            }
+          >
+            Wali memakai PIN untuk masuk ke portal, buat PIN sebelum kartu dibagikan.
+          </ModalNotice>
+        </div>
       )}
 
       {hasPinCount > 0 && students.length > 1 && (
         <div style={{ marginBottom: 12, textAlign: 'right' }}>
           <Popconfirm
             title="Buat ulang semua PIN?"
-            description={`${hasPinCount} PIN yang sudah ada akan diganti — kartu tercetak harus dicetak ulang.`}
-            okText="Buat Ulang Semua"
+            description={`${hasPinCount} PIN yang sudah ada akan diganti, kartu tercetak harus dicetak ulang.`}
+            okText="Ya, Buat Ulang Semua"
             cancelText="Batal"
             onConfirm={() => handleGenerate(visible)}
           >

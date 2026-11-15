@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase'
 import type { Book, BookFormValues, BookLoan, LoanFormValues } from './types'
 
 const LOAN_SELECT =
-  '*, students(id, name, registration_code, classes(name)), books(id, title, code)'
+  '*, students(id, name, registration_code, classes!students_class_id_fkey(name)), books(id, title, code)'
 
 // ------------------------------------------------------------
 // Buku

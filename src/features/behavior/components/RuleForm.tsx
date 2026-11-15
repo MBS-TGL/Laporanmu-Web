@@ -74,7 +74,7 @@ export function RuleForm({ open, rule, submitting, onCancel, onSubmit }: RuleFor
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={submitting}
-      width={480}
+      size="sm"
       destroyOnHidden
     >
       <Form<RuleFormState>

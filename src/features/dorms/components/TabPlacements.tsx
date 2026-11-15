@@ -1,9 +1,13 @@
 import { useMemo, useState, type Key, type ReactNode } from 'react'
-import { Button, Card, Input, Popconfirm, Select, Space, Table, Tag, Typography, type TableColumnsType } from 'antd'
-import { CheckCircleOutlined, ClearOutlined, QuestionCircleOutlined, SearchOutlined, SwapOutlined, TeamOutlined, UserDeleteOutlined } from '@ant-design/icons'
+import { App, Button, Card, Dropdown, Input, Popconfirm, Select, Space, Table, Tag, Typography, type TableColumnsType } from 'antd'
+import { CheckCircleOutlined, ClearOutlined, DownloadOutlined, FileExcelOutlined, FileTextOutlined, QuestionCircleOutlined, SearchOutlined, SwapOutlined, TeamOutlined, UserDeleteOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
 import { StatChip } from '../../../shared/components/StatChip'
+import { downloadCsv } from '../../../shared/utils/csv'
+import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { usePermissions } from '../../../shared/hooks/useProfile'
-import { useClassesBrief, usePlacementCounts, usePlacements } from '../hooks'
+import { downloadPlacementsXlsx } from '../api'
+import { useClassesBrief, usePlacementCounts, usePlacements, usePlacementsExport } from '../hooks'
 import type { Placement } from '../types'
 
 const GENDER_LABEL: Record<string, string> = { L: 'Laki-laki', P: 'Perempuan' }
@@ -18,11 +22,16 @@ interface TabPlacementsProps {
   onMoveOne: (studentId: string) => void
   /** Kosongkan penempatan satu/berapa santri */
   onEvict: (studentIds: string[]) => void
+  /** Buka modal penempatan via teks (tempel daftar) */
+  onOpenTextPlace?: () => void
 }
 
-export function TabPlacements({ onAssign, onMoveOne, onEvict }: TabPlacementsProps) {
+export function TabPlacements({ onAssign, onMoveOne, onEvict, onOpenTextPlace }: TabPlacementsProps) {
+  const { message } = App.useApp()
   const { canWrite } = usePermissions()
   const [search, setSearch] = useState('')
+  // Pencarian di-debounce sebelum jadi query server (tabel ini server-paginated)
+  const debouncedSearch = useDebounce(search, 300)
   const [gender, setGender] = useState<'L' | 'P' | undefined>()
   const [classId, setClassId] = useState<string | undefined>()
   const [status, setStatus] = useState<PlacementStatus>('all')
@@ -31,8 +40,8 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict }: TabPlacementsPro
   const [selectedKeys, setSelectedKeys] = useState<Key[]>([])
 
   const filters = useMemo(
-    () => ({ search: search || undefined, gender, classId, placement: status, page, pageSize }),
-    [search, gender, classId, status, page, pageSize],
+    () => ({ search: debouncedSearch || undefined, gender, classId, placement: status, page, pageSize }),
+    [debouncedSearch, gender, classId, status, page, pageSize],
   )
 
   const query = usePlacements(filters)
@@ -62,6 +71,40 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict }: TabPlacementsPro
       }}
     />
   )
+
+  // ------------------------------------------------------------
+  // Export penempatan — CSV & Excel, mengikuti filter aktif di tab ini
+  // ------------------------------------------------------------
+  const exportMutation = usePlacementsExport()
+  const handleExport = (format: 'csv' | 'xlsx') => {
+    exportMutation.mutate(
+      { search: debouncedSearch || undefined, gender, classId, placement: status },
+      {
+        onSuccess: (data) => {
+          if (data.length === 0) {
+            message.warning('Tidak ada data penempatan untuk diekspor')
+            return
+          }
+          if (format === 'xlsx') {
+            void downloadPlacementsXlsx(data)
+          } else {
+            downloadCsv(
+              `penempatan-santri-${dayjs().format('YYYY-MM-DD')}.csv`,
+              ['Nama Santri', 'Kelas', 'Gender', 'Asrama'],
+              data.map((p) => [
+                p.name,
+                p.classes?.name ?? '',
+                p.gender ? (GENDER_LABEL[p.gender] ?? p.gender) : '',
+                p.dorms?.name ?? '',
+              ]),
+            )
+          }
+          message.success(`${data.length} baris penempatan diekspor`)
+        },
+        onError: (err: Error) => message.error(err.message || 'Gagal mengekspor penempatan'),
+      },
+    )
+  }
 
   const columns: TableColumnsType<Placement> = [
     {
@@ -134,7 +177,7 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict }: TabPlacementsPro
       </Space>
 
       <Card>
-        <Space wrap style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
           <Input
             placeholder="Cari nama santri"
             prefix={<SearchOutlined />}
@@ -144,7 +187,7 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict }: TabPlacementsPro
               setSearch(e.target.value)
               setPage(1)
             }}
-            style={{ width: 220 }}
+            style={{ flex: 1, minWidth: 220 }}
           />
           <Select
             placeholder="Kelas"
@@ -174,7 +217,29 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict }: TabPlacementsPro
               { value: 'P', label: 'Perempuan' },
             ]}
           />
-        </Space>
+          {canWrite && onOpenTextPlace && (
+            <Button icon={<FileTextOutlined />} onClick={onOpenTextPlace}>
+              Tempel Teks
+            </Button>
+          )}
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'csv', icon: <FileTextOutlined />, label: 'Export CSV' },
+                { key: 'xlsx', icon: <FileExcelOutlined />, label: 'Export Excel' },
+              ],
+              onClick: ({ key }) => handleExport(key as 'csv' | 'xlsx'),
+            }}
+          >
+            <Button
+              icon={<DownloadOutlined />}
+              loading={exportMutation.isPending}
+              style={{ marginInlineStart: 'auto' }}
+            >
+              Export
+            </Button>
+          </Dropdown>
+        </div>
 
         {selectedKeys.length > 0 && (
           <div

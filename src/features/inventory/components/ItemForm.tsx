@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { AutoComplete, DatePicker, Form, Input, InputNumber, Select } from 'antd'
 import { InboxOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -34,12 +34,17 @@ interface ItemFormProps {
   open: boolean
   item: InventoryItem | null
   submitting: boolean
+  usedCategories?: string[]
   onCancel: () => void
   onSubmit: (values: ItemFormValues) => void
 }
 
-export function ItemForm({ open, item, submitting, onCancel, onSubmit }: ItemFormProps) {
+export function ItemForm({ open, item, submitting, usedCategories = [], onCancel, onSubmit }: ItemFormProps) {
   const [form] = Form.useForm<ItemFormShape>()
+  const categoryOptions = useMemo(
+    () => Array.from(new Set([...PRESET_CATEGORIES, ...usedCategories.filter(Boolean)])).map((c) => ({ value: c })),
+    [usedCategories],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -118,7 +123,7 @@ export function ItemForm({ open, item, submitting, onCancel, onSubmit }: ItemFor
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 12px' }}>
           <Form.Item name="category" label="Kategori">
             <AutoComplete
-              options={PRESET_CATEGORIES.map((c) => ({ value: c }))}
+              options={categoryOptions}
               filterOption={(input, option) =>
                 String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
               }

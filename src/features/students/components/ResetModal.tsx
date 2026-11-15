@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Alert, App, Button, Input, Select, Tooltip, Typography } from 'antd'
+import { App, Input, Select, Typography } from 'antd'
 import { ClearOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalFooter } from '../../../shared/components/ModalFooter'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
 import { useClassesBrief, useResetPoints, useStudentStats } from '../hooks'
 import { useClassGenderCounts } from '../../classes/hooks'
 
@@ -64,40 +66,28 @@ export function ResetModal({ open, onClose, defaultClassId }: ResetModalProps) {
       title="Reset Poin"
       subtitle="Bersihkan semua poin untuk semester baru"
       footer={
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Button onClick={onClose}>Batal</Button>
-          <Tooltip title={ready ? '' : 'Ketik RESET untuk mengaktifkan tombol'}>
-            <span style={{ display: 'inline-flex' }}>
-              <Button
-                danger
-                type="primary"
-                disabled={!ready}
-                loading={resetMutation.isPending}
-                onClick={handleReset}
-              >
-                Reset Poin
-              </Button>
-            </span>
-          </Tooltip>
-        </div>
+        <ModalFooter
+          onCancel={onClose}
+          onOk={handleReset}
+          okText="Reset Poin"
+          okDanger
+          okDisabled={!ready}
+          okLoading={resetMutation.isPending}
+          okTooltip={ready ? '' : 'Ketik RESET untuk mengaktifkan tombol'}
+        />
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Alert
-          type="warning"
-          showIcon
-          message="Tindakan ini tidak dapat dibatalkan"
-          description={
-            affectedCount !== undefined ? (
-              <span>
-                Poin <Text strong>{affectedCount} siswa</Text> pada <Text strong>{scopeLabel}</Text> akan
-                diubah menjadi 0. Riwayat laporan perilaku tidak ikut dihapus.
-              </span>
-            ) : (
-              'Semua poin siswa pada cakupan yang dipilih akan diubah menjadi 0. Riwayat laporan perilaku tidak ikut dihapus.'
-            )
-          }
-        />
+        <ModalNotice tone="warning" title="Tindakan ini tidak dapat dibatalkan">
+          {affectedCount !== undefined ? (
+            <span>
+              Poin <Text strong>{affectedCount} siswa</Text> pada <Text strong>{scopeLabel}</Text> akan
+              diubah menjadi 0. Riwayat laporan perilaku tidak ikut dihapus.
+            </span>
+          ) : (
+            'Semua poin siswa pada cakupan yang dipilih akan diubah menjadi 0. Riwayat laporan perilaku tidak ikut dihapus.'
+          )}
+        </ModalNotice>
 
         <div>
           <Text strong style={{ display: 'block', marginBottom: 6, fontSize: 13 }}>

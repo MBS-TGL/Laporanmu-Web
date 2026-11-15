@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react'
 import {
   AutoComplete,
   Avatar,
@@ -37,17 +37,23 @@ import {
   type NavItem,
 } from '../shared/constants/navItems'
 import { useProfile } from '../shared/hooks/useProfile'
+import { useRbac } from '../shared/rbac/useRbac'
+import { useFlagMap } from '../shared/hooks/useFeatureFlags'
 import { useLogout } from '../features/auth/hooks'
 import { useNotifications, type AppNotification } from '../shared/hooks/useNotifications'
-import { ChatAssistant } from './ChatAssistant'
+
+// Lazy: chunk asisten chat hanya terunduh saat pertama dibuka.
+const ChatAssistant = lazy(() =>
+  import('./ChatAssistant').then((m) => ({ default: m.ChatAssistant })),
+)
 
 const { Header } = Layout
 
 const ROLE_LABEL: Record<string, string> = {
   developer: 'Developer',
   admin: 'Admin',
-  pengurus: 'Pengurus',
-  guru: 'Guru',
+  manager: 'Pengurus',
+  teacher: 'Guru',
   pending: 'Pending',
 }
 
@@ -218,6 +224,8 @@ export function Topbar({
   const { notifications, loading, refreshing, dismiss, refresh } = useNotifications()
 
   const role = profile?.role ?? null
+  const flagMap = useFlagMap()
+  const { can } = useRbac()
 
   // ── Pencarian halaman (AutoComplete — keyboard nav & klik-luar bawaan antd) ──
   const [searchQuery, setSearchQuery] = useState('')
@@ -226,11 +234,11 @@ export function Topbar({
 
   const searchItems = useMemo<SearchItem[]>(() => {
     const items: SearchItem[] = [{ ...DASHBOARD_ITEM, _groupLabel: '' }]
-    filterNavGroups(NAV_GROUPS, role).forEach((group) => {
+    filterNavGroups(NAV_GROUPS, role, flagMap, can).forEach((group) => {
       group.items.forEach((item) => items.push({ ...item, _groupLabel: group.label }))
     })
     return items
-  }, [role])
+  }, [role, flagMap, can])
 
   const searchOptions = useMemo<SearchOption[]>(
     () =>
@@ -289,6 +297,12 @@ export function Topbar({
 
   // ── Asisten AI ────────────────────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false)
+  // Mount sekali setelah pertama dibuka: chunk lazy terunduh belakangan,
+  // animasi Drawer antd tetap utuh di buka/tutup berikutnya.
+  const [chatMounted, setChatMounted] = useState(false)
+  useEffect(() => {
+    if (chatOpen) setChatMounted(true)
+  }, [chatOpen])
 
   const initials = (profile?.name ?? '?')
     .split(' ')
@@ -653,10 +667,8 @@ export function Topbar({
                 type="text"
                 icon={
                   <BellOutlined
-                    style={{
-                      fontSize: 17,
-                      animation: urgentCount > 0 ? 'tbBellShake 2s ease-in-out infinite' : undefined,
-                    }}
+                    className={urgentCount > 0 ? 'tb-bell-shake' : undefined}
+                    style={{ fontSize: 17 }}
                   />
                 }
                 aria-label="Notifikasi"
@@ -673,7 +685,11 @@ export function Topbar({
         </div>
       </Header>
 
-      <ChatAssistant open={chatOpen} onClose={() => setChatOpen(false)} />
+      {chatMounted && (
+        <Suspense fallback={null}>
+          <ChatAssistant open={chatOpen} onClose={() => setChatOpen(false)} />
+        </Suspense>
+      )}
     </>
   )
 }

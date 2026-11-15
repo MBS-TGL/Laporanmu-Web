@@ -1,6 +1,7 @@
 import { Spin, Result } from 'antd'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { isRoleAllowed, useProfile, useSession } from '../hooks/useProfile'
+import { PendingGate } from './PendingGate'
 
 export function ProtectedRoute() {
   const sessionQuery = useSession()
@@ -30,6 +31,9 @@ export function ProtectedRoute() {
   }
 
   if (!isRoleAllowed(profile.role)) {
+    // Akun 'pending' mendapat layar khusus menunggu persetujuan;
+    // role tak dikenal tetap 403 generik.
+    if (profile.role === 'pending') return <PendingGate email={profile.email} />
     return (
       <Result
         status="403"

@@ -26,7 +26,6 @@ import {
   EditOutlined,
   ExportOutlined,
   IdcardOutlined,
-  KeyOutlined,
   MoreOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -36,12 +35,13 @@ import {
   ThunderboltOutlined,
   UserOutlined,
   WarningOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatChip } from '../../shared/components/StatChip'
 import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
-import { BulkActionBar } from '../../shared/components/BulkActionBar'
-import { TableSortIcon } from '../../shared/components/TableSortIcon'
+import { ActionBar } from '../../shared/components/ActionBar'
+import { SortIcon } from '../../shared/components/SortIcon'
 import { columnSortOrder, sortByFromTableChange } from '../../shared/utils/tableSort'
 import { Kbd, ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
@@ -60,7 +60,7 @@ import {
 import { ClassForm } from './components/ClassForm'
 import { ClassDrawer } from './components/ClassDrawer'
 import { ExportModal } from './components/ExportModal'
-import { BulkHomeroomModal } from './components/BulkHomeroomModal'
+import { HomeroomModal } from './components/HomeroomModal'
 import type { ClassFormValues, ClassRow } from './types'
 
 type ClassSort = 'name_asc' | 'name_desc' | 'grade_asc' | 'grade_desc' | 'count_desc' | 'count_asc'
@@ -302,8 +302,7 @@ export function ClassesPage() {
     })
   }
 
-  const confirmBulkArchive = () => {
-    const ids = selectedIds
+  const bulkArchive = (ids: string[]) => {
     const blocked = allClasses.filter((c) => ids.includes(c.id) && countOf(c) > 0)
     if (blocked.length > 0) {
       modal.warning({
@@ -313,21 +312,13 @@ export function ClassesPage() {
       })
       return
     }
-    modal.confirm({
-      title: `Arsipkan ${ids.length} kelas terpilih?`,
-      content: 'Data akan ditandai terhapus (soft delete).',
-      okText: 'Arsipkan',
-      okButtonProps: { danger: true },
-      cancelText: 'Batal',
-      onOk: () =>
-        bulkDeleteMutation
-          .mutateAsync(ids)
-          .then(() => {
-            setSelectedIds([])
-            message.success(`${ids.length} kelas diarsipkan`)
-          })
-          .catch((err: Error) => message.error(err.message || 'Gagal mengarsipkan kelas')),
-    })
+    bulkDeleteMutation
+      .mutateAsync(ids)
+      .then(() => {
+        setSelectedIds([])
+        message.success(`${ids.length} kelas diarsipkan`)
+      })
+      .catch((err: Error) => message.error(err.message || 'Gagal mengarsipkan kelas'))
   }
 
   const handleBulkHomeroom = (teacherId: string | null) => {
@@ -451,11 +442,11 @@ export function ClassesPage() {
     resetPage()
   }
 
-  // Ikon sorter gaya Esceha.id — template di shared/components/TableSortIcon.
+  // Ikon sorter gaya Esceha.id — template di shared/components/SortIcon.
   // Dibungkus fungsi: antd memanggil sortIcon sebagai fungsi biasa, jadi komponen
   // harus dirender sebagai elemen agar hooks-nya legal.
   const sortIcon = ({ sortOrder }: { sortOrder?: 'ascend' | 'descend' | null }) => (
-    <TableSortIcon sortOrder={sortOrder} />
+    <SortIcon sortOrder={sortOrder} />
   )
 
   const columns: TableColumnsType<ClassRow> = [
@@ -595,7 +586,7 @@ export function ClassesPage() {
               </Tooltip>
             </Dropdown>
             <Tooltip title="Shortcut keyboard (?)">
-              <Button icon={<KeyOutlined />} onClick={shortcuts.open} />
+              <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
             </Tooltip>
             {canWrite && (
               <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
@@ -628,6 +619,7 @@ export function ClassesPage() {
           color="amber"
           loading={classesQuery.isPending}
           active={noHomeroom}
+          hideIfZero
           onClick={() => {
             setNoHomeroom((v) => !v)
             resetPage()
@@ -640,6 +632,7 @@ export function ClassesPage() {
           color="rose"
           loading={genderCountsQuery.isPending}
           active={emptyClass}
+          hideIfZero
           onClick={() => {
             setEmptyClass((v) => !v)
             resetPage()
@@ -804,21 +797,28 @@ export function ClassesPage() {
         />
       </Card>
 
-      <BulkActionBar count={selectedIds.length} onClear={() => setSelectedIds([])}>
-        <Button size="small" icon={<ExportOutlined />} onClick={() => openExport('selected')}>
-          Ekspor
-        </Button>
-        {canWrite && (
-          <Button size="small" icon={<UserOutlined />} onClick={() => setHomeroomOpen(true)}>
-            Wali Kelas
-          </Button>
-        )}
-        {canDelete && (
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={confirmBulkArchive}>
-            Arsipkan
-          </Button>
-        )}
-      </BulkActionBar>
+      <ActionBar
+        count={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        actions={[
+          { key: 'export', label: 'Ekspor', icon: <ExportOutlined />, onClick: () => openExport('selected') },
+          { key: 'homeroom', label: 'Wali Kelas', icon: <UserOutlined />, hidden: !canWrite, onClick: () => setHomeroomOpen(true) },
+          {
+            key: 'archive',
+            label: 'Arsipkan',
+            icon: <DeleteOutlined />,
+            variant: 'danger',
+            hidden: !canDelete,
+            loading: bulkDeleteMutation.isPending,
+            confirm: {
+              title: `Arsipkan ${selectedIds.length} kelas terpilih?`,
+              description: 'Data akan ditandai terhapus (soft delete).',
+              okText: 'Ya, Arsipkan',
+            },
+            onClick: () => bulkArchive(selectedIds),
+          },
+        ]}
+      />
 
       <ClassForm
         open={formOpen}
@@ -844,7 +844,7 @@ export function ClassesPage() {
         filteredCount={rows.length}
       />
 
-      <BulkHomeroomModal
+      <HomeroomModal
         open={homeroomOpen}
         count={selectedIds.length}
         submitting={homeroomBulkMutation.isPending}

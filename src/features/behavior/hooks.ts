@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { searchStudents } from '../students/api'
+import { maybeSendViolationWa } from './waAuto'
 import {
   createPointRule,
   createReport,
@@ -108,6 +109,8 @@ export function useCreateReport() {
       void qc.invalidateQueries({ queryKey: ['behavior-reports'] })
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      // WA otomatis ke wali bila toggle aktif — fire-and-forget, gagal tidak memblokir
+      void maybeSendViolationWa(report)
     },
   })
 }

@@ -1,9 +1,11 @@
-import Papa from 'papaparse'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
+import { hardDelete, hardDeleteMany } from '../../shared/api/crud'
 import { isIncomplete, type CompletenessFields } from './completeness'
 import type {
   GraduationSnapshot,
+  PromotionClassBrief,
+  PromotionMove,
   SortOption,
   Student,
   StudentBrief,
@@ -116,43 +118,6 @@ export async function fetchAllStudents(
 }
 
 /** Baris ekspor — satu sumber untuk CSV & Excel agar kolomnya selalu sinkron */
-function studentExportRow(s: Student) {
-  return {
-    Nama: s.name,
-    'Kode Registrasi': s.registration_code,
-    NISN: s.nisn ?? '',
-    NIS: s.nis ?? '',
-    Gender: s.gender ?? '',
-    Status: s.status,
-    Kelas: s.classes?.name ?? '',
-    Asrama: s.dorms?.name ?? '',
-    Poin: s.total_points,
-    Telepon: s.phone ?? '',
-    Wali: s.guardian_name ?? '',
-  }
-}
-
-export function downloadStudentsCsv(students: Student[]): void {
-  const csv = Papa.unparse(students.map(studentExportRow))
-  // BOM agar Excel membaca UTF-8 dengan benar
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `data-siswa-${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-// XLSX di-load on-demand — hanya dibutuhkan saat ekspor Excel
-export async function downloadStudentsXlsx(students: Student[]): Promise<void> {
-  const XLSX = await import('xlsx')
-  const sheet = XLSX.utils.json_to_sheet(students.map(studentExportRow))
-  const book = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(book, sheet, 'Siswa')
-  XLSX.writeFile(book, `data-siswa-${new Date().toISOString().slice(0, 10)}.xlsx`)
-}
-
 function payload(values: StudentFormValues) {
   return {
     name: values.name,
@@ -282,6 +247,13 @@ export async function restoreGraduationSnapshot(
   if (error) throw error
 }
 
+/** Ambil satu siswa berdasar id — dipakai DetailProvider (deep link antar modul). */
+export async function fetchStudentById(id: string): Promise<Student> {
+  const { data, error } = await supabase.from('students').select(SELECT_STR).eq('id', id).single()
+  if (error) throw error
+  return data as Student
+}
+
 /** Update tags/label siswa saja (dipakai popover Label di drawer detail) */
 export async function updateStudentTags(id: string, tags: string[]): Promise<Student> {  const { data, error } = await supabase
     .from('students')
@@ -392,7 +364,9 @@ export async function fetchStudentStats(): Promise<StudentStats> {
       .select(
         'id, name, gender, total_points, class_id, photo_url, nisn, nis, nik, phone, address, birth_place, birth_date, religion, guardian_name, kk_number, origin_school, tags, classes!students_class_id_fkey(name)',
       )
-      .is('deleted_at', null),
+      .is('deleted_at', null)
+      // Chips statistik merepresentasikan santri aktif — lulus/pindah/keluar tidak dihitung
+      .eq('status', 'active'),
     supabase.from('reports').select('points').gte('created_at', weekAgo),
   ])
 
@@ -453,7 +427,7 @@ export async function fetchStudentStats(): Promise<StudentStats> {
     }
   }
 
-  // Rekap kelengkapan per kelas — terendah dulu; kelas tanpa field kosong tak dilaporkan
+  // Rekap kelengkapan per kelas — terendah dulu; semua kelas dengan siswa dilaporkan
   const classCompleteness = [...classBuckets.entries()]
     .map(([id, b]) => ({
       id,
@@ -493,20 +467,15 @@ export async function fetchStudentStats(): Promise<StudentStats> {
 // ------------------------------------------------------------
 // Arsip siswa (soft delete) & pemulihan
 // ------------------------------------------------------------
-export async function fetchArchivedStudents(search?: string): Promise<Student[]> {
-  let query = supabase
+/** Semua siswa ter-soft delete — fetch sekali, filter/sort/search dilakukan di memori (pola AlumniPage) */
+export async function fetchArchivedStudents(): Promise<Student[]> {
+  const { data, error } = await supabase
     .from('students')
     .select(SELECT_STR)
     .not('deleted_at', 'is', null)
     .order('deleted_at', { ascending: false })
-    .limit(200)
+    .limit(1000)
 
-  if (search) {
-    const term = `%${search}%`
-    query = query.or(`name.ilike.${term},registration_code.ilike.${term},nisn.ilike.${term}`)
-  }
-
-  const { data, error } = await query
   if (error) throw error
   return (data ?? []) as Student[]
 }
@@ -520,6 +489,16 @@ export async function restoreStudentsBulk(ids: string[]): Promise<void> {
   if (ids.length === 0) return
   const { error } = await supabase.from('students').update({ deleted_at: null }).in('id', ids)
   if (error) throw error
+}
+
+/** Hapus permanen siswa dari database — HANYA di Arsip Siswa, gated `canDelete`. */
+export async function hardDeleteStudent(id: string): Promise<void> {
+  await hardDelete('students', id)
+}
+
+/** Hapus permanen massal siswa — HANYA di Arsip Siswa, gated `canDelete`. */
+export async function hardDeleteStudentsBulk(ids: string[]): Promise<void> {
+  await hardDeleteMany('students', ids)
 }
 
 export async function deleteStudentsBulk(ids: string[]): Promise<void> {
@@ -538,6 +517,49 @@ export async function moveStudentsBulk(ids: string[], classId: string): Promise<
   if (ids.length === 0) return
   const { error } = await supabase.from('students').update({ class_id: classId }).in('id', ids)
   if (error) throw error
+}
+
+/** Kelas lengkap dengan grade & tahun ajaran — dipakai pemetaan wizard kenaikan kelas (0030) */
+export async function fetchClassesForPromotion(): Promise<PromotionClassBrief[]> {
+  const { data, error } = await supabase
+    .from('classes')
+    .select('id, name, grade, major, academic_year_id, academic_year:academic_years(name)')
+    .is('deleted_at', null)
+    .order('name')
+  if (error) throw error
+  type Raw = {
+    id: string
+    name: string
+    grade: string | null
+    major: string | null
+    academic_year_id: string | null
+    academic_year?: { name: string } | null
+  }
+  return ((data ?? []) as unknown as Raw[]).map((r) => ({
+    id: r.id,
+    name: r.name,
+    grade: r.grade,
+    major: r.major,
+    academic_year_id: r.academic_year_id,
+    academic_year_name: r.academic_year?.name ?? null,
+  }))
+}
+
+/** Naik kelas massal per batch (RPC 0030) — mengembalikan batch ID untuk undo */
+export async function promoteStudents(moves: PromotionMove[]): Promise<string> {
+  if (moves.length === 0) return ''
+  const { data, error } = await supabase.rpc('promote_students', {
+    p_moves: moves.map((m) => ({ student_id: m.studentId, class_id: m.classId })),
+  })
+  if (error) throw error
+  return data as string
+}
+
+/** Batalkan kenaikan kelas satu batch (RPC 0030) */
+export async function undoPromotion(batchId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('undo_promotion', { p_batch_id: batchId })
+  if (error) throw error
+  return (data as number) ?? 0
 }
 
 // ------------------------------------------------------------
@@ -559,6 +581,189 @@ export async function revertGraduation(id: string): Promise<void> {
     .update({ status: 'active', graduated_at: null, graduation_year: null, last_class_id: null })
     .eq('id', id)
   if (error) throw error
+}
+
+// ------------------------------------------------------------
+// Fitur Alumni: Manual Tambah, Edit, & Impor Massal
+// ------------------------------------------------------------
+export interface AlumniFormValues {
+  name: string
+  gender: 'L' | 'P'
+  graduation_year: number
+  nisn?: string
+  last_class_id?: string
+  graduated_at?: string
+  phone?: string
+}
+
+export interface ExistingAlumniKey {
+  id: string
+  nisn: string | null
+  name: string
+  graduation_year: number | null
+}
+
+export interface ImportAlumniRowPayload {
+  name: string
+  gender: 'L' | 'P'
+  graduation_year: number
+  nisn?: string
+  last_class_id?: string
+  graduated_at?: string
+  phone?: string
+}
+
+export interface ImportAlumniResult {
+  row_index: number
+  ok: boolean
+  error: string | null
+}
+
+/** Ambil seluruh siswa (non-deleted) untuk pra-cek duplikat alumni (NISN / Nama + Tahun) */
+export async function fetchExistingAlumniKeys(): Promise<ExistingAlumniKey[]> {
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, nisn, name, graduation_year')
+    .is('deleted_at', null)
+  if (error) throw error
+  return (data ?? []) as ExistingAlumniKey[]
+}
+
+/** Ambil ID alumni yang memiliki riwayat laporan poin di tabel reports */
+export async function fetchAlumniWithPointsHistory(studentIds: string[]): Promise<Set<string>> {
+  if (studentIds.length === 0) return new Set()
+  const { data, error } = await supabase
+    .from('reports')
+    .select('student_id')
+    .in('student_id', studentIds)
+    .limit(10000)
+  if (error) {
+    console.warn('Gagal mengecek riwayat laporan alumni:', error)
+    return new Set()
+  }
+  const set = new Set<string>()
+  for (const r of data ?? []) {
+    if (r.student_id) set.add(r.student_id)
+  }
+  return set
+}
+
+/** Helper generator kode registrasi acak untuk alumni */
+function generateAlumniRegistrationCode(year: number, existingCodes: Set<string>): string {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const rand = Math.floor(1000 + Math.random() * 9000)
+    const code = `ALM-${year}-${rand}`
+    if (!existingCodes.has(code.toLowerCase())) {
+      existingCodes.add(code.toLowerCase())
+      return code
+    }
+  }
+  const timestamp = Date.now().toString().slice(-6)
+  const code = `ALM-${year}-${timestamp}`
+  existingCodes.add(code.toLowerCase())
+  return code
+}
+
+export async function createAlumni(values: AlumniFormValues): Promise<Student> {
+  const existingCodesList = await fetchExistingStudentCodes()
+  const codeSet = new Set(existingCodesList.map((c) => c.toLowerCase()))
+  const regCode = generateAlumniRegistrationCode(values.graduation_year, codeSet)
+
+  const insertData = {
+    name: values.name.trim(),
+    registration_code: regCode,
+    gender: values.gender,
+    status: 'graduated',
+    graduation_year: values.graduation_year,
+    graduated_at: values.graduated_at || null,
+    last_class_id: values.last_class_id || null,
+    nisn: values.nisn?.trim() || null,
+    phone: values.phone?.trim() || null,
+    total_points: 0,
+  }
+
+  const { data, error } = await supabase
+    .from('students')
+    .insert(insertData)
+    .select(SELECT_STR)
+    .single()
+
+  if (error) throw error
+  return data as Student
+}
+
+export async function updateAlumni(id: string, values: AlumniFormValues): Promise<Student> {
+  const updateData = {
+    name: values.name.trim(),
+    gender: values.gender,
+    graduation_year: values.graduation_year,
+    graduated_at: values.graduated_at || null,
+    last_class_id: values.last_class_id || null,
+    nisn: values.nisn?.trim() || null,
+    phone: values.phone?.trim() || null,
+  }
+
+  const { data, error } = await supabase
+    .from('students')
+    .update(updateData)
+    .eq('id', id)
+    .select(SELECT_STR)
+    .single()
+
+  if (error) throw error
+  return data as Student
+}
+
+export async function importAlumniBatch(
+  rows: ImportAlumniRowPayload[],
+  onProgress?: (processed: number, total: number) => void,
+): Promise<ImportAlumniResult[]> {
+  if (rows.length === 0) return []
+
+  const existingCodesList = await fetchExistingStudentCodes()
+  const codeSet = new Set(existingCodesList.map((c) => c.toLowerCase()))
+
+  const CHUNK_SIZE = 500
+  const results: ImportAlumniResult[] = []
+
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + CHUNK_SIZE)
+    const payloads = chunk.map((r) => ({
+      name: r.name.trim(),
+      registration_code: generateAlumniRegistrationCode(r.graduation_year, codeSet),
+      gender: r.gender,
+      status: 'graduated',
+      graduation_year: r.graduation_year,
+      graduated_at: r.graduated_at || null,
+      last_class_id: r.last_class_id || null,
+      nisn: r.nisn?.trim() || null,
+      phone: r.phone?.trim() || null,
+      total_points: 0,
+    }))
+
+    const { error } = await supabase.from('students').insert(payloads)
+    if (!error) {
+      for (let j = 0; j < chunk.length; j++) {
+        results.push({ row_index: i + j + 1, ok: true, error: null })
+      }
+    } else {
+      // Fallback row-by-row agar baris valid tetap masuk jika chunk error
+      for (let j = 0; j < chunk.length; j++) {
+        const { error: rowError } = await supabase.from('students').insert(payloads[j])
+        results.push({
+          row_index: i + j + 1,
+          ok: !rowError,
+          error: rowError ? rowError.message : null,
+        })
+      }
+    }
+
+    if (onProgress) {
+      onProgress(Math.min(i + CHUNK_SIZE, rows.length), rows.length)
+    }
+  }
+
+  return results
 }
 
 // ------------------------------------------------------------
@@ -616,6 +821,14 @@ export async function generateStudentPins(ids: string[]): Promise<GeneratedPin[]
 export interface WaSettingsStatus {
   configured: boolean
   sender_name: string | null
+  /** WA otomatis saat pelanggaran dicatat (migration 0026) */
+  auto_violation_wa: boolean
+  /** WA otomatis saat surat resmi BK diterbitkan (migration 0039) */
+  auto_bk_wa: boolean
+  /** WA otomatis saat mutasi tabungan (migration 0039) */
+  auto_savings_wa: boolean
+  /** WA otomatis saat pembayaran SPP dicatat (migration 0046) */
+  auto_spp_wa: boolean
   updated_at: string | null
 }
 
@@ -624,13 +837,25 @@ export async function fetchWaSettingsStatus(): Promise<WaSettingsStatus> {
   if (error) throw error
   const res = data as unknown as WaSettingsStatus | { error: string } | null
   if (res && 'error' in res) throw new Error(res.error)
-  return res ?? { configured: false, sender_name: null, updated_at: null }
+  return res ?? { configured: false, sender_name: null, auto_violation_wa: false, auto_bk_wa: false, auto_savings_wa: false, auto_spp_wa: false, updated_at: null }
 }
 
-export async function updateWaSettings(token: string, senderName: string): Promise<void> {
+export async function updateWaSettings(
+  token: string,
+  senderName: string,
+  autoViolation?: boolean,
+  autoBk?: boolean,
+  autoSavings?: boolean,
+  autoSpp?: boolean,
+): Promise<void> {
   const { data, error } = await supabase.rpc('update_wa_settings', {
     p_token: token,
     p_sender_name: senderName,
+    // null = biarkan nilai lama (pola sama dengan token)
+    p_auto_violation: autoViolation ?? null,
+    p_auto_bk: autoBk ?? null,
+    p_auto_savings: autoSavings ?? null,
+    p_auto_spp: autoSpp ?? null,
   })
   if (error) throw error
   const res = data as unknown as { ok?: boolean; error?: string } | null
@@ -667,4 +892,74 @@ export async function sendWaBroadcast(recipients: WaRecipient[]): Promise<WaBroa
     return { ok: false, reason: 'Gagal menghubungi server — periksa koneksi & login ulang' }
   }
   return (data ?? { ok: false, reason: 'Response kosong dari server' }) as WaBroadcastResult
+}
+
+// ─── Hub Wali (agregat student_guardians + anak) ────────────────────────────
+
+export interface GuardianFamilyStudent {
+  id: string
+  name: string
+  registration_code: string | null
+  class_name: string | null
+}
+
+export interface GuardianFamilyRow {
+  id: string
+  name: string | null
+  relation: 'father' | 'mother' | 'guardian'
+  phone: string | null
+  occupation: string | null
+  student: GuardianFamilyStudent | null
+}
+
+/**
+ * Semua baris guardian (RLS: developer/admin/pengurus saja) dengan anak
+ * ter-embed. Agregasi per keluarga dilakukan di klien — grup by no. HP,
+ * fallback nama (lihat tabs/WaliTab.tsx).
+ *
+ * Embed classes wajib hint FK — students punya 3 FK ke classes
+ * (gotcha "more than one relationship").
+ */
+export async function fetchGuardianFamilies(): Promise<GuardianFamilyRow[]> {
+  const { data, error } = await supabase
+    .from('student_guardians')
+    .select(
+      'id, name, relation, phone, occupation, ' +
+        'students!student_guardians_student_id_fkey(id, name, registration_code, deleted_at, classes!students_class_id_fkey(name))',
+    )
+    .is('deleted_at', null)
+    .is('students.deleted_at', null)
+    .order('name')
+  if (error) throw error
+  return (data ?? []).map((row) => {
+    const r = row as unknown as {
+      id: string
+      name: string | null
+      relation: 'father' | 'mother' | 'guardian'
+      phone: string | null
+      occupation: string | null
+      students: {
+        id: string
+        name: string
+        registration_code: string | null
+        deleted_at: string | null
+        classes: { name: string } | null
+      } | null
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      relation: r.relation,
+      phone: r.phone,
+      occupation: r.occupation,
+      student: r.students
+        ? {
+            id: r.students.id,
+            name: r.students.name,
+            registration_code: r.students.registration_code,
+            class_name: r.students.classes?.name ?? null,
+          }
+        : null,
+    }
+  })
 }

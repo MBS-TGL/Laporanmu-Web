@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'motion/react'
 import {
   Alert,
   App,
@@ -533,7 +534,12 @@ function GuardianShell({ children }: { children: React.ReactNode }) {
         padding: '24px 16px',
       }}
     >
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        style={{ maxWidth: 720, margin: '0 auto' }}
+      >
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <img src="/logo-icon.png" alt="Logo Laporanmu" width={44} height={44} style={{ marginBottom: 6 }} />
           <Typography.Title level={4} style={{ margin: 0 }}>
@@ -552,7 +558,7 @@ function GuardianShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

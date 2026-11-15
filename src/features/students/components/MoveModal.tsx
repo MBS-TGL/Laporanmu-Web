@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { App, Alert, Select, Space, Tag, Typography } from 'antd'
-import { RiseOutlined, SwapOutlined } from '@ant-design/icons'
+import { App, Select, Space, Tag, Typography } from 'antd'
+import { SwapOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
 import { useBulkMoveClassStudents, type ClassBrief } from '../hooks'
 import type { Student } from '../types'
 
@@ -77,7 +78,7 @@ export function MoveModal({ open, onClose, students, classes, onMoved }: MoveMod
       onCancel={onClose}
       width={520}
       title="Pindah Kelas Massal"
-      subtitle={`${students.length} siswa terpilih — pindahkan ke satu kelas tujuan`}
+      subtitle={`${students.length} siswa terpilih, pindahkan ke satu kelas tujuan`}
       icon={<SwapOutlined />}
       okText="Pindahkan"
       okButtonProps={{ disabled: !targetClassId, loading: moveMutation.isPending }}
@@ -113,26 +114,22 @@ export function MoveModal({ open, onClose, students, classes, onMoved }: MoveMod
         </div>
 
         {levelComparison && (
-          <Alert
-            type={levelComparison.down > 0 ? 'warning' : 'info'}
-            showIcon
-            icon={levelComparison.down > 0 ? <SwapOutlined /> : <RiseOutlined />}
-            message={
+          <ModalNotice
+            tone={levelComparison.down > 0 ? 'warning' : 'info'}
+            title={
               levelComparison.down > 0
                 ? `${levelComparison.down} siswa akan turun level kelas`
                 : levelComparison.same === levelComparison.comparable
                   ? `Semua siswa tinggal di level ${levelComparison.targetLevel}`
                   : `Naik ke level ${levelComparison.targetLevel}`
             }
-            description={
-              levelComparison.down > 0
-                ? 'Pastikan kelas tujuan sudah benar — perpindahan turun level biasanya tidak disengaja.'
-                : levelComparison.same === levelComparison.comparable
-                  ? 'Perpindahan tetap berlaku (mis. pergantian rombel).'
-                  : 'Perpindahan antar-level biasanya dilakukan saat kenaikan kelas.'
-            }
-            style={{ borderRadius: 10 }}
-          />
+          >
+            {levelComparison.down > 0
+              ? 'Pastikan kelas tujuan sudah benar, perpindahan turun level biasanya tidak disengaja.'
+              : levelComparison.same === levelComparison.comparable
+                ? 'Perpindahan tetap berlaku (mis. pergantian rombel).'
+                : 'Perpindahan antar-level biasanya dilakukan saat kenaikan kelas.'}
+          </ModalNotice>
         )}
       </Space>
     </AppModal>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { Alert, Form, Select } from 'antd'
+import { Alert, Form, Select, theme } from 'antd'
 import { SwapOutlined, TeamOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import { useDormRooms, usePlacementOptions } from '../hooks'
@@ -43,6 +43,7 @@ export function AssignModal({
   onSubmit,
 }: AssignModalProps) {
   const [form] = Form.useForm<AssignFormValues>()
+  const { token } = theme.useToken()
   const roomsQuery = useDormRooms()
   const studentsQuery = usePlacementOptions()
 
@@ -100,14 +101,14 @@ export function AssignModal({
       const mismatch = !selectedStudents.every((s) => genderMatches(room, s))
       return {
         value: room.id,
-        label: `${room.name} — ${room.occupied}/${room.capacity}${
-          remainingRoom > 0 ? ` (sisa ${remainingRoom})` : ' (penuh)'
+        label: `${room.name} (${room.occupied}/${room.capacity})${
+          remainingRoom > 0 ? ` · sisa ${remainingRoom}` : ' · penuh'
         }`,
         disabled: full || mismatch,
       }
     })
     if (!fixedDormId) {
-      opts.unshift({ value: '', label: '— Kosongkan dari asrama —', disabled: false })
+      opts.unshift({ value: '', label: 'Kosongkan dari asrama', disabled: false })
     }
     return opts
   }, [rooms, selectedStudents, fixedDormId])
@@ -132,7 +133,7 @@ export function AssignModal({
   return (
     <AppModal
       title="Penempatan Santri"
-      subtitle="Tempatkan santri ke kamar — kamar penuh dan gender yang tidak sesuai otomatis dinonaktifkan"
+      subtitle="Tempatkan santri ke kamar: kamar penuh dan gender yang tidak sesuai otomatis dinonaktifkan"
       icon={<TeamOutlined />}
       open={open}
       onCancel={onCancel}
@@ -204,10 +205,10 @@ export function AssignModal({
           gap: 8,
           marginTop: 12,
           fontSize: 12.5,
-          color: '#64748b',
+          color: token.colorTextSecondary,
         }}
       >
-        <SwapOutlined style={{ color: '#94a3b8' }} />
+        <SwapOutlined style={{ color: token.colorTextTertiary }} />
         {summary}
       </div>
     </AppModal>

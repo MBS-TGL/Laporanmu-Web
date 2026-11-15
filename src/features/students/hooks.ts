@@ -2,9 +2,12 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import {
+  createAlumni,
   createStudent,
   deleteStudentsBulk,
   fetchArchivedStudents,
+  fetchClassesForPromotion,
+  fetchExistingAlumniKeys,
   fetchExistingStudentCodes,
   fetchStudentGuardians,
   fetchStudentStats,
@@ -12,7 +15,11 @@ import {
   fetchWaSettingsStatus,
   generateStudentPins,
   graduateStudentsBulk,
+  hardDeleteStudent,
+  hardDeleteStudentsBulk,
+  importAlumniBatch,
   moveStudentsBulk,
+  promoteStudents,
   resetPoints,
   restoreGraduationSnapshot,
   restoreStudent,
@@ -21,12 +28,16 @@ import {
   saveStudentGuardians,
   sendWaBroadcast,
   softDeleteStudent,
+  undoPromotion,
+  updateAlumni,
   updateStudent,
   updateStudentPhoto,
   updateWaSettings,
+  type AlumniFormValues,
+  type ImportAlumniRowPayload,
   type WaRecipient,
 } from './api'
-import type { GraduationSnapshot, StudentFilters, StudentFormValues, StudentGuardianInput } from './types'
+import type { GraduationSnapshot, PromotionMove, StudentFilters, StudentFormValues, StudentGuardianInput } from './types'
 
 export interface ClassBrief {
   id: string
@@ -60,11 +71,11 @@ export function useClassesBrief() {  return useQuery({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('classes')
-        .select('id, name')
+        .select('id, name, grade')
         .is('deleted_at', null)
         .order('name')
       if (error) throw error
-      return (data ?? []) as ClassBrief[]
+      return (data ?? []) as (ClassBrief & { grade?: string | null })[]
     },
   })
 }
@@ -103,10 +114,10 @@ export function useStudentStats() {
   })
 }
 
-export function useArchivedStudents(search?: string) {
+export function useArchivedStudents() {
   return useQuery({
-    queryKey: ['students', 'archived', search ?? ''],
-    queryFn: () => fetchArchivedStudents(search || undefined),
+    queryKey: ['students', 'archived'],
+    queryFn: fetchArchivedStudents,
   })
 }
 
@@ -197,6 +208,76 @@ export function useBulkRestoreStudents() {
   })
 }
 
+export function useHardDeleteStudent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => hardDeleteStudent(id),
+    onSuccess: (_data, id) => {
+      void logAudit({ action: 'DELETE', source: 'MASTER', tableName: 'students', recordId: id, newData: { permanent: true } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
+    },
+  })
+}
+
+export function useHardDeleteStudentsBulk() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => hardDeleteStudentsBulk(ids),
+    onSuccess: (_data, ids) => {
+      void logAudit({ action: 'DELETE', source: 'MASTER', tableName: 'students', newData: { bulk_permanent_deleted: ids.length } })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
+    },
+  })
+}
+
+export function useClassesForPromotion() {
+  return useQuery({
+    queryKey: ['classes', 'for-promotion'],
+    queryFn: fetchClassesForPromotion,
+    staleTime: 60_000,
+  })
+}
+
+export function usePromoteStudents() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (moves: PromotionMove[]) => promoteStudents(moves),
+    onSuccess: (batchId, moves) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'OPERATIONAL',
+        tableName: 'students',
+        newData: { bulk_promoted: moves.length, batch_id: batchId },
+      })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
+    },
+  })
+}
+
+export function useUndoPromotion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (batchId: string) => undoPromotion(batchId),
+    onSuccess: (count, batchId) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'OPERATIONAL',
+        tableName: 'students',
+        newData: { promotion_undone: count, batch_id: batchId },
+      })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateClassCounts(qc)
+    },
+  })
+}
+
 export function useBulkMoveClassStudents() {
   const qc = useQueryClient()
   return useMutation({
@@ -251,6 +332,75 @@ export function useBulkRevertGraduation() {
       void qc.invalidateQueries({ queryKey: ['students'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
       invalidateClassCounts(qc)
+    },
+  })
+}
+
+/** Ambil data kunci seluruh siswa untuk pra-cek duplikat alumni */
+export function useExistingAlumniKeys(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['students', 'existing-alumni-keys'],
+    queryFn: fetchExistingAlumniKeys,
+    enabled,
+    staleTime: 60_000,
+  })
+}
+
+export function useCreateAlumni() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (values: AlumniFormValues) => createAlumni(values),
+    onSuccess: (student) => {
+      void logAudit({
+        action: 'INSERT',
+        source: 'MASTER',
+        tableName: 'students',
+        recordId: student.id,
+        newData: { name: student.name, graduation_year: student.graduation_year, status: 'graduated' },
+      })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useUpdateAlumni() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, values }: { id: string; values: AlumniFormValues }) => updateAlumni(id, values),
+    onSuccess: (student) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'students',
+        recordId: student.id,
+        newData: { name: student.name, graduation_year: student.graduation_year },
+      })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+    },
+  })
+}
+
+export function useImportAlumni() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      rows,
+      onProgress,
+    }: {
+      rows: ImportAlumniRowPayload[]
+      onProgress?: (processed: number, total: number) => void
+    }) => importAlumniBatch(rows, onProgress),
+    onSuccess: (results) => {
+      const successful = results.filter((r) => r.ok).length
+      void logAudit({
+        action: 'INSERT',
+        source: 'MASTER',
+        tableName: 'students',
+        newData: { bulk_alumni_imported: successful, total_rows: results.length },
+      })
+      void qc.invalidateQueries({ queryKey: ['students'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
@@ -358,8 +508,21 @@ export function useWaSettingsStatus() {
 export function useUpdateWaSettings() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ token, senderName }: { token: string; senderName: string }) =>
-      updateWaSettings(token, senderName),
+    mutationFn: ({
+      token,
+      senderName,
+      autoViolation,
+      autoBk,
+      autoSavings,
+      autoSpp,
+    }: {
+      token: string
+      senderName: string
+      autoViolation?: boolean
+      autoBk?: boolean
+      autoSavings?: boolean
+      autoSpp?: boolean
+    }) => updateWaSettings(token, senderName, autoViolation, autoBk, autoSavings, autoSpp),
     onSuccess: () => {
       // Token tidak di-log — kredensial akun Fonnte
       void logAudit({ action: 'UPDATE', source: 'MASTER', tableName: 'wa_settings', newData: { updated: true } })

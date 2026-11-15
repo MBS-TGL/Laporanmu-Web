@@ -18,8 +18,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-/** Role yang boleh mengirim broadcast — setara canWrite di frontend */
-const SEND_ROLES = new Set(['developer', 'admin', 'pengurus'])
+/** Role yang boleh mengirim broadcast — setara canWrite di frontend.
+ *  'manager' = nama baru 'pengurus' (0021). 'teacher' masuk agar WA
+ *  otomatis pelanggaran bisa dipicu guru pencatat poin (0026). */
+const SEND_ROLES = new Set(['developer', 'admin', 'manager', 'teacher'])
 /** Batas aman penerima per request */
 const MAX_RECIPIENTS = 500
 

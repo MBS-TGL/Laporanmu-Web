@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Alert, App, Button, Input, Radio, Space, Tag, Typography, theme } from 'antd'
+import { App, Button, Input, Radio, Space, Tag, Typography, theme } from 'antd'
 import { SendOutlined, WhatsAppOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalFooter } from '../../../shared/components/ModalFooter'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
 import { StatusTag } from '../../../shared/components/StatusTag'
 import { useSendWaBroadcast, useWaSettingsStatus } from '../hooks'
 import { STUDENT_STATUS_META } from '../status'
@@ -14,11 +16,11 @@ const MAX_PREVIEW = 15
 /** Pesan ramah untuk reason gagal dari Edge Function / Fonnte */
 function waErrorText(reason: string): string {
   const r = reason.toLowerCase()
-  if (r.includes('token invalid')) return 'Token Fonnte tidak valid — periksa Pengaturan WA'
-  if (r.includes('belum diatur')) return 'Token Fonnte belum diatur — atur di menu Lainnya → Pengaturan WA'
-  if (r.includes('quota')) return 'Kuota Fonnte habis — cek paket di dashboard fonnte.com'
-  if (r.includes('target invalid')) return 'Ada nomor telepon tidak valid — periksa data siswa'
-  if (r.includes('disconnect')) return 'Device WhatsApp disconnected — buka fonnte.com dan scan ulang QR'
+  if (r.includes('token invalid')) return 'Token Fonnte tidak valid, periksa Pengaturan WA'
+  if (r.includes('belum diatur')) return 'Token Fonnte belum diatur, atur di menu Lainnya → Pengaturan WA'
+  if (r.includes('quota')) return 'Kuota Fonnte habis, cek paket di dashboard fonnte.com'
+  if (r.includes('target invalid')) return 'Ada nomor telepon tidak valid, periksa data siswa'
+  if (r.includes('disconnect')) return 'Device WhatsApp disconnected, buka fonnte.com dan scan ulang QR'
   return reason
 }
 
@@ -61,7 +63,7 @@ export function BroadcastModal({ open, onClose, students }: BroadcastModalProps)
       {
         onSuccess: (result) => {
           if (result.ok) {
-            message.success(`${result.sent ?? recipients.length} pesan masuk antrean Fonnte — dikirim berurutan dengan jeda 5–10 detik`)
+            message.success(`${result.sent ?? recipients.length} pesan masuk antrean Fonnte, dikirim berurutan dengan jeda 5–10 detik`)
             onClose()
           } else {
             message.error(waErrorText(result.reason ?? 'Gagal mengirim broadcast'))
@@ -83,40 +85,33 @@ export function BroadcastModal({ open, onClose, students }: BroadcastModalProps)
       width={640}
       title="Broadcast WhatsApp ke Wali"
       subtitle={`${recipients.length} wali punya nomor terdaftar`}
-      icon={<WhatsAppOutlined style={{ color: token.colorSuccess }} />}
+      icon={<WhatsAppOutlined />}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Pesan dikirim via Fonnte — jeda acak 5–10 detik antar pesan
-          </Typography.Text>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button onClick={onClose}>Tutup</Button>
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              loading={sendMutation.isPending}
-              disabled={
-                !tokenConfigured ||
-                recipients.length === 0 ||
-                (templateId === 'custom' && !customBody.trim())
-              }
-              onClick={handleSendAll}
-            >
-              Kirim Semua
-            </Button>
-          </div>
-        </div>
+        <ModalFooter
+          left={
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Pesan dikirim via Fonnte, jeda acak 5–10 detik antar pesan
+            </Typography.Text>
+          }
+          onCancel={onClose}
+          cancelText="Tutup"
+          onOk={handleSendAll}
+          okText="Kirim Semua"
+          okIcon={<SendOutlined />}
+          okLoading={sendMutation.isPending}
+          okDisabled={
+            !tokenConfigured ||
+            recipients.length === 0 ||
+            (templateId === 'custom' && !customBody.trim())
+          }
+        />
       }
     >
       <Space direction="vertical" size={14} style={{ width: '100%' }}>
         {!tokenConfigured && (
-          <Alert
-            type="warning"
-            showIcon
-            message="Token Fonnte belum diatur — pengiriman dinonaktifkan"
-            description="Atur token di menu Lainnya → Pengaturan WA. Sementara itu, kirim manual satu per satu lewat tombol Buka."
-            style={{ borderRadius: 10 }}
-          />
+          <ModalNotice tone="warning" title="Token Fonnte belum diatur, pengiriman dinonaktifkan">
+            Atur token di menu Lainnya → Pengaturan WA. Sementara itu, kirim manual satu per satu lewat tombol Buka.
+          </ModalNotice>
         )}
 
         <div>
@@ -158,12 +153,7 @@ export function BroadcastModal({ open, onClose, students }: BroadcastModalProps)
         )}
 
         {noPhoneCount > 0 && (
-          <Alert
-            type="warning"
-            showIcon
-            message={`${noPhoneCount} siswa terpilih tanpa nomor telepon — dilewati`}
-            style={{ borderRadius: 10 }}
-          />
+          <ModalNotice tone="warning" title={`${noPhoneCount} siswa terpilih tanpa nomor telepon, dilewati`} />
         )}
 
         <div>
@@ -184,7 +174,7 @@ export function BroadcastModal({ open, onClose, students }: BroadcastModalProps)
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 0 }}>
                     {student.name}
                     <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
-                      {student.classes?.name ?? '—'} · {student.phone}
+                      {student.classes?.name ?? '-'} · {student.phone}
                     </Typography.Text>
                   </span>
                   <StatusTag color={STUDENT_STATUS_META[student.status].color}>

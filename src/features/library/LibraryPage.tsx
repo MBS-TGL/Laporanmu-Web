@@ -50,6 +50,7 @@ import {
 import { BookForm } from './components/BookForm'
 import { LoanModal } from './components/LoanModal'
 import type { Book, BookFormValues, BookLoan, LoanFormValues, LoanView } from './types'
+import { useStudentDetail } from '../students/useStudentDetail'
 
 function loanStatus(loan: BookLoan): 'active' | 'overdue' | 'returned' {
   if (loan.returned_at) return 'returned'
@@ -64,6 +65,7 @@ const STATUS_META = {
 }
 
 export function LibraryPage() {
+  const { open: openStudentDetail } = useStudentDetail()
   const { message } = App.useApp()
   const { canWrite, canDelete } = usePermissions()
 
@@ -397,7 +399,13 @@ export function LibraryPage() {
       key: 'student',
       render: (_, row) => (
         <div>
-          <span style={{ fontWeight: 500 }}>{row.students?.name ?? '-'}</span>
+          <Button
+            type="link"
+            style={{ padding: 0, height: 'auto', fontWeight: 500 }}
+            onClick={() => row.students && openStudentDetail(row.students.id)}
+          >
+            {row.students?.name ?? '-'}
+          </Button>
           <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
             {row.students?.registration_code}
             {row.students?.classes?.name ? ` · ${row.students.classes.name}` : ''}
@@ -669,6 +677,13 @@ export function LibraryPage() {
         open={bookFormOpen}
         book={editingBook}
         submitting={createBookMutation.isPending || updateBookMutation.isPending}
+        usedCategories={Array.from(
+          new Set(
+            (booksQuery.data ?? [])
+              .map((b) => b.category?.trim())
+              .filter((c): c is string => Boolean(c)),
+          ),
+        )}
         onCancel={() => setBookFormOpen(false)}
         onSubmit={handleBookSubmit}
       />

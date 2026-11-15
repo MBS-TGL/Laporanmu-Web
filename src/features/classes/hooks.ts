@@ -3,6 +3,10 @@ import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import {
   createClass,
+  fetchClassSubjects,
+  fetchClassSubjectsByYear,
+  saveClassSubjects,
+  saveTeacherAssignments,
   fetchClasses,
   fetchClassGenderCounts,
   setClassesHomeroomBulk,
@@ -10,7 +14,72 @@ import {
   softDeleteClassesBulk,
   updateClass,
 } from './api'
-import type { ClassFilters, ClassFormValues } from './types'
+import type { ClassFilters, ClassFormValues, ClassSubjectRow } from './types'
+
+
+
+// ─── Class subjects hooks (mantan classSubjectsHooks.ts) ───────────────────
+
+export function useClassSubjects(classId: string | undefined, academicYearId: string | undefined) {
+  return useQuery({
+    queryKey: ['class-subjects', classId, academicYearId],
+    queryFn: () => fetchClassSubjects(classId as string, academicYearId as string),
+    enabled: !!classId && !!academicYearId,
+  })
+}
+
+/** Semua assignment mapel-kelas-guru satu tahun ajaran (untuk beban mengajar guru) */
+export function useClassSubjectsByYear(academicYearId: string | undefined) {
+  return useQuery({
+    queryKey: ['class-subjects', 'by-year', academicYearId],
+    queryFn: () => fetchClassSubjectsByYear(academicYearId as string),
+    enabled: !!academicYearId,
+  })
+}
+
+export function useSaveClassSubjects() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ classId, academicYearId, rows }: { classId: string; academicYearId: string; rows: ClassSubjectRow[] }) =>
+      saveClassSubjects(classId, academicYearId, rows),
+    onSuccess: (_data, variables) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'class_subjects',
+        recordId: variables.classId,
+        newData: { count: variables.rows.length },
+      })
+      void qc.invalidateQueries({ queryKey: ['class-subjects'] })
+      void qc.invalidateQueries({ queryKey: ['classes'] })
+    },
+  })
+}
+
+export function useSaveTeacherAssignments() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      teacherId,
+      academicYearId,
+      rows,
+    }: {
+      teacherId: string
+      academicYearId: string
+      rows: { class_id: string; subject_id: string; assigned: boolean }[]
+    }) => saveTeacherAssignments(teacherId, academicYearId, rows),
+    onSuccess: (_data, variables) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'class_subjects',
+        recordId: variables.teacherId,
+        newData: { teacher_id: variables.teacherId, count: variables.rows.length },
+      })
+      void qc.invalidateQueries({ queryKey: ['class-subjects'] })
+    },
+  })
+}
 
 export function useClasses(filters: ClassFilters) {
   return useQuery({

@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { Spin, theme } from 'antd'
+import { motion } from 'motion/react'
+import { pageShellItemTransition, pageShellItemVariants } from '../motion'
 
-export type StatChipColor = 'indigo' | 'sky' | 'rose' | 'emerald' | 'amber' | 'purple'
+export type StatChipColor = 'indigo' | 'sky' | 'rose' | 'emerald' | 'amber' | 'purple' | 'slate'
 
 const CHIP_COLORS: Record<StatChipColor, string> = {
   indigo: '#6366f1',
@@ -10,6 +12,7 @@ const CHIP_COLORS: Record<StatChipColor, string> = {
   emerald: '#10b981',
   amber: '#f59e0b',
   purple: '#7c3aed',
+  slate: '#64748b',
 }
 
 interface StatChipProps {
@@ -20,7 +23,11 @@ interface StatChipProps {
   loading?: boolean
   active?: boolean
   onClick?: () => void
+  /** Sembunyikan chip saat nilai 0 — chip kosong tidak boleh menyandera perhatian. */
+  hideIfZero?: boolean
 }
+
+const MotionChip = motion.create('button')
 
 export function StatChip({
   icon,
@@ -30,18 +37,25 @@ export function StatChip({
   loading = false,
   active = false,
   onClick,
+  hideIfZero = false,
 }: StatChipProps) {
   const { token } = theme.useToken()
   const [hovered, setHovered] = useState(false)
   const c = CHIP_COLORS[color]
   const interactive = Boolean(onClick)
 
+  if (hideIfZero && !loading && (value === 0 || value === '0')) return null
+
   return (
-    <button
+    <MotionChip
       type="button"
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      variants={pageShellItemVariants}
+      initial="initial"
+      animate="animate"
+      transition={pageShellItemTransition}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -77,6 +91,6 @@ export function StatChip({
       <span style={{ fontSize: 12.5, fontWeight: 500, color: token.colorTextSecondary, whiteSpace: 'nowrap' }}>
         {label}
       </span>
-    </button>
+    </MotionChip>
   )
 }

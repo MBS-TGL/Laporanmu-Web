@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Col, DatePicker, Form, Input, InputNumber, Row, Segmented, Select, TimePicker } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Col, DatePicker, Form, Input, InputNumber, Row, Segmented, Select, TimePicker, theme } from 'antd'
 import { HeartOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
-import { searchStudents } from '../../students/api'
+import { fetchStudentsByIds, searchStudents } from '../../students/api'
 import { useQuery } from '@tanstack/react-query'
 import type { HealthFormValues, HealthStatus, HealthMedicine } from '../types'
 
@@ -14,6 +14,8 @@ interface HealthFormProps {
   submitting: boolean
   onCancel: () => void
   onSubmit: (values: HealthFormValues) => void
+  /** Pre-select santri (mis. dari drawer detail riwayat) */
+  initialStudentId?: string
 }
 
 interface HealthFormShape {
@@ -29,7 +31,8 @@ interface HealthFormShape {
   status: HealthStatus
 }
 
-export function HealthForm({ open, medicines, submitting, onCancel, onSubmit }: HealthFormProps) {
+export function HealthForm({ open, medicines, submitting, onCancel, onSubmit, initialStudentId }: HealthFormProps) {
+  const { token } = theme.useToken()
   const [form] = Form.useForm<HealthFormShape>()
   const [studentSearch, setStudentSearch] = useState('')
   const debouncedSearch = useDebounce(studentSearch)
@@ -39,6 +42,18 @@ export function HealthForm({ open, medicines, submitting, onCancel, onSubmit }: 
     queryFn: () => searchStudents(debouncedSearch),
     staleTime: 30_000,
   })
+
+  // Santri pre-select (dari drawer detail) — via query, tanpa setState di effect
+  const presetQuery = useQuery({
+    queryKey: ['students', 'preset', initialStudentId],
+    queryFn: () => fetchStudentsByIds([initialStudentId as string]),
+    enabled: open && !!initialStudentId,
+    staleTime: 30_000,
+  })
+  const presetStudent = useMemo(() => {
+    const s = presetQuery.data?.[0]
+    return s ? { id: s.id, label: `${s.name} (${s.registration_code})` } : null
+  }, [presetQuery.data])
 
   useEffect(() => {
     if (!open) return
@@ -51,6 +66,14 @@ export function HealthForm({ open, medicines, submitting, onCancel, onSubmit }: 
       medicine_qty: 1,
     })
   }, [open, form])
+
+  // terapkan pre-select setelah data santri tersedia
+  useEffect(() => {
+    const s = presetQuery.data?.[0]
+    if (open && initialStudentId && s) {
+      form.setFieldsValue({ student_id: s.id })
+    }
+  }, [open, initialStudentId, presetQuery.data, form])
 
   const handleFinish = (values: HealthFormShape) => {
     onSubmit({
@@ -95,10 +118,15 @@ export function HealthForm({ open, medicines, submitting, onCancel, onSubmit }: 
             onSearch={setStudentSearch}
             loading={studentsQuery.isPending}
             notFoundContent={studentsQuery.isPending ? 'Mencari…' : 'Tidak ditemukan'}
-            options={(studentsQuery.data ?? []).map((s) => ({
-              value: s.id,
-              label: `${s.name} (${s.registration_code})`,
-            }))}
+            options={[
+              ...(presetStudent && !(studentsQuery.data ?? []).some((s) => s.id === presetStudent.id)
+                ? [presetStudent]
+                : []),
+              ...(studentsQuery.data ?? []).map((s) => ({
+                value: s.id,
+                label: `${s.name} (${s.registration_code})`,
+              })),
+            ]}
           />
         </Form.Item>
 
@@ -178,7 +206,7 @@ export function HealthForm({ open, medicines, submitting, onCancel, onSubmit }: 
                 <Input
                   readOnly
                   value={`⚠ Stok ${selectedMedicine.name} menipis (${selectedMedicine.stock}/${selectedMedicine.min_stock})`}
-                  style={{ color: '#dc2626', borderColor: '#fca5a5', marginBottom: 12 }}
+                  style={{ color: token.colorError, borderColor: token.colorErrorBorder, marginBottom: 12 }}
                 />
               </Col>
             )}

@@ -5,14 +5,17 @@ import {
   fetchArchivedTeachers,
   fetchExistingNbms,
   fetchTeachers,
+  hardDeleteTeacher,
+  hardDeleteTeachersBulk,
   restoreTeacher,
   restoreTeachersBulk,
+  setTeacherPinned,
   setTeacherStatusBulk,
   softDeleteTeacher,
   softDeleteTeachersBulk,
   updateTeacher,
 } from './api'
-import type { TeacherFilters, TeacherFormValues, TeacherStatus } from './types'
+import type { Teacher, TeacherFilters, TeacherFormValues, TeacherStatus } from './types'
 
 export function useTeachers(filters: TeacherFilters) {
   return useQuery({
@@ -64,6 +67,42 @@ export function useBulkRestoreTeachers() {
   })
 }
 
+export function useHardDeleteTeacher() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => hardDeleteTeacher(id),
+    onSuccess: (_void, id) => {
+      void qc.invalidateQueries({ queryKey: ['teachers'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'DELETE',
+        source: 'MASTER',
+        tableName: 'teachers',
+        recordId: id,
+        newData: { permanent: true },
+      })
+    },
+  })
+}
+
+export function useHardDeleteTeachersBulk() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => hardDeleteTeachersBulk(ids),
+    onSuccess: (_void, ids) => {
+      void qc.invalidateQueries({ queryKey: ['teachers'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'DELETE',
+        source: 'MASTER',
+        tableName: 'teachers',
+        recordId: null,
+        newData: { bulk_permanent_deleted: ids.length },
+      })
+    },
+  })
+}
+
 /** Pra-cek duplikat NBM untuk modal impor — hanya aktif saat diminta */
 export function useExistingNbms(enabled: boolean) {
   return useQuery({
@@ -108,6 +147,7 @@ export function useUpdateTeacher() {
       updateTeacher(id, values),
     onSuccess: (updated) => {
       void qc.invalidateQueries({ queryKey: ['teachers'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
       void logAudit({
         action: 'UPDATE',
         source: 'MASTER',
@@ -161,12 +201,57 @@ export function useSetTeacherStatusBulk() {
       setTeacherStatusBulk(ids, status),
     onSuccess: (_void, vars) => {
       void qc.invalidateQueries({ queryKey: ['teachers'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
       void logAudit({
         action: 'UPDATE',
         source: 'MASTER',
         tableName: 'teachers',
         recordId: null,
         newData: { bulk_ids: vars.ids, status: vars.status },
+      })
+    },
+  })
+}
+
+interface TeacherPageData {
+  data: Teacher[]
+  total: number
+}
+
+export function useSetTeacherPinned() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isPinned }: { id: string; isPinned: boolean }) =>
+      setTeacherPinned(id, isPinned),
+    // Optimistic: pin langsung terasa di daftar, rollback bila server menolak
+    onMutate: async ({ id, isPinned }) => {
+      await qc.cancelQueries({ queryKey: ['teachers'] })
+      const previous = qc.getQueriesData({ queryKey: ['teachers'] })
+      for (const [key, value] of previous) {
+        const page = value as TeacherPageData | undefined
+        if (!page?.data) continue
+        qc.setQueryData(key, {
+          ...page,
+          data: page.data.map((t) => (t.id === id ? { ...t, is_pinned: isPinned } : t)),
+        })
+      }
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        qc.setQueryData(key, value)
+      }
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['teachers'] })
+    },
+    onSuccess: (_void, vars) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'teachers',
+        recordId: vars.id,
+        newData: { is_pinned: vars.isPinned },
       })
     },
   })

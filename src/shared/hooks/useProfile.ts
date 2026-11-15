@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
-export type ProfileRole = 'developer' | 'admin' | 'pengurus' | 'guru' | 'pending'
+export type ProfileRole = 'developer' | 'admin' | 'manager' | 'teacher' | 'pending'
 
 export interface Profile {
   id: string
@@ -13,15 +13,15 @@ export interface Profile {
   spmb_role?: string | null
 }
 
-const ALLOWED_ROLES: ProfileRole[] = ['developer', 'admin', 'pengurus', 'guru']
+const ALLOWED_ROLES: ProfileRole[] = ['developer', 'admin', 'manager', 'teacher']
 
 export function isRoleAllowed(role: string | null | undefined): boolean {
   if (!role) return false
   return ALLOWED_ROLES.includes(role as ProfileRole)
 }
 
-// Sesuai matrix RLS: tulis = developer|admin|pengurus, hapus = developer|admin
-const WRITE_ROLES: ProfileRole[] = ['developer', 'admin', 'pengurus']
+// Sesuai matrix RLS: tulis = developer|admin|manager, hapus = developer|admin
+const WRITE_ROLES: ProfileRole[] = ['developer', 'admin', 'manager']
 const DELETE_ROLES: ProfileRole[] = ['developer', 'admin']
 
 export function canWrite(role: string | null | undefined): boolean {

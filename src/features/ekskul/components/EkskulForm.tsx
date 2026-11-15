@@ -41,7 +41,7 @@ export function EkskulForm({ open, ekskul, submitting, onCancel, onSubmit }: Eks
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={submitting}
-      width={480}
+      size="sm"
       destroyOnHidden
     >
       <Form<EkskulFormValues> form={form} layout="vertical" onFinish={onSubmit} disabled={submitting}>

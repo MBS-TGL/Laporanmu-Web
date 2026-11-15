@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { App, ConfigProvider, type ThemeConfig } from 'antd'
+import { MotionConfig } from 'motion/react'
 import idID from 'antd/locale/id_ID'
 import { supabase } from '../lib/supabase'
 import { queryClient } from './queryClient'
@@ -34,6 +35,8 @@ const themeConfig: ThemeConfig = {
       headerBg: '#f8fafc',
       headerColor: '#475569',
       headerSplitColor: 'transparent',
+      // Hover header sortable netral — jangan beda dari headerBg
+      headerSortHoverBg: '#f8fafc',
       cellPaddingBlock: 13,
       rowHoverBg: '#f8fafc',
       rowSelectedBg: '#eef2ff',
@@ -72,13 +75,17 @@ function AuthListener() {
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ConfigProvider locale={idID} theme={themeConfig}>
-        <App>
-          <AuthListener />
-          {children}
-        </App>
-      </ConfigProvider>
-    </QueryClientProvider>
+    // reducedMotion="user": transform/layout motion mati saat OS prefers-reduced-motion;
+    // opacity tetap jalan agar transisi halaman tidak mendadak (R-39 / DESIGN.md #5).
+    <MotionConfig reducedMotion="user">
+      <QueryClientProvider client={queryClient}>
+        <ConfigProvider locale={idID} theme={themeConfig}>
+          <App>
+            <AuthListener />
+            {children}
+          </App>
+        </ConfigProvider>
+      </QueryClientProvider>
+    </MotionConfig>
   )
 }

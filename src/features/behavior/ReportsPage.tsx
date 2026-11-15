@@ -26,6 +26,7 @@ import type { Dayjs } from 'dayjs'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useStudentDetail } from '../students/useStudentDetail'
 import { useCreateReport, useDeleteReport, usePointRulesBrief, useReports } from './hooks'
 import { ReportForm } from './components/ReportForm'
 import type { BehaviorReport, ReportFilters, ReportFormValues, ReportKind } from './types'
@@ -49,6 +50,7 @@ function formatDateTime(iso: string): string {
 export function ReportsPage() {
   const { message } = App.useApp()
   const { canDelete } = usePermissions()
+  const { open: openStudentDetail } = useStudentDetail()
   const [search, setSearch] = useState('')
   const [ruleId, setRuleId] = useState<string | undefined>()
   const [kind, setKind] = useState<ReportKind>('')
@@ -105,8 +107,13 @@ export function ReportsPage() {
       key: 'student',
       render: (_, row) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{row.student?.name ?? '-'}</div>
-          <span style={{ fontSize: 12, color: '#888' }}>{row.student?.registration_code}</span>
+          <Typography.Link
+            style={{ fontWeight: 500 }}
+            onClick={() => row.student && openStudentDetail(row.student.id)}
+          >
+            {row.student?.name ?? '-'}
+          </Typography.Link>
+          <div style={{ fontSize: 12, color: '#888' }}>{row.student?.registration_code}</div>
         </div>
       ),
     },

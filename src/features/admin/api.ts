@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { findOrphanIds } from './tasks'
 import type {
@@ -34,6 +35,8 @@ export interface AuditFilters {
   action?: string
   tableName?: string
   recordId?: string
+  /** Filter per pengguna — dipakai drawer detail akun */
+  userId?: string
   search?: string
   from?: string
   to?: string
@@ -53,6 +56,7 @@ export async function fetchAuditLogs(
   if (filters.action) query = query.eq('action', filters.action)
   if (filters.tableName) query = query.eq('table_name', filters.tableName)
   if (filters.recordId) query = query.eq('record_id', filters.recordId)
+  if (filters.userId) query = query.eq('user_id', filters.userId)
   if (filters.from) query = query.gte('created_at', `${filters.from}T00:00:00Z`)
   if (filters.to) query = query.lte('created_at', `${filters.to}T23:59:59Z`)
   if (filters.search) {
@@ -64,6 +68,90 @@ export async function fetchAuditLogs(
   const { data, count, error } = await query.range(from, from + filters.pageSize - 1)
   if (error) throw error
   return { data: (data ?? []) as AuditLog[], total: count ?? 0 }
+}
+
+// ------------------------------------------------------------
+// Manajemen pengguna: link guru ↔ akun & reset password
+// ------------------------------------------------------------
+
+export interface TeacherLinkBrief {
+  id: string
+  name: string
+  nbm: string | null
+  email: string | null
+  status: string | null
+  profile_id: string | null
+}
+
+/** Semua guru aktif + status keterhubungan akunnya (untuk list & pilihan link). */
+export async function fetchTeachersForLinking(): Promise<TeacherLinkBrief[]> {
+  const { data, error } = await supabase
+    .from('teachers')
+    .select('id, name, nbm, email, status, profile_id')
+    .is('deleted_at', null)
+    .order('name')
+  if (error) throw error
+  return (data ?? []) as TeacherLinkBrief[]
+}
+
+/** Hubungkan guru ke akun pengguna (teachers.profile_id). */
+export async function setTeacherProfileLink(teacherId: string, profileId: string | null): Promise<void> {
+  const { error } = await supabase.from('teachers').update({ profile_id: profileId }).eq('id', teacherId)
+  if (error) throw error
+}
+
+/**
+ * Kirim email pemulihan password ke akun — client-side via Supabase Auth.
+ */
+export async function sendPasswordResetEmail(email: string): Promise<void> {
+  const redirectTo = `${window.location.origin}/login`
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+  if (error) throw error
+}
+
+// ------------------------------------------------------------
+// Buat akun staff baru (invite) — lewat Edge Function `create-user`
+// (service role). Jangan pakai auth.signUp client-side: akan
+// mengganti sesi admin yang sedang aktif.
+// ------------------------------------------------------------
+export interface CreateStaffUserInput {
+  email: string
+  name: string
+  role: string
+  /** Bila diisi, guru ini langsung di-link ke akun baru (teachers.profile_id) */
+  teacherId?: string
+  /** Hasilkan link set-password untuk dibagikan ke penerima (tanpa password kustom) */
+  sendInvite?: boolean
+  /** Password kustom (min 8 karakter) — bila diisi, akun langsung bisa login */
+  password?: string
+}
+
+export interface CreateStaffUserResult {
+  userId: string
+  email: string
+  role: string
+  actionLink: string | null
+  passwordSet: boolean
+}
+
+export async function createStaffUser(input: CreateStaffUserInput): Promise<CreateStaffUserResult> {
+  const { data, error } = await supabase.functions.invoke('create-user', { body: input })
+  if (error) {
+    // Non-2xx dari Edge Function = FunctionsHttpError: pesan asli ada di body
+    // (context), error.message-nya hanya "returned a non-2xx status code".
+    let detail = error.message
+    if (error instanceof FunctionsHttpError) {
+      const body = (await error.context.json().catch(() => null)) as { error?: string } | null
+      detail = body?.error ?? detail
+    }
+    const hint = /failed|not found|404/i.test(detail)
+      ? 'Edge Function "create-user" belum ter-deploy — jalankan: supabase functions deploy create-user'
+      : detail
+    throw new Error(hint)
+  }
+  const res = (data ?? {}) as CreateStaffUserResult & { error?: string }
+  if (res.error) throw new Error(res.error)
+  return res
 }
 
 // ------------------------------------------------------------
@@ -88,6 +176,21 @@ export const TABLE_CONFIG: TableDef[] = [
   { key: 'announcements', label: 'Informasi', softDelete: false },
   { key: 'profiles', label: 'Akun Pengguna', softDelete: false },
   { key: 'audit_logs', label: 'Audit Log', softDelete: false },
+  // ── Tabel modul 0022+ (softDelete sesuai skema migrasi) ──
+  { key: 'subjects', label: 'Mata Pelajaran', softDelete: true },
+  { key: 'schedules', label: 'Jadwal KBM', softDelete: true },
+  { key: 'tahfidz_records', label: 'Setoran Tahfidz', softDelete: true },
+  { key: 'halaqah_groups', label: 'Halaqah', softDelete: true },
+  { key: 'extracurriculars', label: 'Ekstrakurikuler', softDelete: true },
+  { key: 'books', label: 'Buku Perpustakaan', softDelete: true },
+  { key: 'book_loans', label: 'Peminjaman Buku', softDelete: false },
+  { key: 'savings_accounts', label: 'Rekening Tabungan', softDelete: true },
+  { key: 'savings_transactions', label: 'Transaksi Tabungan', softDelete: false },
+  { key: 'inventory_items', label: 'Inventaris', softDelete: true },
+  { key: 'leave_permits', label: 'Izin Keluar', softDelete: false },
+  { key: 'health_logs', label: 'Rekam Medis', softDelete: false },
+  { key: 'counseling_logs', label: 'Sesi BK', softDelete: false },
+  { key: 'suspensions', label: 'Skorsing', softDelete: false },
 ]
 
 export async function fetchTableCount(table: string, activeOnly = false): Promise<number> {
@@ -140,6 +243,7 @@ export async function fetchAuditActivity(days = 7): Promise<AuditDayPoint[]> {
     .from('audit_logs')
     .select('created_at')
     .gte('created_at', since.toISOString())
+    .limit(2000)
   if (error) throw error
 
   const buckets = new Map<string, number>()

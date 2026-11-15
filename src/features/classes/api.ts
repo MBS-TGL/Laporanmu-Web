@@ -1,6 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import { downloadCsv } from '../../shared/utils/csv'
-import type { ClassFilters, ClassFormValues, ClassRow } from './types'
+import type { ClassFilters, ClassFormValues, ClassRow, ClassSubject, ClassSubjectRow } from './types'
 
 const SELECT_STR =
   '*, homeroom_teacher:teachers!classes_homeroom_teacher_id_fkey(name), academic_year:academic_years(name)'
@@ -78,43 +77,6 @@ export async function fetchClassGenderCounts(): Promise<Map<string, { total: num
   return map
 }
 
-function classExportRow(c: ClassRow, counts: { total: number; male: number; female: number } | undefined) {
-  return {
-    'Nama Kelas': c.name,
-    'Tingkat': c.grade,
-    'Jurusan': c.major,
-    'Tahun Akademik': c.academic_year?.name,
-    'Wali Kelas': c.homeroom_teacher?.name,
-    'Jumlah Santri': counts?.total ?? 0,
-    'Putra (L)': counts?.male ?? 0,
-    'Putri (P)': counts?.female ?? 0,
-  }
-}
-
-export function downloadClassesCsv(
-  rows: ClassRow[],
-  counts: Map<string, { total: number; male: number; female: number }>,
-): void {
-  const headers = ['Nama Kelas', 'Tingkat', 'Jurusan', 'Tahun Akademik', 'Wali Kelas', 'Jumlah Santri', 'Putra (L)', 'Putri (P)']
-  const body = rows.map((c) => {
-    const r = classExportRow(c, counts.get(c.id))
-    return headers.map((h) => r[h as keyof typeof r])
-  })
-  downloadCsv(`Data_Kelas_${new Date().toISOString().slice(0, 10)}.csv`, headers, body)
-}
-
-export async function downloadClassesXlsx(
-  rows: ClassRow[],
-  counts: Map<string, { total: number; male: number; female: number }>,
-): Promise<void> {
-  const XLSX = await import('xlsx')
-  const sheet = XLSX.utils.json_to_sheet(rows.map((c) => classExportRow(c, counts.get(c.id))))
-  const book = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(book, sheet, 'Kelas')
-  XLSX.writeFile(book, `data-kelas-${new Date().toISOString().slice(0, 10)}.xlsx`)
-}
-
-/** Validasi duplikat nama kelas dalam satu tahun akademik (pola nbmExists TeacherForm) */
 export async function classNameExists(
   name: string,
   academicYearId: string,
@@ -190,5 +152,64 @@ export async function softDeleteClassesBulk(ids: string[]): Promise<void> {
     .from('classes')
     .update({ deleted_at: new Date().toISOString() })
     .in('id', ids)
+  if (error) throw error
+}
+
+// ─── Class subjects (mata pelajaran per kelas, mantan classSubjectsApi.ts) ──
+const CS_SELECT =
+  '*, subjects(id, name, code, kkm, weekly_hours), teachers(id, name), classes(id, name, grade)'
+
+export async function fetchClassSubjects(classId: string, academicYearId: string): Promise<ClassSubject[]> {
+  const { data, error } = await supabase
+    .from('class_subjects')
+    .select(CS_SELECT)
+    .eq('class_id', classId)
+    .eq('academic_year_id', academicYearId)
+    .is('deleted_at', null)
+    .order('created_at')
+  if (error) throw error
+  return (data ?? []) as unknown as ClassSubject[]
+}
+
+/** Bulk upsert via RPC — handles insert, update, and soft-delete of removed subjects */
+export async function saveClassSubjects(classId: string, academicYearId: string, rows: ClassSubjectRow[]): Promise<void> {
+  const { error } = await supabase.rpc('save_class_subjects', {
+    p_class_id: classId,
+    p_academic_year_id: academicYearId,
+    p_rows: rows.map((r) => ({
+      subject_id: r.subject_id,
+      teacher_id: r.teacher_id || '',
+      kkm_override: r.kkm_override,
+    })),
+  })
+  if (error) throw error
+}
+
+/** Fetch all class_subjects for a given academic year (for teaching load view) */
+export async function fetchClassSubjectsByYear(academicYearId: string): Promise<ClassSubject[]> {
+  const { data, error } = await supabase
+    .from('class_subjects')
+    .select(CS_SELECT)
+    .eq('academic_year_id', academicYearId)
+    .is('deleted_at', null)
+  if (error) throw error
+  return (data ?? []) as unknown as ClassSubject[]
+}
+
+/**
+ * Bulk assign/unassign satu guru ke banyak (kelas, mapel) — dari sisi guru.
+ * assigned=true  → set/overwrite guru di baris tsb
+ * assigned=false → hapus assignment guru ini saja (guru lain aman)
+ */
+export async function saveTeacherAssignments(
+  teacherId: string,
+  academicYearId: string,
+  rows: { class_id: string; subject_id: string; assigned: boolean }[],
+): Promise<void> {
+  const { error } = await supabase.rpc('save_teacher_assignments', {
+    p_teacher_id: teacherId,
+    p_academic_year_id: academicYearId,
+    p_rows: rows,
+  })
   if (error) throw error
 }

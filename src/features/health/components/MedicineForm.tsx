@@ -2,24 +2,8 @@ import { useEffect } from 'react'
 import { Form, Input, InputNumber, Select } from 'antd'
 import { MedicineBoxOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { MEDICINE_CATEGORY_OPTIONS, MEDICINE_UNIT_OPTIONS } from '../constants'
 import type { HealthMedicine, HealthMedicineFormValues } from '../types'
-
-const CATEGORY_OPTIONS = [
-  'Analgesik / Antipiretik',
-  'Antibiotik',
-  'Obat Lambung',
-  'Obat Flu & Batuk',
-  'Antiseptik',
-  'Anti-alergi',
-  'Multivitamin',
-].map((c) => ({ value: c, label: c }))
-
-const UNIT_OPTIONS = [
-  { value: 'tablet', label: 'Tablet / Kaplet' },
-  { value: 'botol', label: 'Botol / Syrup' },
-  { value: 'tube', label: 'Tube / Salep' },
-  { value: 'sachet', label: 'Sachet / Puyer' },
-]
 
 interface MedicineFormProps {
   open: boolean
@@ -71,11 +55,11 @@ export function MedicineForm({ open, medicine, submitting, onCancel, onSubmit }:
         </Form.Item>
 
         <Form.Item name="category" label="Kategori">
-          <Select placeholder="Pilih kategori" allowClear options={CATEGORY_OPTIONS} />
+          <Select placeholder="Pilih kategori" allowClear options={MEDICINE_CATEGORY_OPTIONS} />
         </Form.Item>
 
         <Form.Item name="unit" label="Satuan" rules={[{ required: true, message: 'Satuan wajib dipilih' }]}>
-          <Select options={UNIT_OPTIONS} />
+          <Select options={MEDICINE_UNIT_OPTIONS} />
         </Form.Item>
 
         <Form.Item name="stock" label="Stok Tersedia" rules={[{ required: true, message: 'Stok wajib diisi' }]}>

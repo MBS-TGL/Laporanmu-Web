@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import {
   Alert,
   App,
@@ -20,29 +20,60 @@ import {
   type TableColumnsType,
   type TableProps,
 } from 'antd'
-import { CheckSquareOutlined, CloseOutlined, EyeInvisibleOutlined, EyeOutlined, ExportOutlined, IdcardOutlined, KeyOutlined, ManOutlined, MoreOutlined, ReloadOutlined, SearchOutlined, TeamOutlined, ThunderboltOutlined, TrophyOutlined, UndoOutlined, WomanOutlined } from '@ant-design/icons'
-import { PageHeader } from '../../shared/components/PageHeader'
+import {
+  CheckSquareOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  SlidersOutlined,
+  EyeInvisibleOutlined,
+  EyeOutlined,
+  ExportOutlined,
+  IdcardOutlined,
+  ImportOutlined,
+  ManOutlined,
+  MoreOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  TeamOutlined,
+  ThunderboltOutlined,
+  TrophyOutlined,
+  UndoOutlined,
+  WomanOutlined,
+  QuestionCircleOutlined,
+} from '@ant-design/icons'
 import { StatChip } from '../../shared/components/StatChip'
+import { useTabActions } from '../../shared/components/ActionsSlot'
 import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
-import { BulkActionBar } from '../../shared/components/BulkActionBar'
-import { TableSortIcon } from '../../shared/components/TableSortIcon'
+import { ActionBar } from '../../shared/components/ActionBar'
+import { SortIcon } from '../../shared/components/SortIcon'
 import { columnSortOrder, sortByFromTableChange } from '../../shared/utils/tableSort'
-import { Kbd, ShortcutsModal } from '../../shared/components/ShortcutsModal'
+import { photoThumb } from '../../shared/utils/photoThumb'
+import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
+import { actionMenuLabel } from '../../shared/components/ActionMenu'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { formatDisplayName } from '../../shared/utils/displayName'
 import {
   useAlumni,
+  useBulkDeleteStudents,
+  useBulkRestoreStudents,
   useBulkRevertGraduation,
+  useCreateAlumni,
+  useDeleteStudent,
+  useExistingAlumniKeys,
   useRestoreGraduationSnapshots,
+  useRestoreStudent,
   useRevertGraduation,
-  useSaveStudentGuardians,
-  useUpdateStudent,
+  useUpdateAlumni,
 } from './hooks'
+import { fetchAlumniWithPointsHistory, type AlumniFormValues } from './api'
 import { DetailDrawer } from './components/DetailDrawer'
 import { ExportModal } from './components/ExportModal'
-import { StudentForm } from './components/StudentForm'
-import type { Gender, GraduationSnapshot, SortOption, Student, StudentFormValues } from './types'
+import { AlumniForm } from './components/AlumniForm'
+import { AlumniImport } from './components/AlumniImport'
+import type { Gender, GraduationSnapshot, SortOption, Student } from './types'
 
 const MASK = '••••••'
 
@@ -93,10 +124,10 @@ function initials(name: string): string {
 }
 
 /** Jejak siswa yang telah graduated: daftar alumni + profil + edit + pembatalan kelulusan */
-export function AlumniPage() {
-  const { message, modal } = App.useApp()
+export function AlumniPage({ active }: { active: boolean }) {
+  const { message } = App.useApp()
   const { token } = theme.useToken()
-  const { canWrite } = usePermissions()
+  const { canWrite, canDelete } = usePermissions()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 350)
   const [gender, setGender] = useState<Gender | undefined>()
@@ -109,24 +140,54 @@ export function AlumniPage() {
   const [privacy, setPrivacy] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [exportScope, setExportScope] = useState<'filtered' | 'selected'>('filtered')
   const [editing, setEditing] = useState<Student | null>(null)
   const [detail, setDetail] = useState<Student | null>(null)
+  const [pointsHistoryIds, setPointsHistoryIds] = useState<Set<string>>(new Set())
 
   const searchInputRef = useRef<InputRef>(null)
 
   const alumniQuery = useAlumni()
+  const existingKeysQuery = useExistingAlumniKeys(formOpen)
   const revertMutation = useRevertGraduation()
   const bulkRevertMutation = useBulkRevertGraduation()
   const restoreSnapshotsMutation = useRestoreGraduationSnapshots()
-  const updateMutation = useUpdateStudent()
-  const saveGuardiansMutation = useSaveStudentGuardians()
+  const deleteMutation = useDeleteStudent()
+  const bulkDeleteMutation = useBulkDeleteStudents()
+  const restoreMutation = useRestoreStudent()
+  const bulkRestoreMutation = useBulkRestoreStudents()
+  const createAlumniMutation = useCreateAlumni()
+  const updateAlumniMutation = useUpdateAlumni()
 
   const allAlumni = useMemo(() => alumniQuery.data?.data ?? [], [alumniQuery.data])
   // Total dari server — untuk mendeteksi daftar terpotong batas 1000
   const totalAlumni = alumniQuery.data?.total ?? 0
   const isTruncated = totalAlumni > allAlumni.length
+
+  // Identifikasi alumni yang memiliki riwayat laporan poin
+  useEffect(() => {
+    if (allAlumni.length === 0) {
+      setPointsHistoryIds(new Set())
+      return
+    }
+
+    // Alumni dengan total_points !== 0 sudah pasti punya riwayat
+    const nonZeroIds = allAlumni.filter((s) => (s.total_points ?? 0) !== 0).map((s) => s.id)
+    const zeroIds = allAlumni.filter((s) => (s.total_points ?? 0) === 0).map((s) => s.id)
+
+    let cancelled = false
+    void fetchAlumniWithPointsHistory(zeroIds).then((historyZeroSet) => {
+      if (cancelled) return
+      const combined = new Set([...nonZeroIds, ...historyZeroSet])
+      setPointsHistoryIds(combined)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [allAlumni])
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const selectedStudents = useMemo(
@@ -294,7 +355,7 @@ export function AlumniPage() {
   const handleRevert = (student: Student) => {
     revertMutation.mutate(student.id, {
       onSuccess: () => {
-        message.success(`${student.name} dikembalikan menjadi siswa aktif`)
+        message.success(`${formatDisplayName(student.name)} dikembalikan menjadi siswa aktif`)
         setSelectedIds((prev) => prev.filter((id) => id !== student.id))
         setDetail((current) => (current?.id === student.id ? null : current))
       },
@@ -302,31 +363,39 @@ export function AlumniPage() {
     })
   }
 
-  const handleSubmit = (values: StudentFormValues) => {
-    if (!editing) return
-    const onError = (err: Error) => message.error(err.message || 'Gagal menyimpan alumni')
-    updateMutation.mutate(
-      { id: editing.id, values },
-      {
-        onSuccess: (updated) => {
-          // Data ayah/ibu/wali disimpan via RPC terpisah (student_guardians) — saat edit
-          // selalu dipanggil agar baris yang dikosongkan ikut di-soft-delete.
-          saveGuardiansMutation.mutate(
-            { studentId: updated.id, rows: values.guardians ?? [] },
-            {
-              onError: (err: Error) =>
-                message.error(err.message || 'Alumni tersimpan, tetapi data orang tua gagal disimpan'),
-            },
-          )
-          message.success('Data alumni diperbarui')
+  const openAddAlumni = () => {
+    setEditing(null)
+    setFormOpen(true)
+  }
+
+  const openImport = () => {
+    setImportOpen(true)
+  }
+
+  const handleSubmitAlumni = (values: AlumniFormValues) => {
+    if (editing) {
+      updateAlumniMutation.mutate(
+        { id: editing.id, values },
+        {
+          onSuccess: (updated) => {
+            message.success('Data alumni berhasil diperbarui')
+            setFormOpen(false)
+            setEditing(null)
+            setDetail((current) => (current?.id === updated.id ? updated : current))
+          },
+          onError: (err: Error) => message.error(err.message || 'Gagal memperbarui alumni'),
+        },
+      )
+    } else {
+      createAlumniMutation.mutate(values, {
+        onSuccess: () => {
+          message.success('Alumni baru berhasil ditambahkan')
           setFormOpen(false)
           setEditing(null)
-          // perbarui drawer bila sedang terbuka untuk alumni yang sama
-          setDetail((current) => (current?.id === updated.id ? updated : current))
         },
-        onError,
-      },
-    )
+        onError: (err: Error) => message.error(err.message || 'Gagal menambahkan alumni'),
+      })
+    }
   }
 
   /** Toast undo pembatalan massal — pulihkan jejak kelulusan dari snapshot sebelum revert */
@@ -365,7 +434,7 @@ export function AlumniPage() {
     })
   }
 
-  const confirmBulkRevert = () => {
+  const bulkRevert = () => {
     const count = selectedStudents.length
     if (count === 0) return
     // Snapshot jejak kelulusan sebelum revert — dipakai tombol "Batalkan" di toast
@@ -375,21 +444,94 @@ export function AlumniPage() {
       graduation_year: s.graduation_year,
       last_class_id: s.last_class_id,
     }))
-    modal.confirm({
-      title: `Kembalikan ${count} alumni menjadi siswa aktif?`,
-      content:
-        'Jejak kelulusan (tanggal & tahun lulus) akan dihapus dan siswa kembali aktif. Bisa dibatalkan sesaat setelah selesai.',
-      okText: 'Ya, Kembalikan',
-      cancelText: 'Batal',
-      onOk: () =>
-        bulkRevertMutation
-          .mutateAsync(snapshots.map((s) => s.id))
-          .then(() => {
-            setSelectedIds([])
-            showRevertUndoToast(snapshots)
-          })
-          .catch((err: Error) => message.error(err.message || 'Gagal membatalkan kelulusan')),
+    bulkRevertMutation
+      .mutateAsync(snapshots.map((s) => s.id))
+      .then(() => {
+        setSelectedIds([])
+        showRevertUndoToast(snapshots)
+      })
+      .catch((err: Error) => message.error(err.message || 'Gagal membatalkan kelulusan'))
+  }
+
+  /** Toast undo penghapusan (arsip) massal */
+  const showBulkDeleteUndoToast = (ids: string[], count: number) => {
+    const key = `undo-bulk-delete-${Date.now()}`
+    message.open({
+      key,
+      type: 'success',
+      duration: 6,
+      content: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>{count === 1 ? '1 alumni diarsipkan' : `${count} alumni diarsipkan`}</span>
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => {
+              message.destroy(key)
+              bulkRestoreMutation.mutate(ids, {
+                onSuccess: () =>
+                  message.success(count === 1 ? 'Alumni dipulihkan' : `${count} alumni dipulihkan`),
+                onError: (err: Error) => message.error(err.message || 'Gagal memulihkan alumni'),
+              })
+            }}
+          >
+            Batalkan
+          </Button>
+        </div>
+      ),
     })
+  }
+
+  /** Toast undo penghapusan (arsip) single */
+  const showSingleDeleteUndoToast = (id: string, name: string) => {
+    const key = `undo-single-delete-${Date.now()}`
+    message.open({
+      key,
+      type: 'success',
+      duration: 6,
+      content: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>{`${formatDisplayName(name)} diarsipkan`}</span>
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => {
+              message.destroy(key)
+              restoreMutation.mutate(id, {
+                onSuccess: () => message.success('Alumni dipulihkan'),
+                onError: (err: Error) => message.error(err.message || 'Gagal memulihkan alumni'),
+              })
+            }}
+          >
+            Batalkan
+          </Button>
+        </div>
+      ),
+    })
+  }
+
+  const handleDelete = (student: Student) => {
+    deleteMutation.mutate(student.id, {
+      onSuccess: () => {
+        setSelectedIds((prev) => prev.filter((id) => id !== student.id))
+        setDetail((current) => (current?.id === student.id ? null : current))
+        showSingleDeleteUndoToast(student.id, student.name)
+      },
+      onError: (err: Error) => message.error(err.message || 'Gagal menghapus alumni'),
+    })
+  }
+
+  const bulkDelete = () => {
+    const ids = selectedIds
+    const count = ids.length
+    if (count === 0) return
+    bulkDeleteMutation
+      .mutateAsync(ids)
+      .then(() => {
+        setSelectedIds([])
+        showBulkDeleteUndoToast(ids, count)
+      })
+      .catch((err: Error) => message.error(err.message || 'Gagal menghapus alumni'))
   }
 
   const isBlocked = exportOpen || detail !== null || formOpen
@@ -455,33 +597,33 @@ export function AlumniPage() {
 
   const shortcuts = useShortcuts({ items: shortcutItems, isBlocked })
 
-  const headerMenu = {
-    items: [
-      {
-        key: 'export',
-        icon: <ExportOutlined />,
-        label: (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>
-              <div style={{ fontWeight: 600 }}>Export Data</div>
-              <div style={{ fontSize: 12, opacity: 0.65 }}>Cadangkan data alumni</div>
-            </span>
-            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-              <Kbd>Ctrl</Kbd>
-              <Kbd>E</Kbd>
-            </span>
-          </div>
-        ),
-        onClick: () => openExport('filtered'),
-      },
-    ],
-  }
+  const headerMenuItems = [
+    ...(canWrite
+      ? [
+          {
+            key: 'import',
+            icon: <ImportOutlined />,
+            label: actionMenuLabel('Import Alumni', 'Unggah template Excel / CSV'),
+            onClick: openImport,
+          },
+          { type: 'divider' as const },
+        ]
+      : []),
+    {
+      key: 'export',
+      icon: <ExportOutlined />,
+      label: actionMenuLabel('Export Data', 'Cadangkan data alumni', ['Ctrl', 'E']),
+      onClick: () => openExport('filtered'),
+    },
+  ]
 
-  // Ikon sorter gaya Esceha.id — template di shared/components/TableSortIcon.
+  const headerMenu = { items: headerMenuItems }
+
+  // Ikon sorter gaya Esceha.id — template di shared/components/SortIcon.
   // Dibungkus fungsi: antd memanggil sortIcon sebagai fungsi biasa, jadi komponen
   // harus dirender sebagai elemen agar hooks-nya legal.
   const sortIcon = ({ sortOrder }: { sortOrder?: 'ascend' | 'descend' | null }) => (
-    <TableSortIcon sortOrder={sortOrder} />
+    <SortIcon sortOrder={sortOrder} />
   )
 
   const columns: TableColumnsType<Student> = [
@@ -496,7 +638,7 @@ export function AlumniPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Avatar
             size={34}
-            src={privacy ? undefined : row.photo_url || undefined}
+            src={privacy ? undefined : photoThumb(row.photo_url)}
             style={{ background: token.colorPrimaryBg, color: token.colorPrimaryTextActive, fontWeight: 700, fontSize: 13, flexShrink: 0 }}
           >
             {privacy ? '*' : initials(row.name)}
@@ -507,7 +649,7 @@ export function AlumniPage() {
               style={{ padding: 0, height: 'auto', fontWeight: 600, fontSize: 13.5 }}
               onClick={() => setDetail(row)}
             >
-              {row.name}
+              {formatDisplayName(row.name)}
             </Button>
             <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
               {row.gender === 'P' ? 'Perempuan' : 'Laki-laki'} ·{' '}
@@ -554,12 +696,16 @@ export function AlumniPage() {
       sortOrder: columnSortOrder(sortBy, 'total_points', SORT_PAIRS),
       sortDirections: ['descend', 'ascend'],
       responsive: ['md'],
-      render: (v: number) => <strong>{v > 0 ? `+${v}` : v}</strong>,
+      render: (v: number, row) => {
+        const hasHistory = pointsHistoryIds.has(row.id)
+        if (!hasHistory) return '—'
+        return <strong>{v > 0 ? `+${v}` : v}</strong>
+      },
     },
     {
       title: 'Aksi',
       key: 'aksi',
-      width: 140,
+      width: 150,
       render: (_, row) => (
         <Space size={0}>
           <Tooltip title="Lihat detail">
@@ -569,7 +715,7 @@ export function AlumniPage() {
             <Tooltip title="Kembalikan menjadi siswa aktif">
               <Popconfirm
                 title="Batalkan kelulusan?"
-                description={`${row.name} akan kembali menjadi siswa aktif tanpa jejak kelulusan.`}
+                description={`${formatDisplayName(row.name)} akan kembali menjadi siswa aktif tanpa jejak kelulusan.`}
                 okText="Ya, Batalkan"
                 cancelText="Batal"
                 onConfirm={() => handleRevert(row)}
@@ -582,55 +728,84 @@ export function AlumniPage() {
               </Popconfirm>
             </Tooltip>
           )}
+          {canDelete && (
+            <Tooltip title="Hapus alumni">
+              <Popconfirm
+                title="Hapus alumni ini?"
+                description={`${formatDisplayName(row.name)} akan dipindahkan ke arsip.`}
+                okText="Ya, Hapus"
+                okButtonProps={{ danger: true }}
+                cancelText="Batal"
+                onConfirm={() => handleDelete(row)}
+              >
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deleteMutation.isPending && deleteMutation.variables === row.id}
+                />
+              </Popconfirm>
+            </Tooltip>
+          )}
         </Space>
       ),
     },
   ]
 
   const yearCount = yearOptions.length
+  // Hanya hitung rata-rata dari alumni yang memiliki riwayat poin
+  const alumniWithPoints = useMemo(
+    () => allAlumni.filter((s) => pointsHistoryIds.has(s.id)),
+    [allAlumni, pointsHistoryIds],
+  )
   const avgPoints =
-    allAlumni.length > 0
-      ? Math.round(allAlumni.reduce((acc, s) => acc + (s.total_points ?? 0), 0) / allAlumni.length)
-      : 0
+    alumniWithPoints.length > 0
+      ? Math.round(alumniWithPoints.reduce((acc, s) => acc + (s.total_points ?? 0), 0) / alumniWithPoints.length)
+      : null
+
+  // Aksi halaman di ujung kanan tab bar (judul & subtitle dirender shell StudentsPage)
+  // Urutan konsisten dengan tab Aktif: ikon utilitas dulu, tombol primary terakhir
+  const tabActions = useTabActions(
+    active,
+    <Space wrap>
+      <Tooltip title="Muat ulang (R)">
+        <Button icon={<ReloadOutlined spin={alumniQuery.isFetching} />} onClick={() => void alumniQuery.refetch()} />
+      </Tooltip>
+      <Dropdown menu={headerMenu} trigger={['click']} placement="bottomRight" overlayStyle={{ minWidth: 240 }}>
+        <Tooltip title="Menu lainnya">
+          <Button icon={<MoreOutlined />} />
+        </Tooltip>
+      </Dropdown>
+      <Tooltip title="Shortcut keyboard (?)">
+        <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+      </Tooltip>
+      <Tooltip title="Mode privasi (P)">
+        <Button
+          icon={privacy ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+          onClick={togglePrivacy}
+          style={
+            privacy
+              ? {
+                  background: token.colorWarningBg,
+                  borderColor: token.colorWarningBorder,
+                  color: token.colorWarningTextActive,
+                }
+              : undefined
+          }
+        />
+      </Tooltip>
+      {canWrite && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={openAddAlumni}>
+          Tambah Alumni
+        </Button>
+      )}
+    </Space>,
+  )
 
   return (
     <div>
-      <PageHeader
-        title="Alumni"
-        subtitle="Jejak siswa yang telah lulus — riwayat poin, raport, dan log tetap tersimpan"
-        extra={
-          <Space wrap>
-            <Tooltip title="Muat ulang (R)">
-              <Button icon={<ReloadOutlined spin={alumniQuery.isFetching} />} onClick={() => void alumniQuery.refetch()} />
-            </Tooltip>
-            <Dropdown menu={headerMenu} trigger={['click']} placement="bottomRight" overlayStyle={{ minWidth: 240 }}>
-              <Tooltip title="Menu lainnya">
-                <Button icon={<MoreOutlined />} />
-              </Tooltip>
-            </Dropdown>
-            <Tooltip title="Shortcut keyboard (?)">
-              <Button icon={<KeyOutlined />} onClick={shortcuts.open} />
-            </Tooltip>
-            <Tooltip title="Mode privasi (P)">
-              <Button
-                icon={privacy ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                onClick={togglePrivacy}
-                style={
-                  privacy
-                    ? {
-                        background: token.colorWarningBg,
-                        borderColor: token.colorWarningBorder,
-                        color: token.colorWarningTextActive,
-                      }
-                    : undefined
-                }
-              >
-                Privasi
-              </Button>
-            </Tooltip>
-          </Space>
-        }
-      />
+      {/* Judul & subtitle dirender shell StudentsPage (di atas tab bar); aksi halaman di ujung kanan tab bar */}
+      {tabActions}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <StatChip
@@ -649,13 +824,15 @@ export function AlumniPage() {
           active={showAdvanced}
           onClick={() => setShowAdvanced((v) => !v)}
         />
-        <StatChip
-          icon={<TrophyOutlined />}
-          label="Rata-rata Poin"
-          value={avgPoints > 0 ? `+${avgPoints}` : avgPoints}
-          color="emerald"
-          loading={alumniQuery.isPending}
-        />
+        {avgPoints != null && avgPoints !== 0 && (
+          <StatChip
+            icon={<TrophyOutlined />}
+            label="Rata-rata Poin"
+            value={avgPoints > 0 ? `+${avgPoints}` : avgPoints}
+            color="emerald"
+            loading={alumniQuery.isPending}
+          />
+        )}
       </div>
 
       <Card>
@@ -700,7 +877,7 @@ export function AlumniPage() {
           </Tooltip>
           <Badge count={advFilterCount} size="small" offset={[-6, 6]}>
             <Button
-              icon={<CloseOutlined />}
+              icon={<SlidersOutlined />}
               type={showAdvanced ? 'primary' : 'default'}
               onClick={() => setShowAdvanced((v) => !v)}
             >
@@ -777,9 +954,26 @@ export function AlumniPage() {
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
-                  allAlumni.length > 0
-                    ? 'Tidak ada alumni yang cocok dengan filter'
-                    : 'Belum ada alumni — siswa yang diluluskan akan muncul di sini'
+                  allAlumni.length > 0 ? (
+                    'Tidak ada alumni yang cocok dengan filter'
+                  ) : (
+                    <div>
+                      <div>Belum ada alumni terdaftar</div>
+                      <div style={{ fontSize: 13, color: token.colorTextTertiary, marginTop: 4 }}>
+                        Siswa yang diluluskan akan otomatis muncul di sini, atau Anda dapat menambah dan mengimpor alumni manual.
+                      </div>
+                      {canWrite && (
+                        <Space style={{ marginTop: 12 }}>
+                          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openAddAlumni}>
+                            Tambah Alumni
+                          </Button>
+                          <Button size="small" icon={<ImportOutlined />} onClick={openImport}>
+                            Import Alumni
+                          </Button>
+                        </Space>
+                      )}
+                    </div>
+                  )
                 }
               />
             ),
@@ -817,28 +1011,56 @@ export function AlumniPage() {
       </Card>
 
       {/* Bar aksi massal — muncul saat ada alumni yang dipilih */}
-      <BulkActionBar count={selectedIds.length} onClear={() => setSelectedIds([])}>
-        <Button size="small" icon={<ExportOutlined />} onClick={() => openExport('selected')}>
-          Ekspor
-        </Button>
-        {canWrite && (
-          <Button
-            size="small"
-            icon={<UndoOutlined />}
-            loading={bulkRevertMutation.isPending}
-            onClick={confirmBulkRevert}
-          >
-            Kembalikan Aktif
-          </Button>
-        )}
-      </BulkActionBar>
+      <ActionBar
+        count={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        actions={[
+          { key: 'export', label: 'Ekspor', icon: <ExportOutlined />, onClick: () => openExport('selected') },
+          {
+            key: 'revert',
+            label: 'Kembalikan Aktif',
+            icon: <UndoOutlined />,
+            hidden: !canWrite,
+            loading: bulkRevertMutation.isPending,
+            confirm: {
+              title: `Kembalikan ${selectedIds.length} alumni menjadi siswa aktif?`,
+              description: 'Jejak kelulusan (tanggal & tahun lulus) akan dihapus dan siswa kembali aktif. Bisa dibatalkan sesaat setelah selesai.',
+              okText: 'Ya, Kembalikan',
+            },
+            onClick: bulkRevert,
+          },
+          {
+            key: 'delete',
+            label: 'Hapus',
+            icon: <DeleteOutlined />,
+            variant: 'danger',
+            hidden: !canDelete,
+            loading: bulkDeleteMutation.isPending,
+            confirm: {
+              title: `Hapus ${selectedIds.length} alumni terpilih?`,
+              description: 'Data akan ditandai terhapus (arsip) dan dapat dipulihkan lewat tab Arsip.',
+              okText: 'Ya, Hapus',
+            },
+            onClick: bulkDelete,
+          },
+        ]}
+      />
 
-      <StudentForm
+      <AlumniForm
         open={formOpen}
-        student={editing}
-        submitting={updateMutation.isPending || saveGuardiansMutation.isPending}
-        onCancel={() => setFormOpen(false)}
-        onSubmit={handleSubmit}
+        editingAlumni={editing}
+        submitting={createAlumniMutation.isPending || updateAlumniMutation.isPending}
+        existingStudents={existingKeysQuery.data ?? []}
+        onCancel={() => {
+          setFormOpen(false)
+          setEditing(null)
+        }}
+        onSubmit={handleSubmitAlumni}
+      />
+
+      <AlumniImport
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
       />
 
       <ExportModal

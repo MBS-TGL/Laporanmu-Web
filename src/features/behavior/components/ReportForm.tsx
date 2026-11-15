@@ -76,7 +76,7 @@ export function ReportForm({ open, submitting, onCancel, onSubmit }: ReportFormP
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={submitting}
-      width={520}
+      size="md"
       destroyOnHidden
     >
       <Form<ReportFormShape> form={form} layout="vertical" onFinish={handleFinish} disabled={submitting}>
@@ -110,9 +110,9 @@ export function ReportForm({ open, submitting, onCancel, onSubmit }: ReportFormP
             style={{ marginBottom: 16 }}
             type={selectedRule.is_negative ? 'error' : 'success'}
             showIcon
-            message={`Poin ${selectedRule.points > 0 ? '+' : ''}${selectedRule.points} — ${
+            message={`Poin ${selectedRule.points > 0 ? '+' : ''}${selectedRule.points} (${
               selectedRule.is_negative ? 'Pelanggaran' : 'Prestasi'
-            }`}
+            })`}
             description={selectedRule.category ? `Kategori: ${selectedRule.category}` : undefined}
           />
         )}

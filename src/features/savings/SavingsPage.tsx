@@ -6,7 +6,6 @@ import {
   Card,
   Empty,
   Input,
-  Modal,
   Popconfirm,
   Segmented,
   Space,
@@ -19,7 +18,6 @@ import {
 } from 'antd'
 import {
   FallOutlined,
-  FormOutlined,
   PlusOutlined,
   QuestionCircleOutlined,
   RiseOutlined,
@@ -31,13 +29,14 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { PageHeader } from '../../shared/components/PageHeader'
+import { AppModal } from '../../shared/components/AppModal'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { StatChip } from '../../shared/components/StatChip'
 import { StudentSelect } from '../../shared/components/StudentSelect'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
-import { formatRupiah } from './api'
+import { formatRupiah, verifyStaffPin } from './api'
 import {
   useApplyTxn,
   useCreateAccount,
@@ -47,10 +46,12 @@ import {
 import { TxnModal } from './components/TxnModal'
 import { AccountDrawer } from './components/AccountDrawer'
 import type { SavingsAccount, SavingsTxnKind } from './types'
+import { useStudentDetail } from '../students/useStudentDetail'
 
 export function SavingsPage() {
-  const { message, modal } = App.useApp()
+  const { message } = App.useApp()
   const { token } = theme.useToken()
+  const { open: openStudentDetail } = useStudentDetail()
   const { canWrite } = usePermissions()
 
   const [search, setSearch] = useState('')
@@ -128,28 +129,30 @@ export function SavingsPage() {
     )
   }
 
-  const handleCloseAccount = (account: SavingsAccount) => {
-    modal.confirm({
-      title: `Tutup rekening ${account.students?.name ?? ''}?`,
-      content:
-        account.balance > 0
-          ? `Saldo masih ${formatRupiah(account.balance)} — tarik dulu sebelum menutup rekening.`
-          : 'Rekening ditandai ditutup; riwayat transaksi tetap tersimpan.',
-      okText: 'Tutup Rekening',
-      okButtonProps: { danger: true },
-      cancelText: 'Batal',
-      onOk: () =>
-        statusMutation
-          .mutateAsync({ id: account.id, status: 'closed' })
-          .then(() => message.success('Rekening ditutup'))
-          .catch((err: Error) => message.error(err.message || 'Gagal menutup rekening')),
-    })
-  }
+  const handleCloseAccount = (account: SavingsAccount) =>
+    statusMutation
+      .mutateAsync({ id: account.id, status: 'closed' })
+      .then(() => message.success('Rekening ditutup'))
+      .catch((err: Error) => message.error(err.message || 'Gagal menutup rekening'))
 
-  const handleTxnSubmit = (values: { amount: number; note?: string; occurred_at: string }) => {
+  const handleTxnSubmit = async (values: { amount: number; note?: string; occurred_at: string; pin?: string }) => {
     if (!txnTarget) return
+
+    if (values.pin) {
+      try {
+        const ok = await verifyStaffPin(values.pin)
+        if (!ok) {
+          message.error('PIN Petugas salah. Transaksi ditolak demi keamanan.')
+          return
+        }
+      } catch (err: unknown) {
+        // Jika belum ada PIN atau error verifikasi
+        message.warning('Verifikasi PIN dilewati atau belum dipasang.')
+      }
+    }
+
     txnMutation.mutate(
-      { accountId: txnTarget.account.id, values: { ...values, kind: txnTarget.kind } },
+      { accountId: txnTarget.account.id, values: { amount: values.amount, note: values.note, occurred_at: values.occurred_at, kind: txnTarget.kind } },
       {
         onSuccess: (updated) => {
           message.success(
@@ -224,10 +227,15 @@ export function SavingsPage() {
             >
               {row.students?.name ?? '-'}
             </Button>
-            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
+            <Button
+              type="link"
+              size="small"
+              style={{ padding: 0, height: 'auto', fontSize: 12 }}
+              onClick={() => row.students && openStudentDetail(row.students.id)}
+            >
               {row.students?.registration_code}
               {row.students?.classes?.name ? ` · ${row.students.classes.name}` : ''}
-            </div>
+            </Button>
           </div>
         </div>
       ),
@@ -291,10 +299,14 @@ export function SavingsPage() {
               </Tooltip>
               <Popconfirm
                 title="Tutup rekening ini?"
-                description="Riwayat transaksi tetap tersimpan."
+                description={
+                  row.balance > 0
+                    ? `Saldo masih ${formatRupiah(row.balance)}, tarik dulu sebelum menutup rekening.`
+                    : 'Riwayat transaksi tetap tersimpan.'
+                }
+                okText="Ya, Tutup Rekening"
+                okButtonProps={{ danger: true, loading: statusMutation.isPending }}
                 onConfirm={() => handleCloseAccount(row)}
-                okText="Tutup"
-                cancelText="Batal"
               >
                 <Tooltip title="Tutup rekening">
                   <Button type="text" danger icon={<StopOutlined />} />
@@ -436,13 +448,10 @@ export function SavingsPage() {
       </Card>
 
       {/* Buka rekening baru */}
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <FormOutlined style={{ color: token.colorPrimary }} />
-            <span>Buka Rekening Tabungan</span>
-          </div>
-        }
+      <AppModal
+        title="Buka Rekening Tabungan"
+        subtitle="Satu santri, satu rekening aktif"
+        icon={<WalletOutlined />}
         open={openAccountOpen}
         onOk={handleOpenAccount}
         confirmLoading={createAccountMutation.isPending}
@@ -459,7 +468,7 @@ export function SavingsPage() {
         </div>
         <div style={{ marginBottom: 8, fontWeight: 500 }}>Santri</div>
         <StudentSelect value={newStudentId} onChange={(v) => setNewStudentId(v)} />
-      </Modal>
+      </AppModal>
 
       <TxnModal
         open={txnTarget !== null}

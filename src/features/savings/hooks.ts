@@ -8,6 +8,7 @@ import {
   setAccountStatus,
 } from './api'
 import type { AccountFormValues, SavingsStatus, SavingsTxnKind, TxnValues } from './types'
+import { maybeSendSavingsWa } from './waAuto'
 
 export function useSavingsAccounts() {
   return useQuery({
@@ -65,7 +66,8 @@ export function useApplyTxn() {
   return useMutation({
     mutationFn: ({ accountId, values }: { accountId: string; values: TxnValues }) =>
       applyTxn(accountId, values),
-    onSuccess: (_account, vars) => {
+    onSuccess: (account, vars) => {
+      void maybeSendSavingsWa(account, vars.values.kind as SavingsTxnKind, vars.values.amount)
       void logAudit({
         action: 'INSERT',
         source: 'OPERATIONAL',

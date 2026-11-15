@@ -1,17 +1,24 @@
 import { Button, Result, Spin } from 'antd'
 import { Link, Outlet } from 'react-router-dom'
 import { useProfile, type ProfileRole } from '../hooks/useProfile'
+import { useRbac } from '../rbac/useRbac'
 
 interface RoleRouteProps {
-  roles: ProfileRole[]
+  /**
+   * Guard berbasis permission (`<module>:<action>`) — cara baru.
+   * `roles` masih didukung untuk guard berbasis nama role lama.
+   */
+  perm?: string
+  roles?: ProfileRole[]
 }
 
 // Guard tingkat route (sebelumnya admin hanya dilindungi RLS +
-// sembunyi di sidebar). Role yang tidak lolos melihat 403.
-export function RoleRoute({ roles }: RoleRouteProps) {
+// sembunyi di sidebar). Role/permission yang tidak lolos melihat 403.
+export function RoleRoute({ perm, roles }: RoleRouteProps) {
   const { role, isLoading } = useProfile()
+  const { can, isLoading: rbacLoading } = useRbac()
 
-  if (isLoading) {
+  if (isLoading || (perm && rbacLoading)) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}>
         <Spin size="large" />
@@ -19,7 +26,9 @@ export function RoleRoute({ roles }: RoleRouteProps) {
     )
   }
 
-  if (!role || !roles.includes(role)) {
+  const allowed = perm ? can(perm) : !!role && !!roles?.includes(role as ProfileRole)
+
+  if (!allowed) {
     return (
       <Result
         status="403"

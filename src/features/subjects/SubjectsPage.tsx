@@ -41,7 +41,7 @@ import {
   useSubjects,
   useUpdateSubject,
 } from './hooks'
-import { SubjectForm } from './components/SubjectForm'
+import { SubjectForm, PHASE_OPTIONS } from './components/SubjectForm'
 import type { Subject, SubjectFormValues } from './types'
 
 type ActiveFilter = '' | 'active' | 'inactive'
@@ -53,6 +53,8 @@ export function SubjectsPage() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [category, setCategory] = useState<string | undefined>(undefined)
+  const [curriculumGroup, setCurriculumGroup] = useState<string | undefined>(undefined)
+  const [phase, setPhase] = useState<string | undefined>(undefined)
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -81,11 +83,13 @@ export function SubjectsPage() {
     return allSubjects.filter((s) => {
       if (q && !`${s.name} ${s.code ?? ''} ${s.category ?? ''}`.toLowerCase().includes(q)) return false
       if (category && s.category !== category) return false
+      if (curriculumGroup && s.curriculum_group !== curriculumGroup) return false
+      if (phase && s.phase !== phase) return false
       if (activeFilter === 'active' && !s.is_active) return false
       if (activeFilter === 'inactive' && s.is_active) return false
       return true
     })
-  }, [allSubjects, debouncedSearch, category, activeFilter])
+  }, [allSubjects, debouncedSearch, category, curriculumGroup, phase, activeFilter])
 
   const paginatedRows = useMemo(
     () => rows.slice((page - 1) * pageSize, page * pageSize),
@@ -95,11 +99,13 @@ export function SubjectsPage() {
   const resetFilters = () => {
     setSearch('')
     setCategory(undefined)
+    setCurriculumGroup(undefined)
+    setPhase(undefined)
     setActiveFilter('')
     setPage(1)
   }
 
-  const hasActiveFilters = Boolean(debouncedSearch || category || activeFilter)
+  const hasActiveFilters = Boolean(debouncedSearch || category || curriculumGroup || phase || activeFilter)
 
   const openCreate = () => {
     setEditing(null)
@@ -144,7 +150,7 @@ export function SubjectsPage() {
 
   const handleToggleActive = (subject: Subject) => {
     updateMutation.mutate(
-      { id: subject.id, values: { name: subject.name, code: subject.code ?? undefined, weekly_hours: subject.weekly_hours, category: subject.category ?? undefined, description: subject.description ?? undefined, is_active: !subject.is_active } },
+      { id: subject.id, values: { name: subject.name, code: subject.code ?? undefined, weekly_hours: subject.weekly_hours, category: subject.category ?? undefined, description: subject.description ?? undefined, is_active: !subject.is_active, kkm: subject.kkm ?? undefined, phase: subject.phase ?? undefined, curriculum_group: subject.curriculum_group ?? undefined, sort_order: subject.sort_order ?? 0 } },
       {
         onSuccess: () =>
           message.success(subject.is_active ? 'Mapel dinonaktifkan' : 'Mapel diaktifkan'),
@@ -157,12 +163,16 @@ export function SubjectsPage() {
     setExporting(true)
     try {
       const csv = Papa.unparse({
-        fields: ['Nama Mapel', 'Kode', 'Kelompok', 'JP/Minggu', 'Status'],
+        fields: ['Nama Mapel', 'Kode', 'Kategori', 'Kelompok KurMer', 'Fase', 'KKM', 'JP/Minggu', 'Urutan', 'Status'],
         data: rows.map((s) => [
           s.name,
           s.code ?? '',
           s.category ?? '',
+          s.curriculum_group ?? '',
+          s.phase ?? '',
+          s.kkm ?? '',
           s.weekly_hours,
+          s.sort_order,
           s.is_active ? 'Aktif' : 'Nonaktif',
         ]),
       })
@@ -262,6 +272,39 @@ export function SubjectsPage() {
       responsive: ['md'],
     },
     {
+      title: 'Fase',
+      dataIndex: 'phase',
+      key: 'phase',
+      width: 80,
+      align: 'center',
+      render: (v: string | null) => (v ? <Tag color="purple">{v}</Tag> : '-'),
+      responsive: ['lg'],
+    },
+    {
+      title: 'KurMer',
+      key: 'curriculum_group',
+      width: 90,
+      align: 'center',
+      render: (_, row) => {
+        if (!row.curriculum_group) return '-'
+        return (
+          <Tag color={row.curriculum_group === 'A' ? 'blue' : 'cyan'}>
+            {row.curriculum_group}
+          </Tag>
+        )
+      },
+      responsive: ['lg'],
+    },
+    {
+      title: 'KKM',
+      dataIndex: 'kkm',
+      key: 'kkm',
+      width: 70,
+      align: 'center',
+      render: (v: number | null) => v ?? '-',
+      responsive: ['lg'],
+    },
+    {
       title: 'JP/Minggu',
       dataIndex: 'weekly_hours',
       key: 'weekly_hours',
@@ -333,9 +376,9 @@ export function SubjectsPage() {
             <Tooltip title="Muat ulang (R)">
               <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={() => void subjectsQuery.refetch()} />
             </Tooltip>
-            <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
-              CSV
-            </Button>
+            <Tooltip title="Ekspor data mapel (CSV)">
+              <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport} />
+            </Tooltip>
             <Tooltip title="Palet shortcut (?)">
               <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
             </Tooltip>
@@ -380,6 +423,7 @@ export function SubjectsPage() {
           color="rose"
           loading={subjectsQuery.isPending}
           active={activeFilter === 'inactive'}
+          hideIfZero
           onClick={() => {
             setActiveFilter(activeFilter === 'inactive' ? '' : 'inactive')
             setPage(1)
@@ -418,6 +462,31 @@ export function SubjectsPage() {
               setPage(1)
             }}
             style={{ minWidth: 150 }}
+          />
+          <Select
+            placeholder="KurMer"
+            allowClear
+            options={[
+              { value: 'A', label: 'Kelompok A (Wajib)' },
+              { value: 'B', label: 'Kelompok B (Pilihan)' },
+            ]}
+            value={curriculumGroup}
+            onChange={(v) => {
+              setCurriculumGroup(v)
+              setPage(1)
+            }}
+            style={{ minWidth: 130 }}
+          />
+          <Select
+            placeholder="Fase"
+            allowClear
+            options={PHASE_OPTIONS}
+            value={phase}
+            onChange={(v) => {
+              setPhase(v)
+              setPage(1)
+            }}
+            style={{ minWidth: 130 }}
           />
           {hasActiveFilters && (
             <Button icon={<UndoOutlined />} onClick={resetFilters}>
@@ -460,6 +529,13 @@ export function SubjectsPage() {
         open={formOpen}
         subject={editing}
         submitting={createMutation.isPending || updateMutation.isPending}
+        usedCategories={Array.from(
+          new Set(
+            (subjectsQuery.data ?? [])
+              .map((s) => s.category?.trim())
+              .filter((c): c is string => Boolean(c)),
+          ),
+        )}
         onCancel={() => setFormOpen(false)}
         onSubmit={handleSubmit}
       />

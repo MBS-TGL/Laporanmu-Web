@@ -1,5 +1,5 @@
-import Papa from 'papaparse'
 import { supabase } from '../../lib/supabase'
+import { hardDelete, hardDeleteMany } from '../../shared/api/crud'
 import type {
   Teacher,
   TeacherFilters,
@@ -14,7 +14,7 @@ function applyTeacherFilters(
   query: TeacherQuery,
   filters: Omit<TeacherFilters, 'page' | 'pageSize'>,
 ): TeacherQuery {
-  const { search, status, gender, subject } = filters
+  const { search, status, gender, subject, type, missingWa } = filters
   let q = query
   if (search) {
     const term = `%${search}%`
@@ -23,6 +23,9 @@ function applyTeacherFilters(
   if (status) q = q.eq('status', status)
   if (gender) q = q.eq('gender', gender)
   if (subject) q = q.eq('subject', subject)
+  if (type) q = q.eq('type', type)
+  // or() kedua di level query yang sama digabung AND oleh PostgREST
+  if (missingWa) q = q.or('phone.is.null,phone.eq.""')
   return q
 }
 
@@ -91,63 +94,40 @@ export async function fetchTeachersByIds(ids: string[]): Promise<Teacher[]> {
   return (data ?? []) as Teacher[]
 }
 
-/** Baris ekspor — satu sumber untuk CSV & Excel agar kolomnya selalu sinkron */
-function teacherExportRow(t: Teacher) {
+/** Payload form — satu sumber untuk insert & update agar kolomnya selalu sinkron */
+function teacherFormPayload(values: TeacherFormValues) {
   return {
-    Nama: t.name,
-    NBM: t.nbm ?? '',
-    NIP: t.nip ?? '',
-    NUPTK: t.nuptk ?? '',
-    NIK: t.nik ?? '',
-    Mapel: t.subject ?? '',
-    Gender: t.gender ?? '',
-    Status: t.status,
-    Telepon: t.phone ?? '',
-    Email: t.email ?? '',
-    Bergabung: t.join_date ?? '',
-    Alamat: t.address ?? '',
-    Catatan: t.notes ?? '',
+    name: values.name,
+    nbm: values.nbm || null,
+    subject: values.subject || null,
+    gender: values.gender ?? null,
+    phone: values.phone || null,
+    email: values.email || null,
+    status: values.status,
+    join_date: values.join_date || null,
+    nik: values.nik || null,
+    nip: values.nip || null,
+    nuptk: values.nuptk || null,
+    notes: values.notes || null,
+    address: values.address || null,
+    photo_url: values.photo_url || null,
+    employment_status: values.employment_status || 'GTY',
+    type: values.type || 'guru',
+    birth_place: values.birth_place || null,
+    birth_date: values.birth_date || null,
+    teaching_hours: values.teaching_hours ?? null,
+    last_education: values.last_education || null,
+    major: values.major || null,
+    graduation_year: values.graduation_year ?? null,
+    work_days: values.work_days?.length ? values.work_days : null,
+    fingerspot_name: values.fingerspot_name || null,
   }
-}
-
-export function downloadTeachersCsv(teachers: Teacher[]): void {
-  const csv = Papa.unparse(teachers.map(teacherExportRow))
-  // BOM agar Excel membaca UTF-8 dengan benar
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `data-guru-${new Date().toISOString().slice(0, 10)}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-// XLSX di-load on-demand — hanya dibutuhkan saat ekspor Excel
-export async function downloadTeachersXlsx(teachers: Teacher[]): Promise<void> {
-  const XLSX = await import('xlsx')
-  const sheet = XLSX.utils.json_to_sheet(teachers.map(teacherExportRow))
-  const book = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(book, sheet, 'Guru')
-  XLSX.writeFile(book, `data-guru-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 export async function createTeacher(values: TeacherFormValues): Promise<Teacher> {
   const { data, error } = await supabase
     .from('teachers')
-    .insert({
-      name: values.name,
-      nbm: values.nbm || null,
-      subject: values.subject || null,
-      gender: values.gender ?? null,
-      phone: values.phone || null,
-      email: values.email || null,
-      status: values.status,
-      join_date: values.join_date || null,
-      nik: values.nik || null,
-      nip: values.nip || null,
-      nuptk: values.nuptk || null,
-      notes: values.notes || null,
-    })
+    .insert(teacherFormPayload(values))
     .select('*')
     .single()
 
@@ -158,26 +138,19 @@ export async function createTeacher(values: TeacherFormValues): Promise<Teacher>
 export async function updateTeacher(id: string, values: TeacherFormValues): Promise<Teacher> {
   const { data, error } = await supabase
     .from('teachers')
-    .update({
-      name: values.name,
-      nbm: values.nbm || null,
-      subject: values.subject || null,
-      gender: values.gender ?? null,
-      phone: values.phone || null,
-      email: values.email || null,
-      status: values.status,
-      join_date: values.join_date || null,
-      nik: values.nik || null,
-      nip: values.nip || null,
-      nuptk: values.nuptk || null,
-      notes: values.notes || null,
-    })
+    .update(teacherFormPayload(values))
     .eq('id', id)
     .select('*')
     .single()
 
   if (error) throw error
   return data as Teacher
+}
+
+/** Sematkan / lepas guru dari urutan atas daftar */
+export async function setTeacherPinned(id: string, isPinned: boolean): Promise<void> {
+  const { error } = await supabase.from('teachers').update({ is_pinned: isPinned }).eq('id', id)
+  if (error) throw error
 }
 
 export async function softDeleteTeacher(id: string): Promise<void> {
@@ -247,6 +220,16 @@ export async function restoreTeachersBulk(ids: string[]): Promise<void> {
   if (error) throw error
 }
 
+/** Hapus permanen guru dari database — HANYA di Arsip Guru, gated `canDelete`. */
+export async function hardDeleteTeacher(id: string): Promise<void> {
+  await hardDelete('teachers', id)
+}
+
+/** Hapus permanen massal guru — HANYA di Arsip Guru, gated `canDelete`. */
+export async function hardDeleteTeachersBulk(ids: string[]): Promise<void> {
+  await hardDeleteMany('teachers', ids)
+}
+
 // ------------------------------------------------------------
 // Impor massal guru (insert biasa, chunk per 500 baris —
 // chunk gagal diulang per baris agar baris valid tetap masuk)
@@ -260,10 +243,19 @@ export interface ImportTeacherPayload {
   subject?: string
   gender?: string
   status?: string
+  type?: string
+  employment_status?: string
   phone?: string
   email?: string
   join_date?: string
+  birth_place?: string
+  birth_date?: string
+  teaching_hours?: number
+  last_education?: string
+  major?: string
+  graduation_year?: number
   address?: string
+  fingerspot_name?: string
   notes?: string
 }
 
@@ -285,10 +277,19 @@ function importPayload(values: ImportTeacherPayload) {
     subject: values.subject || null,
     gender: values.gender || null,
     status: values.status || 'active',
+    type: values.type || 'guru',
+    employment_status: values.employment_status || 'GTY',
     phone: values.phone || null,
     email: values.email || null,
     join_date: values.join_date || null,
+    birth_place: values.birth_place || null,
+    birth_date: values.birth_date || null,
+    teaching_hours: values.teaching_hours ?? null,
+    last_education: values.last_education || null,
+    major: values.major || null,
+    graduation_year: values.graduation_year ?? null,
     address: values.address || null,
+    fingerspot_name: values.fingerspot_name || null,
     notes: values.notes || null,
   }
 }

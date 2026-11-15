@@ -56,8 +56,8 @@ const FEATURES = [
   },
   {
     icon: <CarOutlined />,
-    title: 'Izin Pulang',
-    desc: 'Surat izin pulang digital lengkap dengan QR verifikasi.',
+    title: 'Izin Keluar',
+    desc: 'Surat izin keluar pondok digital lengkap dengan QR verifikasi.',
   },
   {
     icon: <NotificationOutlined />,
@@ -681,7 +681,7 @@ export function LandingPage() {
               style={{ marginTop: 16, fontSize: 16, maxWidth: 520, lineHeight: 1.65 }}
             >
               Laporanmu membantu madrasah dan pesantren mencatat poin perilaku, raport bulanan,
-              kesehatan, hingga izin pulang — semuanya terhubung dengan wali santri dalam satu
+              kesehatan, hingga izin keluar — semuanya terhubung dengan wali santri dalam satu
               aplikasi.
             </Typography.Paragraph>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 28 }}>

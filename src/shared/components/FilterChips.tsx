@@ -1,4 +1,6 @@
 import { Tag, theme } from 'antd'
+import { motion } from 'motion/react'
+import { microTransition, pageShellItemVariants } from '../motion'
 
 export interface FilterChip {
   key: string
@@ -11,7 +13,11 @@ export function FilterChips({ chips, marginTop }: { chips: FilterChip[]; marginT
   const { token } = theme.useToken()
   if (chips.length === 0) return null
   return (
-    <div
+    <motion.div
+      variants={pageShellItemVariants}
+      initial="initial"
+      animate="animate"
+      transition={microTransition}
       style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -35,6 +41,6 @@ export function FilterChips({ chips, marginTop }: { chips: FilterChip[]; marginT
           {chip.label}
         </Tag>
       ))}
-    </div>
+    </motion.div>
   )
 }

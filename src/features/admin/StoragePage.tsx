@@ -27,8 +27,8 @@ import {
   VideoCameraOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { PageHeader } from '../../shared/components/PageHeader'
 import { StatChip } from '../../shared/components/StatChip'
+import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { useBuckets, useDeleteStorageFiles, useLargestFiles, useOrphanScan } from './hooks'
@@ -47,7 +47,7 @@ function fileIcon(name: string) {
   return <FileOutlined style={{ color: '#4f46e5' }} />
 }
 
-export function StoragePage() {
+export function StoragePage({ active }: { active: boolean }) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
   const bucketsQuery = useBuckets()
@@ -151,24 +151,24 @@ export function StoragePage() {
     [token, deletingKey],
   )
 
+  // Aksi tab diportal ke kanan judul shell — hasil dirender di JSX
+  const actions = useTabActions(
+    active,
+    <Tooltip title="Muat ulang bucket & file">
+      <Button
+        icon={<ReloadOutlined spin={bucketsQuery.isFetching || largestQuery.isFetching} />}
+        aria-label="Muat ulang bucket & file"
+        onClick={() => {
+          void bucketsQuery.refetch()
+          void largestQuery.refetch()
+        }}
+      />
+    </Tooltip>,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Manajemen Penyimpanan"
-        subtitle="Bucket storage, file terbesar, dan pembersihan file yatim (orphan)"
-        extra={
-          <Tooltip title="Muat ulang bucket & file">
-            <Button
-              icon={<ReloadOutlined spin={bucketsQuery.isFetching || largestQuery.isFetching} />}
-              onClick={() => {
-                void bucketsQuery.refetch()
-                void largestQuery.refetch()
-              }}
-            />
-          </Tooltip>
-        }
-      />
-
+      {actions}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <StatChip
           icon={<CloudServerOutlined />}
@@ -196,7 +196,21 @@ export function StoragePage() {
       </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        {bucketsQuery.isPending ? (
+        {bucketsQuery.isError ? (
+          <Col span={24}>
+            <Alert
+              type="error"
+              showIcon
+              message="Gagal memuat bucket"
+              description="Daftar bucket storage tidak bisa diambil dari server."
+              action={
+                <Button size="small" icon={<ReloadOutlined />} onClick={() => void bucketsQuery.refetch()}>
+                  Coba lagi
+                </Button>
+              }
+            />
+          </Col>
+        ) : bucketsQuery.isPending ? (
           <Col span={24}>
             <Card loading style={{ minHeight: 120 }} />
           </Col>
@@ -266,12 +280,26 @@ export function StoragePage() {
               />
             }
           >
+            {largestQuery.isError ? (
+              <Alert
+                type="error"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message="Gagal memuat daftar file"
+                action={
+                  <Button size="small" icon={<ReloadOutlined />} onClick={() => void largestQuery.refetch()}>
+                    Coba lagi
+                  </Button>
+                }
+              />
+            ) : null}
             <Table<StorageFileInfo>
               rowKey={(f) => `${f.bucket}/${f.name}`}
               size="small"
               columns={fileColumns}
               dataSource={filteredLargest}
               loading={largestQuery.isPending}
+              scroll={{ x: 'max-content' }}
               pagination={false}
               locale={{
                 emptyText: (
@@ -315,6 +343,7 @@ export function StoragePage() {
               columns={fileColumns}
               dataSource={orphans}
               loading={orphanScan.isFetching}
+              scroll={{ x: 'max-content' }}
               pagination={orphans.length > 10 ? { pageSize: 10, showSizeChanger: false } : false}
               locale={{
                 emptyText: (

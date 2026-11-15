@@ -52,7 +52,7 @@ export function AnnouncementModal({
       subtitle={
         announcement
           ? 'Perbarui isi pengumuman'
-          : 'Pengumuman untuk staf — opsional tampil juga ke wali santri'
+          : 'Pengumuman untuk staf, opsional tampil juga ke wali santri'
       }
       icon={<NotificationOutlined />}
       open={open}

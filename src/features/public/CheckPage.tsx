@@ -76,6 +76,24 @@ interface CheckStudentResult {
     end_date: string
     status: 'active' | 'completed' | 'cancelled'
   }[]
+  semester_reports?: {
+    semester: number
+    academic_year: string
+    scores: Record<string, number | null>
+  }[]
+  savings: {
+    balance: number
+    status: 'active' | 'closed'
+    opened_at: string
+    transactions: {
+      id: string
+      kind: 'deposit' | 'withdrawal'
+      amount: number
+      balance_after: number
+      note: string | null
+      occurred_at: string
+    }[]
+  } | null
 }
 
 const MONTH_NAMES = [
@@ -85,6 +103,17 @@ const MONTH_NAMES = [
 
 const RATE_MAX = 5
 const RATE_COOLDOWN_MS = 30_000
+
+/** Kredensial sesi portal — per-tab (sessionStorage), hilang saat tab ditutup */
+const SESSION_KEY = 'laporanmu_guardian_session'
+
+function rupiah(n: number): string {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(n)
+}
 
 function formatCode(raw: string): string {
   const clean = raw.replace(/-/g, '').toUpperCase().slice(0, 11)
@@ -140,9 +169,22 @@ export function CheckPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CheckStudentResult | null>(null)
+  const [subjectNames, setSubjectNames] = useState<Record<string, string>>({})
 
   useEffect(() => {
     document.title = 'Cek Wali Santri · Laporanmu'
+    // Load nama mata pelajaran untuk label nilai rapor semester
+    void supabase
+      .from('subjects')
+      .select('id, name')
+      .is('deleted_at', null)
+      .then(({ data }) => {
+        if (data) {
+          const map: Record<string, string> = {}
+          for (const s of data) map[s.id] = s.name
+          setSubjectNames(map)
+        }
+      })
   }, [])
 
   // Pengumuman publik — cache 5 menit; gagal fetch diperlakukan non-kritis
@@ -164,7 +206,7 @@ export function CheckPage() {
     }
   }
 
-  const doCheck = async (code: string, pin: string) => {
+  const doCheck = async (code: string, pin: string): Promise<boolean> => {
     setLoading(true)
     setError(null)
     const { data, error: rpcError } = await supabase.rpc('check_student', {
@@ -187,10 +229,35 @@ export function CheckPage() {
           ? res.error
           : rpcError?.message || 'Gagal memeriksa data. Coba beberapa saat lagi.',
       )
-      return
+      return false
     }
     sessionStorage.removeItem('laporanmu_check_attempts')
+    // Simpan sesi per-tab agar wali tidak perlu memasukkan PIN lagi saat refresh
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ code, pin }))
     setResult(res)
+    return true
+  }
+
+  // Pulihkan sesi portal dalam tab yang sama (sekali saat mount)
+  useEffect(() => {
+    let saved: { code: string; pin: string } | null = null
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY)
+      saved = raw ? (JSON.parse(raw) as { code: string; pin: string }) : null
+    } catch {
+      saved = null
+    }
+    if (!saved?.code || !saved?.pin) return
+    void doCheck(saved.code, saved.pin).then((ok) => {
+      if (!ok) sessionStorage.removeItem(SESSION_KEY)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(SESSION_KEY)
+    setResult(null)
+    setError(null)
   }
 
   const handleSubmit = async (values: { code: string; pin: string }) => {
@@ -226,7 +293,7 @@ export function CheckPage() {
                   </Typography.Text>
                 </div>
               </div>
-              <Button onClick={() => setResult(null)}>Cek Santri Lain</Button>
+              <Button onClick={handleLogout}>Cek Santri Lain</Button>
             </div>
             <Row gutter={[12, 12]} style={{ marginTop: 18 }}>
               <Col xs={12} sm={8}>
@@ -350,6 +417,38 @@ export function CheckPage() {
                   ),
                 },
                 {
+                  key: 'rapor_akademik',
+                  label: 'Rapor Akademik',
+                  children:
+                    !result.semester_reports || result.semester_reports.length === 0 ? (
+                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada data rapor semester" />
+                    ) : (
+                      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                        {result.semester_reports.map((sr, idx) => (
+                          <Card key={idx} size="small" style={{ borderRadius: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                              <Typography.Text strong>
+                                Semester {sr.semester} · {sr.academic_year}
+                              </Typography.Text>
+                              <Tag color="blue">Rapor Umum</Tag>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px 16px' }}>
+                              {Object.entries(sr.scores || {}).map(([subjKey, score]) => {
+                                const name = subjectNames[subjKey] || subjKey
+                                return (
+                                  <div key={subjKey} style={{ fontSize: 12.5 }}>
+                                    <span style={{ color: '#64748b' }}>{name}: </span>
+                                    <b>{score ?? '—'}</b>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </Card>
+                        ))}
+                      </Space>
+                    ),
+                },
+                {
                   key: 'kehadiran',
                   label: 'Kehadiran',
                   children:
@@ -389,6 +488,90 @@ export function CheckPage() {
                         </Typography.Text>
                       </Space>
                     ),
+                },
+                {
+                  key: 'tabungan',
+                  label: 'Tabungan',
+                  children: !result.savings ? (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description="Belum ada rekening tabungan"
+                    />
+                  ) : (
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Card
+                        size="small"
+                        style={{
+                          borderRadius: 12,
+                          background: '#f0fdf4',
+                          borderColor: '#bbf7d0',
+                        }}
+                      >
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          Saldo tabungan
+                        </Typography.Text>
+                        <div
+                          style={{
+                            fontSize: 26,
+                            fontWeight: 700,
+                            color: '#15803d',
+                            fontVariantNumeric: 'tabular-nums',
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          {rupiah(result.savings.balance)}
+                        </div>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          Rekening dibuka {formatDateID(result.savings.opened_at)}
+                          {result.savings.status === 'closed' ? ' · sudah ditutup' : ''}
+                        </Typography.Text>
+                      </Card>
+
+                      {result.savings.transactions.length === 0 ? (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description="Belum ada mutasi tabungan"
+                        />
+                      ) : (
+                        result.savings.transactions.map((t) => {
+                          const deposit = t.kind === 'deposit'
+                          return (
+                            <div
+                              key={t.id}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                background: deposit ? '#f0fdf4' : '#fff1f0',
+                              }}
+                            >
+                              <div>
+                                <Typography.Text strong style={{ fontSize: 13 }}>
+                                  {deposit ? 'Setoran' : 'Penarikan'}
+                                </Typography.Text>
+                                <div>
+                                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                    {formatDateID(t.occurred_at)}
+                                    {t.note ? ` · ${t.note}` : ''} · saldo{' '}
+                                    {rupiah(t.balance_after)}
+                                  </Typography.Text>
+                                </div>
+                              </div>
+                              <Tag
+                                color={deposit ? 'green' : 'red'}
+                                style={{ height: 'fit-content', fontVariantNumeric: 'tabular-nums' }}
+                              >
+                                {deposit ? '+' : '−'}
+                                {rupiah(t.amount)}
+                              </Tag>
+                            </div>
+                          )
+                        })
+                      )}
+                    </Space>
+                  ),
                 },
                 {
                   key: 'skorsing',
@@ -460,7 +643,8 @@ export function CheckPage() {
           description="Pantau pembinaan putra/putri Anda kapan saja — tanpa perlu membuat akun."
           bullets={[
             'Poin pelanggaran & prestasi terkini',
-            'Raport bulanan & catatan musyrif',
+            'Raport bulanan, kehadiran & catatan musyrif',
+            'Saldo dan mutasi tabungan santri',
             'Data hanya bisa dibuka dengan PIN santri',
           ]}
           footnote="Kode registrasi & PIN diberikan oleh pihak sekolah."
@@ -499,14 +683,14 @@ export function CheckPage() {
               label="PIN Rahasia"
               rules={[
                 { required: true, message: 'PIN wajib diisi' },
-                { len: 4, message: 'PIN harus 4 digit' },
+                { min: 4, max: 6, message: 'PIN 4–6 digit' },
               ]}
             >
               <Input.Password
                 prefix={<KeyOutlined />}
-                placeholder="****"
+                placeholder="••••••"
                 inputMode="numeric"
-                maxLength={4}
+                maxLength={6}
                 size="large"
               />
             </Form.Item>

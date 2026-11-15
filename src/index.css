@@ -29,23 +29,16 @@ body {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
-/* Scrollbar tipis */
+/* Scrollbar disembunyikan di semua konteks agar tampilan bersih —
+   scroll tetap berfungsi via roda mouse / trackpad / touch / drag */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 0;
+  height: 0;
+  display: none;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 8px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
+* {
+  scrollbar-width: none; /* Firefox */
 }
 
 ::selection {
@@ -56,6 +49,29 @@ body {
 .ant-form-item .ant-form-item-label > label {
   font-weight: 600;
 }
+
+/* Konfirmasi inline (Popconfirm) konsisten di seluruh app — tombol rapat kanan
+   dengan lebar seragam, judul lebih tegas. Melengkapi pola copy "Ya, <verba>". */
+.ant-popconfirm .ant-popconfirm-message {
+  max-width: 320px;
+}
+
+.ant-popconfirm .ant-popconfirm-message .ant-popconfirm-title {
+  font-weight: 700;
+}
+
+.ant-popconfirm .ant-popconfirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ant-popconfirm .ant-popconfirm-buttons .ant-btn {
+  margin-inline-start: 0;
+  min-width: 92px;
+}
+
 
 /* Header tabel gaya Esceha.id: kecil, kapital, letter-spacing, abu redup */
 .ant-table-thead > tr > th {
@@ -102,7 +118,23 @@ body {
   letter-spacing: -0.02em;
 }
 
-/* Getaran lonceng notifikasi saat ada notifikasi penting (dipakai inline di Topbar) */
+/* Tooltip terang — antd default selalu gelap (colorBgSpotlight = hitam 85%),
+   tidak ada token khusus untuk Tooltip (colorTextLightSolid dipakai bersama
+   tombol primary, menu, dll). Override variabel di subtree .ant-tooltip;
+   !important untuk menang atas deklarasi .css-var-* dari cssinjs yang
+   di-inject saat runtime (urutannya tidak menentu). */
+.ant-tooltip,
+.ant-tooltip-unique-container {
+  --ant-color-bg-spotlight: #ffffff !important;
+  --ant-tooltip-overlay-color: #0f172a;
+}
+
+/* Baris di popover "Kelengkapan data per kelas" (StatsRow Siswa) — sorot saat diarahkan */
+.completeness-row:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+/* Getaran lonceng notifikasi — SEKALI putaran (bukan loop; R-19 / DESIGN.md #4) */
 @keyframes tbBellShake {
   0%,
   85%,
@@ -121,6 +153,10 @@ body {
   98% {
     transform: rotate(8deg);
   }
+}
+
+.tb-bell-shake {
+  animation: tbBellShake 0.7s ease-in-out 1;
 }
 
 /* ============================================================
@@ -424,7 +460,8 @@ body {
 }
 
 .land-float {
-  animation: land-float 5s ease-in-out infinite;
+  /* Finite: chip hero melayang lalu diam — larangan loop tanpa henti (R-19) */
+  animation: land-float 5s ease-in-out 2;
 }
 
 .land-card-hover {
@@ -498,12 +535,24 @@ body {
   .land-fade-up,
   .land-float,
   .reveal,
-  .reveal-in {
+  .reveal-in,
+  .tb-bell-shake,
+  .stat-card-lift {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
+}
+
+/* Kartu shortcut dashboard — lift halus saat hover (MOTION 2, affordance) */
+.stat-card-lift .ant-card {
+  transition:
+    box-shadow 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stat-card-lift:hover .ant-card {
+  transform: translateY(-2px);
 }
 
 /* Tombol menu mobile landing — tampil hanya di layar kecil */
@@ -566,7 +615,7 @@ body {
 }
 
 .student-id-card-head {
-  background: linear-gradient(120deg, #4f46e5 0%, #6366f1 55%, #818cf8 100%);
+  background: #4f46e5;
   color: #fff;
   font-weight: 700;
   font-size: 2.5mm;
@@ -725,4 +774,679 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+}
+
+/* ============================================================
+   Izin keluar pondok — QR surat, tint terlambat, scan kamera
+   ============================================================ */
+.permit-letter-qr {
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  line-height: 0;
+}
+
+/* Baris tabel izin yang melewati batas kembali */
+.permit-row-overdue > td {
+  background: rgba(244, 63, 94, 0.06) !important;
+}
+
+/* Kartu hasil scan (modal scan) — kamera memakai shared ScanCamera */
+.scan-result-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  margin-bottom: 4px;
+}
+
+/* --- Cetak rekap izin harian --- */
+.permit-recap-root {
+  display: none;
+  background: #fff;
+  color: #0f172a;
+  padding: 4px;
+}
+
+.permit-recap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+.permit-recap-table th,
+.permit-recap-table td {
+  border: 1px solid #cbd5e1;
+  padding: 3px 5px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.permit-recap-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.permit-recap-sign {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media print {
+  body.printing-permit-recap #root {
+    display: none !important;
+  }
+
+  .permit-recap-root {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
+  /* Blok cetak surat/raport menyembunyikan body * — rekap dikecualikan */
+  .permit-recap-root,
+  .permit-recap-root * {
+    visibility: visible !important;
+  }
+
+  .permit-recap-table th {
+    background: #f1f5f9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* ============================================================
+   Mode Gerbang fullscreen — stasiun scan satpam/pengasuh
+   ============================================================ */
+.gate-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.gate-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  flex-shrink: 0;
+}
+
+.gate-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.gate-title .anticon {
+  color: #10b981;
+  font-size: 22px;
+}
+
+.gate-clock {
+  flex: 1;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.gate-date {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.gate-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.gate-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr);
+  gap: 18px;
+  padding: 18px 20px;
+}
+
+@media (max-width: 900px) {
+  .gate-body {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+}
+
+.gate-scan-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gate-manual {
+  flex-shrink: 0;
+}
+
+/* Kartu hasil scan di bawah kamera — tombol raksasa sentuhan */
+.gate-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.gate-result-name {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.gate-result-sub {
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.gate-result-actions {
+  display: grid;
+  gap: 10px;
+  width: min(420px, 100%);
+  margin-top: 10px;
+}
+
+.gate-result-actions .ant-alert {
+  text-align: left;
+}
+
+.gate-action-btn.ant-btn {
+  height: 64px;
+  font-size: 19px;
+  font-weight: 800;
+  border-radius: 14px;
+}
+
+.gate-scan-again.ant-btn {
+  height: 46px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+.gate-scan-again.ant-btn:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Kanan: daftar live */
+.gate-list-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.gate-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gate-list-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.gate-list-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.gate-list {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding-right: 4px;
+}
+
+.gate-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.gate-list-item.is-late {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.gate-list-info {
+  min-width: 0;
+}
+
+.gate-list-name {
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gate-list-sub {
+  font-size: 12.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gate-list-deadline {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.gate-list-deadline.is-late {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.gate-activity {
+  flex-shrink: 0;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+}
+
+.gate-activity-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.gate-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #475569;
+  padding: 2px 0;
+}
+
+.gate-activity-time {
+  margin-left: auto;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Cetak massal surat izin — N surat, 1 surat per halaman
+   ============================================================ */
+.permit-batch-root {
+  display: none;
+  background: #fff;
+  color: #0f172a;
+}
+
+@media print {
+  body.printing-permit-batch #root {
+    display: none !important;
+  }
+
+  .permit-batch-root {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
+  /* Blok cetak surat/rapat lain menyembunyikan body * — batch dikecualikan */
+  .permit-batch-root,
+  .permit-batch-root * {
+    visibility: visible !important;
+  }
+
+  .permit-batch-item {
+    page-break-after: always;
+    break-after: page;
+    padding: 4mm 8mm;
+  }
+
+  .permit-batch-item:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .permit-batch-item .permit-letter {
+    border: none !important;
+    border-radius: 0 !important;
+    max-width: none;
+  }
+}
+
+/* ------------------------------------------------------------
+   Daftar penghuni asrama — cetak (pola printing-student-cards)
+   ------------------------------------------------------------ */
+.roster-print-root {
+  display: none;
+}
+
+.roster-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: center;
+  color: #475569;
+}
+
+.roster-room {
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+  margin-top: 2px;
+  color: #0f172a;
+}
+
+.roster-meta {
+  font-size: 12px;
+  color: #475569;
+  text-align: center;
+  margin: 4px 0 12px;
+}
+
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.roster-table th,
+.roster-table td {
+  border: 1px solid #cbd5e1;
+  padding: 4px 10px;
+}
+
+.roster-table th {
+  background: #f1f5f9;
+  text-align: left;
+  font-weight: 700;
+}
+
+.roster-sign {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  margin-top: 20px;
+  font-size: 12.5px;
+  text-align: center;
+  color: #0f172a;
+}
+
+.roster-sign-space {
+  height: 52px;
+}
+
+.roster-foot {
+  margin-top: 12px;
+  font-size: 10.5px;
+  color: #64748b;
+  display: flex;
+  justify-content: space-between;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body.printing-roster #root {
+    display: none !important;
+  }
+
+  body.printing-roster .roster-print-root {
+    display: block !important;
+  }
+
+  .roster-page {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .roster-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .roster-table th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* BulkActionBar: desktop satu baris selebar konten (left:50% membatasi lebar
+   shrink-to-fit ke setengah viewport), layar sempit wrap penuh tanpa overflow */
+.bulk-bar {
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  flex-wrap: nowrap;
+  justify-content: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.bulk-bar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .bulk-bar {
+    width: calc(100vw - 32px);
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+/* ── ImportWizard: dropzone kustom ───────────────────────────────────────────
+   Menggantikan ikon/teks default AntD Dragger: kotak ikon indigo (motif
+   identitas), garis putus-putus lembut, highlight saat file diseret. */
+.import-dragger .ant-upload-drag {
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.import-dragger .ant-upload-drag:hover,
+.import-dragger .ant-upload-drag.ant-upload-drag-hover {
+  border-color: #4f46e5;
+  background: #eef2ff;
+}
+
+.import-dragger .ant-upload-btn {
+  padding: 0;
+}
+
+.import-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 22px 16px;
+}
+
+.import-dropzone-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  font-size: 22px;
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.08);
+  transition: background 0.15s ease;
+}
+
+.import-dragger .ant-upload-drag:hover .import-dropzone-icon,
+.import-dragger .ant-upload-drag.ant-upload-drag-hover .import-dropzone-icon {
+  background: rgba(79, 70, 229, 0.16);
+}
+
+.import-dropzone-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.import-dropzone-hint {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+/* ── WizardSteps: stepper bernomor + garis penghubung ─────────────────────── */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+}
+
+/* Step content-width; GARIS yang mengisi sisa ruang secara merata agar
+   jarak antar nomor konsisten (dulu step flex:1 mendorong nomor ke kanan
+   secara tak rata dan garis menuju step terakhir menyusut nyaris nol). */
+.wizard-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.wizard-step-line {
+  flex: 1 1 0;
+  min-width: 16px;
+  height: 2px;
+  margin: 0 10px;
+  border-radius: 1px;
+  background: #e2e8f0;
+  transition: background 0.2s ease;
+}
+
+.wizard-step-line[data-done='true'] {
+  background: #4f46e5;
+}
+
+.wizard-step-dot {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  background: #fff;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.wizard-step[data-state='active'] .wizard-step-dot {
+  border-color: #4f46e5;
+  color: #fff;
+  background: #4f46e5;
+}
+
+.wizard-step[data-state='done'] .wizard-step-dot {
+  border-color: #4f46e5;
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.wizard-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.wizard-step[data-state='active'] .wizard-step-title {
+  color: #4f46e5;
+}
+
+.wizard-step[data-state='done'] .wizard-step-title {
+  color: #0f172a;
+}
+
+.wizard-step-desc {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .wizard-step-desc {
+    display: none;
+  }
+
+  .wizard-step-line {
+    margin: 0 6px;
+  }
+}
+
+/* ── Panel referensi impor: baris hover ───────────────────────────────────── */
+.ref-row {
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.ref-row:hover {
+  background: rgba(79, 70, 229, 0.06);
 }

@@ -1,10 +1,8 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
-  Alert,
   App,
   Button,
   Collapse,
-  ConfigProvider,
   Descriptions,
   Input,
   Popover,
@@ -13,7 +11,6 @@ import {
   Select,
   Space,
   Spin,
-  Steps,
   Table,
   Tag,
   Typography,
@@ -26,462 +23,113 @@ import {
   CloseCircleOutlined,
   DownOutlined,
   DownloadOutlined,
+  FileAddOutlined,
+  ApartmentOutlined,
+  BankOutlined,
   FileExcelOutlined,
   GlobalOutlined,
-  InboxOutlined,
   LinkOutlined,
   TableOutlined,
   UploadOutlined,
   ImportOutlined,
+  SearchOutlined,
 } from '@ant-design/icons'
 import Papa from 'papaparse'
 import { useQueryClient } from '@tanstack/react-query'
-import { AppModal } from '../../../shared/components/AppModal'
+import { WizardModal } from '../../../shared/components/WizardModal'
+import { IconBox } from '../../../shared/components/IconBox'
+import { ModalFooter } from '../../../shared/components/ModalFooter'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
+import { ModalSection } from '../../../shared/components/ModalSection'
+import { UploadDropzone } from '../../../shared/components/UploadDropzone'
+import {
+  SAMPLE_COLUMNS,
+  autoMatch,
+  columnLetter,
+  downloadInvalidRows,
+  downloadTemplate,
+  normalizeGender,
+  normalizePhone,
+  readFileToTable,
+  sampleValues,
+  normalizeName,
+  splitTags,
+  validateRows,
+  FIELDS,
+  type FieldKey,
+  type Mapping,
+  type ParsedRow,
+} from '../importParse'
 import { importStudents, type ImportStudentPayload, type ImportStudentResult } from '../api'
 import { useClassesBrief, useDormsBrief, useExistingStudentCodes } from '../hooks'
 
 const { Text } = Typography
-
-const VALID_STATUSES = ['active', 'graduated', 'transferred', 'left']
 
 // RPC dieksekusi per baris (bukan transaksi tunggal) — mengirim per chunk
 // menjaga payload tetap kecil untuk file besar tanpa mengubah semantiknya
 const IMPORT_CHUNK_SIZE = 500
 
 // ---------------------------------------------------------------------------
-// Definisi kolom
-// ---------------------------------------------------------------------------
-
-const FIELDS = [
-  { key: 'name', label: 'Nama', required: true, aliases: ['nama', 'nama siswa', 'nama lengkap'] },
-  {
-    key: 'registration_code',
-    label: 'Kode Registrasi',
-    required: true,
-    aliases: ['kode registrasi', 'kode reg', 'kode'],
-  },
-  { key: 'class_name', label: 'Kelas', required: true, aliases: ['kelas', 'nama kelas', 'class'] },
-  { key: 'dorm_name', label: 'Asrama', aliases: ['asrama', 'nama asrama', 'dorm'] },
-  { key: 'nisn', label: 'NISN', aliases: [] },
-  { key: 'nis', label: 'NIS', aliases: [] },
-  { key: 'nik', label: 'NIK', aliases: [] },
-  { key: 'gender', label: 'Gender', aliases: ['jenis kelamin', 'jk', 'l p'] },
-  { key: 'status', label: 'Status', aliases: [] },
-  {
-    key: 'phone',
-    label: 'Telepon / WA',
-    aliases: ['phone wa', 'wa', 'no hp', 'hp', 'telepon', 'no telepon', 'whatsapp', 'nomor hp'],
-  },
-  { key: 'photo_url', label: 'URL Foto', aliases: ['url foto', 'foto'] },
-  { key: 'tags', label: 'Label', aliases: ['label', 'tag'] },
-  { key: 'guardian_name', label: 'Nama Wali', aliases: ['nama wali', 'wali'] },
-  {
-    key: 'guardian_relation',
-    label: 'Hubungan Wali',
-    aliases: ['hubungan wali', 'hubungan'],
-  },
-  { key: 'birth_place', label: 'Tempat Lahir', aliases: ['tempat lahir'] },
-  { key: 'birth_date', label: 'Tanggal Lahir', aliases: ['tanggal lahir', 'tgl lahir'] },
-  { key: 'religion', label: 'Agama', aliases: ['agama'] },
-  { key: 'address', label: 'Alamat', aliases: ['alamat'] },
-] as const satisfies readonly {
-  key: string
-  label: string
-  required?: boolean
-  aliases: readonly string[]
-}[]
-
-type FieldKey = (typeof FIELDS)[number]['key']
-type Mapping = Partial<Record<FieldKey, number>>
-
-interface ParsedRow {
-  key: number
-  name?: string
-  registration_code?: string
-  class_name?: string
-  dorm_name?: string
-  nisn?: string
-  nis?: string
-  nik?: string
-  gender?: string
-  status?: string
-  phone?: string
-  photo_url?: string
-  tags?: string[]
-  guardian_name?: string
-  guardian_relation?: string
-  birth_place?: string
-  birth_date?: string
-  religion?: string
-  address?: string
-  // diisi saat validasi
-  class_id?: string
-  class_label?: string
-  dorm_id?: string
-  dorm_label?: string
-  birth_date_iso?: string
-  error?: string
-}
-
-interface NamedItem {
-  id: string
-  name: string
-}
-
-// ---------------------------------------------------------------------------
-// Template & unduhan
-// ---------------------------------------------------------------------------
-
-const TEMPLATE_COLUMNS = FIELDS.map((f) => f.key)
-
-const TEMPLATE_ROWS: Record<FieldKey, string>[] = [
-  {
-    name: 'Ahmad Fulan',
-    registration_code: '2026001',
-    class_name: '9A Boarding Putra',
-    dorm_name: '',
-    nisn: '0012345678',
-    nis: '2026001',
-    nik: '3509012345670001',
-    gender: 'L',
-    status: 'active',
-    phone: '081234567890',
-    photo_url: '',
-    tags: 'Beasiswa;Yatim',
-    guardian_name: 'Budi Fulan',
-    guardian_relation: 'Ayah',
-    birth_place: 'Jember',
-    birth_date: '2011-05-17',
-    religion: 'Islam',
-    address: 'Jl. Mawar No. 1, Jember',
-  },
-  {
-    name: 'Siti Fulanah',
-    registration_code: '2026002',
-    class_name: '9C Reguler Putra',
-    dorm_name: '',
-    nisn: '',
-    nis: '',
-    nik: '',
-    gender: 'P',
-    status: 'active',
-    phone: '',
-    photo_url: '',
-    tags: '',
-    guardian_name: '',
-    guardian_relation: '',
-    birth_place: '',
-    birth_date: '',
-    religion: '',
-    address: '',
-  },
-]
-
-function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function downloadTemplate() {
-  // xlsx (bukan CSV) supaya kolom angka panjang bisa dikunci format Teks:
-  // NISN/NIK/telepon tidak kehilangan angka 0 di depan atau berubah notasi ilmiah
-  void import('xlsx').then((XLSX) => {
-    const header = [...TEMPLATE_COLUMNS]
-    const data = TEMPLATE_ROWS.map((row) => TEMPLATE_COLUMNS.map((col) => row[col]))
-    const ws = XLSX.utils.aoa_to_sheet([header, ...data])
-    const textCols = new Set(['registration_code', 'nisn', 'nis', 'nik', 'phone'])
-    for (let c = 0; c < header.length; c++) {
-      if (!textCols.has(header[c])) continue
-      for (let r = 1; r <= data.length; r++) {
-        const addr = XLSX.utils.encode_cell({ r, c })
-        if (ws[addr]) ws[addr].z = '@'
-      }
-    }
-    ws['!cols'] = header.map((h, c) => ({
-      wch: Math.min(34, Math.max(h.length + 2, ...data.map((row) => row[c].length + 2))),
-    }))
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Siswa')
-    XLSX.writeFile(wb, 'template-impor-siswa.xlsx')
-  })
-}
-
-function downloadInvalidRows(rows: ParsedRow[]) {
-  const bad = rows.filter((r) => r.error)
-  if (bad.length === 0) return
-  downloadCsv(
-    'baris-bermasalah.csv',
-    Papa.unparse({
-      fields: [...TEMPLATE_COLUMNS, 'error'],
-      data: bad.map((r) => [
-        ...TEMPLATE_COLUMNS.map((col) => {
-          const v = r[col]
-          return Array.isArray(v) ? v.join(';') : (v ?? '')
-        }),
-        r.error ?? '',
-      ]),
-    }),
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Membaca file (CSV / XLSX)
-// ---------------------------------------------------------------------------
-
-function pad(n: number) {
-  return String(n).padStart(2, '0')
-}
-
-function cellToString(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (value instanceof Date) {
-    return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
-  }
-  return String(value).trim()
-}
-
-async function readFileToTable(file: File): Promise<string[][]> {
-  const ext = file.name.split('.').pop()?.toLowerCase()
-  if (ext === 'xlsx' || ext === 'xls') {
-    // dimuat hanya saat dibutuhkan agar bundle awal tetap kecil
-    const XLSX = await import('xlsx')
-    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const data = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-      header: 1,
-      raw: true,
-      defval: '',
-      blankrows: false,
-    })
-    return data.map((row) => row.map(cellToString))
-  }
-  return new Promise((resolve, reject) => {
-    Papa.parse<string[]>(file, {
-      skipEmptyLines: true,
-      complete: (result) => resolve(result.data.map((row) => row.map(cellToString))),
-      error: (err) => reject(err),
-    })
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Pemetaan kolom otomatis
-// ---------------------------------------------------------------------------
-
-function normHeader(value: string) {
-  return value
-    .replace(/^\ufeff/, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-}
-
-function autoMatch(headers: string[]): Mapping {
-  const normalized = headers.map(normHeader)
-  const used = new Set<number>()
-  const mapping: Mapping = {}
-  for (const field of FIELDS) {
-    const names = new Set([field.key, ...field.aliases].map(normHeader))
-    const index = normalized.findIndex((h, i) => !used.has(i) && names.has(h))
-    if (index >= 0) {
-      mapping[field.key] = index
-      used.add(index)
-    }
-  }
-  return mapping
-}
-
-function columnLetter(index: number) {
-  let n = index
-  let letters = ''
-  do {
-    letters = String.fromCharCode(65 + (n % 26)) + letters
-    n = Math.floor(n / 26) - 1
-  } while (n >= 0)
-  return letters
-}
-
-function sampleValues(rows: string[][], index?: number) {
-  if (index === undefined) return []
-  const values: string[] = []
-  for (const row of rows) {
-    const v = row[index]?.trim()
-    if (v) values.push(v)
-    if (values.length === 2) break
-  }
-  return values
-}
-
-// ---------------------------------------------------------------------------
-// Normalisasi & validasi nilai
-// ---------------------------------------------------------------------------
-
-const GENDER_ALIASES: Record<string, string> = {
-  l: 'L',
-  'laki-laki': 'L',
-  'laki laki': 'L',
-  pria: 'L',
-  male: 'L',
-  p: 'P',
-  perempuan: 'P',
-  wanita: 'P',
-  female: 'P',
-}
-
-function normalizeGender(value?: string) {
-  const v = value?.trim()
-  if (!v) return undefined
-  return GENDER_ALIASES[v.toLowerCase()] ?? v.toUpperCase()
-}
-
-// Excel sering menghapus angka 0 di depan nomor HP (0812... -> 812...)
-function normalizePhone(value?: string) {
-  if (!value) return undefined
-  const v = value.replace(/[\s-]/g, '')
-  return /^8\d{8,12}$/.test(v) ? `0${v}` : v
-}
-
-function splitTags(value?: string) {
-  const tags = (value ?? '')
-    .split(/[;|,]/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-  return tags.length > 0 ? Array.from(new Set(tags)) : undefined
-}
-
-// undefined = kosong, null = tidak valid, string = format ISO (YYYY-MM-DD)
-function parseBirthDate(value?: string): string | null | undefined {
-  const v = value?.trim()
-  if (!v) return undefined
-  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v)
-  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(v)
-  let y: number
-  let m: number
-  let d: number
-  if (iso) {
-    y = Number(iso[1])
-    m = Number(iso[2])
-    d = Number(iso[3])
-  } else if (dmy) {
-    d = Number(dmy[1])
-    m = Number(dmy[2])
-    y = Number(dmy[3])
-  } else {
-    return null
-  }
-  const date = new Date(Date.UTC(y, m - 1, d))
-  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
-    return null
-  }
-  return `${y}-${pad(m)}-${pad(d)}`
-}
-
-// Samakan spasi & huruf besar/kecil supaya "9a  boarding putra" tetap cocok
-function normalizeName(value?: string) {
-  return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
-}
-
-function validateRows(
-  rows: ParsedRow[],
-  classes: NamedItem[],
-  dorms: NamedItem[],
-  defaultClassId?: string,
-  defaultDormId?: string,
-): ParsedRow[] {
-  const classByName = new Map(classes.map((c) => [normalizeName(c.name), c]))
-  const dormByName = new Map(dorms.map((d) => [normalizeName(d.name), d]))
-  const seen = new Set<string>()
-
-  return rows.map((row) => {
-    const name = row.name?.trim()
-    const code = row.registration_code?.trim()
-    const rawClass = row.class_name?.trim()
-    const rawDorm = row.dorm_name?.trim()
-    let error: string | undefined
-
-    // Kelas: dari class_name, kalau kosong pakai kelas default
-    let classId: string | undefined
-    let classLabel: string | undefined = rawClass
-    if (rawClass) {
-      const match = classByName.get(normalizeName(rawClass))
-      if (match) {
-        classId = match.id
-        classLabel = match.name
-      }
-    } else if (defaultClassId) {
-      classId = defaultClassId
-      classLabel = classes.find((c) => c.id === defaultClassId)?.name
-    }
-
-    // Asrama: dari dorm_name, kalau kosong pakai asrama default (boleh tanpa asrama)
-    let dormId: string | undefined
-    let dormLabel: string | undefined = rawDorm
-    if (rawDorm) {
-      const match = dormByName.get(normalizeName(rawDorm))
-      if (match) {
-        dormId = match.id
-        dormLabel = match.name
-      }
-    } else if (defaultDormId) {
-      dormId = defaultDormId
-      dormLabel = dorms.find((d) => d.id === defaultDormId)?.name
-    }
-
-    const birthDate = parseBirthDate(row.birth_date)
-
-    if (!name) error = 'Nama kosong'
-    else if (!code) error = 'Kode registrasi kosong'
-    else if (seen.has(code.toLowerCase())) error = 'Kode registrasi duplikat di file'
-    else if (!rawClass && !defaultClassId)
-      error = 'Kelas kosong (isi kolom kelas atau pilih kelas default)'
-    else if (rawClass && !classId) error = `Kelas "${rawClass}" tidak ditemukan`
-    else if (rawDorm && !dormId) error = `Asrama "${rawDorm}" tidak ditemukan`
-    else if (row.gender && !['L', 'P'].includes(row.gender)) error = 'Gender harus L atau P'
-    else if (row.status && !VALID_STATUSES.includes(row.status)) error = 'Status tidak valid'
-    else if (row.nisn && !/^\d+$/.test(row.nisn)) error = 'NISN harus berupa angka'
-    else if (row.nis && !/^\d+$/.test(row.nis)) error = 'NIS harus berupa angka'
-    else if (row.nik && !/^\d+$/.test(row.nik)) error = 'NIK harus berupa angka'
-    else if (birthDate === null)
-      error = 'Tanggal lahir tidak valid (pakai YYYY-MM-DD atau DD/MM/YYYY)'
-    else if (row.photo_url && !/^https?:\/\//i.test(row.photo_url))
-      error = 'URL foto harus diawali http:// atau https://'
-
-    if (code) seen.add(code.toLowerCase())
-    return {
-      ...row,
-      name,
-      registration_code: code,
-      class_id: classId,
-      class_label: classLabel,
-      dorm_id: dormId,
-      dorm_label: dormLabel,
-      birth_date_iso: birthDate ?? undefined,
-      error,
-    }
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Ilustrasi struktur kolom (langkah Upload)
-// ---------------------------------------------------------------------------
-
-const SAMPLE_COLUMNS = [
-  { letter: 'A', label: 'NAME', values: ['Budi Santoso', 'Siti Maryam'] },
-  { letter: 'B', label: 'GENDER', values: ['L', 'P'] },
-  { letter: 'C', label: 'CLASS', values: ['10A Boarding Putra', '10B Boarding Putri'] },
-  { letter: 'D', label: 'WA', values: ['08123…', '08567…'] },
-  { letter: 'E', label: 'NIS', values: ['2024001', '2024002'] },
-  { letter: 'F', label: 'WALI', values: ['Ahmad', 'Aminah'] },
-]
-
-// ---------------------------------------------------------------------------
 // Komponen utama
 // ---------------------------------------------------------------------------
+
+function ReferencePanel({
+  title,
+  icon,
+  names,
+  query,
+}: {
+  title: string
+  icon: ReactNode
+  names: string[]
+  query: string
+}) {
+  const { token } = theme.useToken()
+  const filtered = names.filter((n) => normalizeName(n).includes(normalizeName(query)))
+  return (
+    <div
+      style={{
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: 10,
+        overflow: 'hidden',
+        minWidth: 0,
+        background: token.colorBgContainer,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '8px 12px',
+          background: token.colorFillAlter,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        }}
+      >
+        <span style={{ color: token.colorPrimary, fontSize: 13 }}>{icon}</span>
+        <Text strong style={{ fontSize: 12.5 }}>
+          {title}
+        </Text>
+        <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
+          ({names.length})
+        </Text>
+      </div>
+      <div style={{ maxHeight: 208, overflowY: 'auto', padding: 4 }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '16px 12px', fontSize: 12.5, color: token.colorTextSecondary, textAlign: 'center' }}>
+            {names.length === 0 ? 'Belum ada data.' : 'Tidak ada yang cocok dengan pencarian.'}
+          </div>
+        ) : (
+          filtered.map((name) => (
+            <div key={name} className="ref-row" style={{ padding: '5px 10px', fontSize: 12.5 }}>
+              {name}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
 
 interface ImportModalProps {
   open: boolean
@@ -512,6 +160,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
   const [dormId, setDormId] = useState<string>()
   const [submitting, setSubmitting] = useState(false)
   const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null)
+  const [refQuery, setRefQuery] = useState('')
 
   const classesQuery = useClassesBrief()
   const dormsQuery = useDormsBrief()
@@ -610,6 +259,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
     setDormId(undefined)
     setSubmitting(false)
     setImportProgress(null)
+    setRefQuery('')
   }
 
   const handleClose = () => {
@@ -753,57 +403,28 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
     background: token.colorBgContainer,
   }
 
-  const iconBox = (icon: ReactNode, size = 40): ReactNode => (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: 12,
-        background: token.colorPrimaryBg,
-        color: token.colorPrimary,
-        display: 'grid',
-        placeItems: 'center',
-        fontSize: size * 0.45,
-        flexShrink: 0,
-      }}
-    >
-      {icon}
-    </div>
-  )
-
   const referenceContent = (
-    <div style={{ width: 320, maxHeight: 280, overflowY: 'auto' }}>
-      {classesQuery.isPending ? (
-        <Spin size="small" />
+    <div style={{ width: 440, maxWidth: 'calc(100vw - 48px)' }}>
+      <Input
+        allowClear
+        prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
+        placeholder="Cari kelas / asrama…"
+        value={refQuery}
+        onChange={(e) => setRefQuery(e.target.value)}
+        style={{ marginBottom: 10 }}
+      />
+      {classesQuery.isPending || dormsQuery.isPending ? (
+        <div style={{ textAlign: 'center', padding: '16px 0' }}>
+          <Spin size="small" />
+        </div>
       ) : (
-        <>
-          <Text strong style={{ fontSize: 12 }}>
-            Kelas ({classes.length})
-          </Text>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '6px 0 12px' }}>
-            {classes.length === 0 ? <Text type="secondary">Belum ada kelas</Text> : null}
-            {classes.map((c) => (
-              <Tag key={c.id} style={{ margin: 0 }}>
-                {c.name}
-              </Tag>
-            ))}
-          </div>
-          <Text strong style={{ fontSize: 12 }}>
-            Asrama ({dorms.length})
-          </Text>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-            {dorms.length === 0 ? <Text type="secondary">Belum ada asrama</Text> : null}
-            {dorms.map((d) => (
-              <Tag key={d.id} style={{ margin: 0 }}>
-                {d.name}
-              </Tag>
-            ))}
-          </div>
-        </>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+          <ReferencePanel title="Kelas" icon={<BankOutlined />} names={classes.map((c) => c.name)} query={refQuery} />
+          <ReferencePanel title="Asrama" icon={<ApartmentOutlined />} names={dorms.map((d) => d.name)} query={refQuery} />
+        </div>
       )}
     </div>
   )
-
   const defaultSelects = (
     <div style={{ ...card, padding: 16 }}>
       <div style={{ marginBottom: 10 }}>
@@ -980,7 +601,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
           onChange={(v: number | undefined) => changeMapping(f.key, v)}
           options={headers.map((h, i) => ({
             value: i,
-            label: `${columnLetter(i)} — ${h || '(tanpa judul)'}`,
+            label: `${columnLetter(i)}: ${h || '(tanpa judul)'}`,
           }))}
         />
       ),
@@ -1085,62 +706,63 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
     </Upload>
   )
 
-  const footer =
-    step === 0 ? (
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Button onClick={handleClose}>Batal</Button>
-        {pickFileButton}
-      </div>
-    ) : step === 1 ? (
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Button onClick={() => setStep(0)}>Ganti File</Button>
-        <Button type="primary" disabled={missingRequired.length > 0} onClick={() => setStep(2)}>
-          Lanjut ke Review
-        </Button>
-      </div>
-    ) : step === 2 ? (
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Button onClick={() => setStep(1)} disabled={submitting}>
-          Kembali
-        </Button>
-        <Button
-          type="primary"
-          loading={submitting}
-          disabled={validRows.length === 0}
-          onClick={() => void handleImport()}
-        >
-          Impor {validRows.length} Siswa
-        </Button>
-      </div>
-    ) : (
-      <Button type="primary" onClick={handleClose}>
-        Selesai
-      </Button>
-    )
+  const footerByStep = (s: number): ReactNode => {
+    if (s === 0) {
+      // ok-nya tombol Pilih File ber-bungkus Upload, bukan Button biasa, sehingga
+      // komposisi footer dijaga manual mengikuti bentuk ModalFooter
+      return (
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Button onClick={handleClose}>Batal</Button>
+          {pickFileButton}
+        </div>
+      )
+    }
+    if (s === 1) {
+      return (
+        <ModalFooter
+          left={<Button onClick={() => setStep(0)}>Ganti File</Button>}
+          onOk={() => setStep(2)}
+          okText="Lanjut ke Review"
+          okDisabled={missingRequired.length > 0}
+        />
+      )
+    }
+    if (s === 2) {
+      return (
+        <ModalFooter
+          left={
+            <Button onClick={() => setStep(1)} disabled={submitting}>
+              Kembali
+            </Button>
+          }
+          onOk={() => void handleImport()}
+          okText={`Impor ${validRows.length} Siswa`}
+          okLoading={submitting}
+          okDisabled={validRows.length === 0}
+        />
+      )
+    }
+    return <ModalFooter onOk={handleClose} okText="Selesai" />
+  }
 
   return (
-    <AppModal
+    <WizardModal
       title="Impor Data Siswa"
-      subtitle="Unggah data siswa secara masal dari file Excel atau CSV. Sistem akan memvalidasi data secara otomatis."
+      subtitle="Unggah data siswa secara masal dari file Excel, CSV, atau Google Sheets. Sistem akan memvalidasi data secara otomatis."
       icon={<ImportOutlined />}
       open={open}
       onCancel={handleClose}
-      width={960}
-      footer={footer}
       destroyOnHidden
+      size="xl"
+      current={step}
+      footerByStep={footerByStep}
+      steps={[
+        { title: 'Upload', description: 'Pilih file' },
+        { title: 'Mapping', description: 'Atur kolom' },
+        { title: 'Review', description: 'Validasi' },
+        { title: 'Hasil', description: 'Selesai' },
+      ]}
     >
-      <Steps
-        size="small"
-        current={step}
-        style={{ margin: '8px 0 24px' }}
-        items={[
-          { title: 'Upload', description: 'Pilih file' },
-          { title: 'Mapping', description: 'Atur kolom' },
-          { title: 'Review', description: 'Validasi' },
-          { title: 'Hasil', description: 'Selesai' },
-        ]}
-      />
-
       {step === 0 && (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Segmented
@@ -1154,30 +776,23 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
 
           {sheetSource === 'file' ? (
             <Spin spinning={reading} tip="Membaca file...">
-              <Upload.Dragger
+              <UploadDropzone
                 accept=".csv,.xlsx,.xls"
-                showUploadList={false}
                 multiple={false}
                 disabled={reading}
+                icon={<FileAddOutlined />}
+                title="Klik atau seret file ke sini"
+                hint="Mendukung .csv dan .xlsx"
                 beforeUpload={(file) => {
                   void handleFile(file)
                   return false
                 }}
-                style={{ background: token.colorPrimaryBg, borderColor: token.colorPrimaryBorder }}
-              >
-                <p className="ant-upload-drag-icon">
-                  <InboxOutlined />
-                </p>
-                <p className="ant-upload-text" style={{ fontWeight: 600, letterSpacing: 0.3 }}>
-                  DRAG &amp; DROP ATAU KLIK UNTUK PILIH FILE
-                </p>
-                <p className="ant-upload-hint">Mendukung .csv dan .xlsx</p>
-              </Upload.Dragger>
+              />
             </Spin>
           ) : (
             <div style={{ ...card, padding: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                {iconBox(<GlobalOutlined />, 36)}
+                <IconBox icon={<GlobalOutlined />} size={36} />
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>Sinkronisasi data via Google Sheets</div>
                   <Text type="secondary" style={{ fontSize: 12.5 }}>
@@ -1203,48 +818,32 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
                   Ambil Data
                 </Button>
               </div>
-              <Alert
-                type="info"
-                showIcon
-                style={{ marginTop: 12 }}
-                message="Sheet harus publik"
-                description={'Di Google Sheets: Bagikan → Akses umum → pilih "Siapa saja yang memiliki link" (Pelihat). Secara default sheet pertama yang dibaca; untuk tab tertentu, salin tautan saat berada di tab tersebut (URL akan menyertakan #gid=…).'}
-              />
+              <div style={{ marginTop: 12 }}>
+                <ModalNotice tone="info" title="Sheet harus publik">
+                  {'Di Google Sheets: Bagikan → Akses umum → pilih "Siapa saja yang memiliki link" (Pelihat). Secara default sheet pertama yang dibaca; untuk tab tertentu, salin tautan saat berada di tab tersebut (URL akan menyertakan #gid=…).'}
+                </ModalNotice>
+              </div>
             </div>
           )}
 
-          <div
-            style={{
-              ...card,
-              padding: '12px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              flexWrap: 'wrap',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {iconBox(<FileExcelOutlined />, 36)}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4 }}>DATA REFERENSI</div>
-                <Text style={{ color: token.colorPrimary, fontSize: 13, fontWeight: 600 }}>
-                  Siswa, Kelas &amp; Asrama
-                </Text>
-              </div>
-              <Popover trigger="click" placement="bottomLeft" content={referenceContent}>
-                <Button>
-                  Daftar kelas valid <Tag color="processing" style={{ margin: '0 4px 0 6px' }}>{classes.length}</Tag>
-                  <DownOutlined />
+          <ModalSection
+            icon={<FileExcelOutlined />}
+            title="Data referensi"
+            desc="Siswa, Kelas & Asrama"
+            trailing={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Popover trigger="click" placement="bottomLeft" content={referenceContent}>
+                  <Button>
+                    Daftar kelas valid <Tag color="processing" style={{ margin: '0 4px 0 6px' }}>{classes.length}</Tag>
+                    <DownOutlined />
+                  </Button>
+                </Popover>
+                <Button icon={<DownloadOutlined />} onClick={downloadTemplate}>
+                  Unduh Template Excel
                 </Button>
-              </Popover>
-            </div>
-            <ConfigProvider theme={{ token: { colorPrimary: token.colorSuccess } }}>
-              <Button type="primary" icon={<DownloadOutlined />} onClick={downloadTemplate}>
-                Unduh Template Excel
-              </Button>
-            </ConfigProvider>
-          </div>
+              </div>
+            }
+          />
 
           <Collapse
             ghost
@@ -1255,12 +854,12 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
                 children: (
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     {columnStructure}
-                    <Alert
-                      type="info"
-                      showIcon
-                      message="Tips Excel"
-                      description="Paling aman pakai tombol Unduh Template Excel di atas — kolom angkanya sudah berformat Teks. Isi file sendiri? Atur kolom NISN, NIS, NIK, dan nomor telepon ke format Teks supaya angka 0 di depan tidak hilang dan angka panjang tidak berubah menjadi notasi ilmiah."
-                    />
+                    <ModalNotice
+                      tone="info"
+                      title="Tips Excel"
+                    >
+                      Paling aman pakai tombol Unduh Template Excel di atas: kolom angkanya sudah berformat Teks. Isi file sendiri? Atur kolom NISN, NIS, NIK, dan nomor telepon ke format Teks supaya angka 0 di depan tidak hilang dan angka panjang tidak berubah menjadi notasi ilmiah.
+                    </ModalNotice>
                   </Space>
                 ),
               },
@@ -1271,16 +870,14 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
 
       {step === 1 && (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Alert
-            type={missingRequired.length > 0 ? 'warning' : 'success'}
-            showIcon
-            message={`File "${fileName}" — ${fileRows.length} baris data, ${mappedCount} dari ${FIELDS.length} kolom terpetakan`}
-            description={
-              missingRequired.length > 0
-                ? `Belum dipetakan: ${missingRequired.join(', ')}`
-                : 'Semua kolom wajib sudah terpetakan. Periksa kolom lain jika perlu, lalu lanjut ke Review.'
-            }
-          />
+          <ModalNotice
+            tone={missingRequired.length > 0 ? 'warning' : 'success'}
+            title={`File "${fileName}": ${fileRows.length} baris data, ${mappedCount} dari ${FIELDS.length} kolom terpetakan`}
+          >
+            {missingRequired.length > 0
+              ? `Belum dipetakan: ${missingRequired.join(', ')}`
+              : 'Semua kolom wajib sudah terpetakan. Periksa kolom lain jika perlu, lalu lanjut ke Review.'}
+          </ModalNotice>
           {defaultSelects}
           <Table<(typeof FIELDS)[number]>
             rowKey="key"
@@ -1374,11 +971,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
             {statCard('Gagal', failCount, failCount > 0 ? token.colorError : undefined)}
           </div>
           {failCount > 0 && (
-            <Alert
-              type="warning"
-              showIcon
-              message="Perbaiki baris yang gagal lalu impor ulang dengan kode registrasi yang sama."
-            />
+            <ModalNotice tone="warning" title="Perbaiki baris yang gagal lalu impor ulang dengan kode registrasi yang sama." />
           )}
           <Table<ImportStudentResult>
             rowKey="row_index"
@@ -1389,6 +982,6 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
           />
         </Space>
       )}
-    </AppModal>
+    </WizardModal>
   )
 }

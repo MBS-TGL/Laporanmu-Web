@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -10,40 +11,58 @@ import {
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   type InputRef,
   type TableColumnsType,
 } from 'antd'
 import {
+  AlertOutlined,
+  AppstoreOutlined,
   CalendarOutlined,
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
   PlusOutlined,
+  PrinterOutlined,
   QuestionCircleOutlined,
   SearchOutlined,
   SyncOutlined,
   UndoOutlined,
+  UnorderedListOutlined,
+  UploadOutlined,
   WarningOutlined,
+  SwapOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import Papa from 'papaparse'
 import { PageHeader } from '../../shared/components/PageHeader'
+import { ShellItem, ShellStagger } from '../../shared/components/ShellMotion'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { StatChip } from '../../shared/components/StatChip'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useUrlTab } from '../../shared/hooks/useUrlTab'
 import {
+  analyzeAllConflicts,
   findConflicts,
   useClassesBrief,
   useCreateSchedule,
   useDeleteSchedule,
   useSchedules,
+  useSubstitutionLogs,
   useUpdateSchedule,
 } from './hooks'
 import { ScheduleForm } from './components/ScheduleForm'
+import { GridView } from './components/GridView'
+import { ImportModal } from './components/ImportModal'
+import { ExportModal } from './components/ExportModal'
+import { SubstitutionModal } from './components/SubstitutionModal'
+import { ConflictDrawer } from './components/ConflictDrawer'
+import { CalendarTab } from './tabs/CalendarTab'
+import { printScheduleSheet, type PrintMeta } from './components/schedulePrint'
 import type { Schedule, ScheduleFormValues } from './types'
 
 export const DAY_LABELS: Record<number, string> = {
@@ -54,6 +73,13 @@ export const DAY_LABELS: Record<number, string> = {
   5: 'Jumat',
   6: 'Sabtu',
   7: 'Minggu',
+}
+
+// Cek apakah grade/tingkat adalah SMA (10, 11, 12)
+export function isSmaGrade(grade?: string | null): boolean {
+  if (!grade) return false
+  const g = Number(grade)
+  return g >= 10 && g <= 12
 }
 
 // dayjs: 0=Minggu … 6=Sabtu → konvensi DB 1=Senin … 7=Minggu
@@ -68,18 +94,36 @@ function shortTime(t: string): string {
 export function SchedulesPage() {
   const { message, modal } = App.useApp()
   const { canWrite, canDelete } = usePermissions()
+  const { tab: activeTab, setTab: setActiveTab } = useUrlTab('smp')
 
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [day, setDay] = useState<string>('')
   const [classId, setClassId] = useState<string | undefined>(undefined)
+  const [onlyConflicts, setOnlyConflicts] = useState(false)
+  const [conflictDrawerOpen, setConflictDrawerOpen] = useState(false)
+  const [view, setView] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Schedule | null>(null)
-  const [exporting, setExporting] = useState(false)
+  const [substitutionSchedule, setSubstitutionSchedule] = useState<Schedule | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const searchRef = useRef<InputRef>(null)
+
+  const todayStr = useMemo(() => dayjs().format('YYYY-MM-DD'), [])
+  const substitutionsQuery = useSubstitutionLogs(todayStr)
+  const substitutionsMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const sub of substitutionsQuery.data ?? []) {
+      if (sub.substitute_teacher?.name) {
+        map.set(sub.schedule_id, sub.substitute_teacher.name)
+      }
+    }
+    return map
+  }, [substitutionsQuery.data])
 
   const schedulesQuery = useSchedules()
   const classesQuery = useClassesBrief()
@@ -89,11 +133,41 @@ export function SchedulesPage() {
   const allSchedules = useMemo(() => schedulesQuery.data ?? [], [schedulesQuery.data])
   const isRefreshing = schedulesQuery.isFetching
 
+  // Filter kelas berdasarkan tab aktif (SMP: tingkat 7,8,9; SMA: tingkat 10,11,12)
+  const tabClasses = useMemo(() => {
+    const list = classesQuery.data ?? []
+    if (activeTab === 'sma') {
+      return list.filter((c) => isSmaGrade(c.grade))
+    }
+    if (activeTab === 'smp') {
+      return list.filter((c) => !isSmaGrade(c.grade))
+    }
+    return list
+  }, [classesQuery.data, activeTab])
+
+  // Jadwal yang sesuai jenjang tab (SMP / SMA)
+  const levelSchedules = useMemo(() => {
+    if (activeTab === 'sma') {
+      return allSchedules.filter((s) => isSmaGrade(s.classes?.grade))
+    }
+    if (activeTab === 'smp') {
+      return allSchedules.filter((s) => !isSmaGrade(s.classes?.grade))
+    }
+    return allSchedules
+  }, [allSchedules, activeTab])
+
+  // Analisis tabrakan / bentrok dihitung terhadap SEMUA jadwal (lintas SMP & SMA)
+  const { conflictScheduleIds, conflictInfoMap, conflictGroups } = useMemo(
+    () => analyzeAllConflicts(allSchedules),
+    [allSchedules],
+  )
+
   const todayDay = dbDay()
 
   const rows = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
-    return allSchedules.filter((s) => {
+    return levelSchedules.filter((s) => {
+      if (onlyConflicts && !conflictScheduleIds.has(s.id)) return false
       if (
         q &&
         !`${s.classes?.name ?? ''} ${s.subjects?.name ?? ''} ${s.teachers?.name ?? ''} ${s.room ?? ''}`
@@ -105,7 +179,7 @@ export function SchedulesPage() {
       if (classId && s.class_id !== classId) return false
       return true
     })
-  }, [allSchedules, debouncedSearch, day, classId])
+  }, [levelSchedules, onlyConflicts, conflictScheduleIds, debouncedSearch, day, classId])
 
   const paginatedRows = useMemo(
     () => rows.slice((page - 1) * pageSize, page * pageSize),
@@ -116,10 +190,11 @@ export function SchedulesPage() {
     setSearch('')
     setDay('')
     setClassId(undefined)
+    setOnlyConflicts(false)
     setPage(1)
   }
 
-  const hasActiveFilters = Boolean(debouncedSearch || day || classId)
+  const hasActiveFilters = Boolean(debouncedSearch || day || classId || onlyConflicts)
 
   const openCreate = () => {
     setEditing(null)
@@ -139,6 +214,7 @@ export function SchedulesPage() {
       end_time: values.end_time,
       class_id: values.class_id,
       teacher_id: values.teacher_id,
+      room: values.room,
       excludeId: editing?.id,
     })
     const doSave = (onDone: () => void) => {
@@ -179,10 +255,12 @@ export function SchedulesPage() {
         <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
           {conflicts.slice(0, 5).map(({ schedule, reason }) => (
             <div key={schedule.id} style={{ fontSize: 13 }}>
-              • <b>{reason === 'class' ? 'Kelas' : 'Guru'}</b>{' '}
+              • <b>{reason === 'class' ? 'Kelas' : reason === 'teacher' ? 'Guru' : 'Ruang'}</b>{' '}
               {reason === 'class'
                 ? className
-                : schedule.teachers?.name ?? 'yang sama'}{' '}
+                : reason === 'teacher'
+                  ? schedule.teachers?.name ?? 'yang sama'
+                  : schedule.room ?? 'yang sama'}{' '}
               sudah ada jadwal {schedule.subjects?.name ?? 'lain'} di{' '}
               {schedule.classes?.name ?? '-'} ({DAY_LABELS[schedule.day_of_week]}{' '}
               {shortTime(schedule.start_time)}–{shortTime(schedule.end_time)}).
@@ -209,44 +287,23 @@ export function SchedulesPage() {
     })
   }
 
-  const handleExport = async () => {
-    setExporting(true)
-    try {
-      const csv = Papa.unparse({
-        fields: ['Hari', 'Mulai', 'Selesai', 'Kelas', 'Mapel', 'Pengajar', 'Ruang'],
-        data: rows.map((s) => [
-          DAY_LABELS[s.day_of_week],
-          shortTime(s.start_time),
-          shortTime(s.end_time),
-          s.classes?.name ?? '',
-          s.subjects?.name ?? '',
-          s.teachers?.name ?? '',
-          s.room ?? '',
-        ]),
-      })
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `jadwal-kbm-${dayjs().format('YYYY-MM-DD')}.csv`
-      link.click()
-      URL.revokeObjectURL(url)
-      message.success(`${rows.length} jadwal diekspor`)
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : 'Gagal mengekspor CSV')
-    } finally {
-      setExporting(false)
+  const printMeta: PrintMeta = useMemo(() => {
+    const isSma = activeTab === 'sma'
+    return {
+      title: isSma ? 'JADWAL PELAJARAN SMA MUHAMMADIYAH TANGGUL' : 'JADWAL PELAJARAN SMP MUHAMMADIYAH 4 TANGGUL',
+      subtitle: 'SEMESTER GANJIL · TAHUN PELAJARAN 2026/2027',
     }
-  }
+  }, [activeTab])
 
   const stats = useMemo(
     () => ({
-      total: allSchedules.length,
-      today: allSchedules.filter((s) => s.day_of_week === todayDay).length,
-      classes: new Set(allSchedules.map((s) => s.class_id)).size,
-      teachers: new Set(allSchedules.map((s) => s.teacher_id).filter(Boolean)).size,
+      total: levelSchedules.length,
+      today: levelSchedules.filter((s) => s.day_of_week === todayDay).length,
+      classes: new Set(levelSchedules.map((s) => s.class_id)).size,
+      teachers: new Set(levelSchedules.map((s) => s.teacher_id).filter(Boolean)).size,
+      conflicts: levelSchedules.filter((s) => conflictScheduleIds.has(s.id)).length,
     }),
-    [allSchedules, todayDay],
+    [levelSchedules, todayDay, conflictScheduleIds],
   )
 
   const shortcutItems = useMemo<ShortcutItem[]>(
@@ -324,7 +381,22 @@ export function SchedulesPage() {
     {
       title: 'Pengajar',
       key: 'teacher',
-      render: (_, row) => row.teachers?.name ?? '-',
+      render: (_, row) => {
+        const subName = substitutionsMap.get(row.id)
+        if (subName) {
+          return (
+            <div>
+              <span style={{ textDecoration: 'line-through', color: '#999', fontSize: 12 }}>
+                {row.teachers?.name ?? '-'}
+              </span>
+              <div>
+                <Tag color="purple">Diganti: {subName}</Tag>
+              </div>
+            </div>
+          )
+        }
+        return row.teachers?.name ?? '-'
+      },
       responsive: ['md'],
     },
     {
@@ -336,12 +408,36 @@ export function SchedulesPage() {
       responsive: ['md'],
     },
     {
+      title: 'Status',
+      key: 'status',
+      width: 120,
+      render: (_, row) => {
+        const isConflict = conflictScheduleIds.has(row.id)
+        if (!isConflict) {
+          return <Tag color="success">Normal</Tag>
+        }
+        const reasons = conflictInfoMap.get(row.id)
+        return (
+          <Tooltip title={reasons ? reasons.join(' • ') : 'Jadwal bertabrakan'}>
+            <Tag color="error" icon={<WarningOutlined />}>
+              Tabrakan
+            </Tag>
+          </Tooltip>
+        )
+      },
+    },
+    {
       title: 'Aksi',
       key: 'actions',
-      width: 110,
+      width: 140,
       render: (_, row) =>
         canWrite || canDelete ? (
           <Space size="small">
+            {canWrite && (
+              <Tooltip title="Tunjuk Guru Pengganti (Hari Ini)">
+                <Button type="text" icon={<SwapOutlined />} onClick={() => setSubstitutionSchedule(row)} />
+              </Tooltip>
+            )}
             {canWrite && (
               <Tooltip title="Edit">
                 <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(row)} />
@@ -368,155 +464,335 @@ export function SchedulesPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Jadwal KBM"
-        subtitle="Jadwal kegiatan belajar-mengajar per kelas, mapel, dan pengajar"
-        extra={
-          <Space wrap>
-            <Tooltip title="Muat ulang (R)">
-              <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={() => void schedulesQuery.refetch()} />
-            </Tooltip>
-            <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
-              CSV
-            </Button>
-            <Tooltip title="Palet shortcut (?)">
-              <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
-            </Tooltip>
-            {canWrite && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-                Tambah Jadwal
-              </Button>
-            )}
-          </Space>
+      <ShellStagger>
+        <ShellItem>
+          <PageHeader
+            title="Jadwal & Kalender Akademik"
+            subtitle="Jadwal kegiatan belajar-mengajar SMP & SMA serta kalender agenda pondok"
+            extra={
+          activeTab !== 'calendar' && (
+            <Space wrap>
+              <Tooltip title="Muat ulang (R)">
+                <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={() => void schedulesQuery.refetch()} />
+              </Tooltip>
+              {canWrite && (
+                <Tooltip title="Impor data jadwal (Excel / CSV / Sheets)">
+                  <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)} />
+                </Tooltip>
+              )}
+              <Tooltip title="Ekspor data jadwal (Excel / CSV)">
+                <Button icon={<DownloadOutlined />} onClick={() => setExportOpen(true)} />
+              </Tooltip>
+              <Tooltip title="Cetak sesuai filter saat ini. Pilih “Save as PDF” untuk PDF (1–2 halaman A4).">
+                <Button
+                  icon={<PrinterOutlined />}
+                  disabled={rows.length === 0}
+                  onClick={() => printScheduleSheet(rows, printMeta, allSchedules)}
+                />
+              </Tooltip>
+              <Tooltip title="Palet shortcut (?)">
+                <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+              </Tooltip>
+              {canWrite && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                  Tambah Jadwal
+                </Button>
+              )}
+            </Space>
+          )
         }
-      />
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-        <StatChip
-          icon={<CalendarOutlined />}
-          label="Total Jadwal"
-          value={stats.total}
-          color="indigo"
-          loading={schedulesQuery.isPending}
-          active={day === ''}
-          onClick={() => {
-            setDay('')
-            setPage(1)
-          }}
-        />
-        <StatChip
-          icon={<CalendarOutlined />}
-          label={`Jadwal Hari Ini (${DAY_LABELS[todayDay]})`}
-          value={stats.today}
-          color="purple"
-          loading={schedulesQuery.isPending}
-          active={day === String(todayDay)}
-          onClick={() => {
-            setDay(day === String(todayDay) ? '' : String(todayDay))
-            setPage(1)
-          }}
-        />
-        <StatChip
-          icon={<CalendarOutlined />}
-          label="Kelas Terjadwal"
-          value={stats.classes}
-          color="sky"
-          loading={schedulesQuery.isPending}
-        />
-        <StatChip
-          icon={<CalendarOutlined />}
-          label="Pengajar Terplotting"
-          value={stats.teachers}
-          color="emerald"
-          loading={schedulesQuery.isPending}
-        />
-      </div>
-
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-          <Segmented
-            value={day}
-            onChange={(v) => {
-              setDay(v)
+        >
+          </PageHeader>
+        </ShellItem>
+        <ShellItem>
+          <Tabs
+            activeKey={activeTab}
+            onChange={(k) => {
+              setActiveTab(k)
+              setDay('')
+              setClassId(undefined)
+              setOnlyConflicts(false)
               setPage(1)
             }}
-            options={[
-              { label: 'Semua', value: '' },
-              ...Object.entries(DAY_LABELS).map(([value, label]) => ({
-                label,
-                value,
-              })),
-            ]}
-          />
-          <Input
-            ref={searchRef}
-            placeholder="Cari kelas, mapel, guru, atau ruang"
-            prefix={<SearchOutlined />}
-            allowClear
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            style={{ flex: '1 1 200px', minWidth: 200 }}
-          />
-          <Select
-            placeholder="Kelas"
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            options={(classesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            value={classId}
-            onChange={(v) => {
-              setClassId(v)
-              setPage(1)
-            }}
-            style={{ minWidth: 140 }}
-          />
-          {hasActiveFilters && (
-            <Button icon={<UndoOutlined />} onClick={resetFilters}>
-              Reset
-            </Button>
-          )}
-        </div>
-      </Card>
-
-      <Card>
-        <Table<Schedule>
-          rowKey="id"
-          columns={columns}
-          dataSource={paginatedRows}
-          loading={schedulesQuery.isPending}
-          rowClassName={(row) => (row.day_of_week === todayDay && !day ? 'student-row-risk' : '')}
-          locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={hasActiveFilters ? 'Tidak ada jadwal yang cocok dengan filter' : 'Belum ada jadwal KBM'}
-              />
+        items={[
+          {
+            key: 'smp',
+            label: (
+              <span>
+                <ScheduleOutlined style={{ marginRight: 6 }} />
+                Jadwal KBM SMP
+              </span>
             ),
-          }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} jadwal`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
-          scroll={{ x: true }}
+          },
+          {
+            key: 'sma',
+            label: (
+              <span>
+                <ScheduleOutlined style={{ marginRight: 6 }} />
+                Jadwal KBM SMA
+              </span>
+            ),
+          },
+          {
+            key: 'calendar',
+            label: (
+              <span>
+                <CalendarOutlined style={{ marginRight: 6 }} />
+                Kalender Pendidikan & Pondok
+              </span>
+            ),
+          },
+        ]}
+          style={{ marginBottom: 16 }}
         />
-      </Card>
+        </ShellItem>
+        <ShellItem>
+          {activeTab === 'calendar' ? (
+            <CalendarTab />
+          ) : (
+        <>
+          {conflictScheduleIds.size > 0 && (
+            <Alert
+              type="error"
+              showIcon
+              icon={<AlertOutlined />}
+              style={{ marginBottom: 16 }}
+              message={
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <span>
+                    <b>Terdeteksi {conflictScheduleIds.size} Jadwal Bertabrakan ({conflictGroups.length} insiden konflik).</b>{' '}
+                    Mohon tinjau jadwal guru, kelas, atau ruang agar KBM berjalan lancar.
+                  </span>
+                  <Space size="small">
+                    <Button
+                      size="small"
+                      type={onlyConflicts ? 'primary' : 'default'}
+                      danger
+                      onClick={() => {
+                        setOnlyConflicts((prev) => !prev)
+                        setPage(1)
+                      }}
+                    >
+                      {onlyConflicts ? 'Tampilkan Semua Jadwal' : 'Filter Jadwal Bentrok Saja'}
+                    </Button>
+                    <Button
+                      size="small"
+                      type="primary"
+                      danger
+                      onClick={() => setConflictDrawerOpen(true)}
+                    >
+                      Lihat Analisis Detail
+                    </Button>
+                  </Space>
+                </div>
+              }
+            />
+          )}
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            <StatChip
+              icon={<CalendarOutlined />}
+              label="Total Jadwal"
+              value={stats.total}
+              color="indigo"
+              loading={schedulesQuery.isPending}
+              active={day === '' && !onlyConflicts}
+              onClick={() => {
+                setDay('')
+                setOnlyConflicts(false)
+                setPage(1)
+              }}
+            />
+            <StatChip
+              icon={<CalendarOutlined />}
+              label={`Jadwal Hari Ini (${DAY_LABELS[todayDay]})`}
+              value={stats.today}
+              color="purple"
+              loading={schedulesQuery.isPending}
+              active={day === String(todayDay) && !onlyConflicts}
+              onClick={() => {
+                setDay(day === String(todayDay) ? '' : String(todayDay))
+                setOnlyConflicts(false)
+                setPage(1)
+              }}
+            />
+            <StatChip
+              icon={<CalendarOutlined />}
+              label="Kelas Terjadwal"
+              value={stats.classes}
+              color="sky"
+              loading={schedulesQuery.isPending}
+            />
+            <StatChip
+              icon={<CalendarOutlined />}
+              label="Pengajar Terplotting"
+              value={stats.teachers}
+              color="emerald"
+              loading={schedulesQuery.isPending}
+            />
+            {stats.conflicts > 0 && (
+              <StatChip
+                icon={<WarningOutlined />}
+                label="Jadwal Tabrakan"
+                value={stats.conflicts}
+                color="rose"
+                loading={schedulesQuery.isPending}
+                active={onlyConflicts}
+                onClick={() => {
+                  setOnlyConflicts((prev) => !prev)
+                  setPage(1)
+                }}
+              />
+            )}
+          </div>
+
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <Segmented
+                value={view}
+                onChange={(v) => setView(v as 'grid' | 'list')}
+                options={[
+                  { label: 'Grid', value: 'grid', icon: <AppstoreOutlined /> },
+                  { label: 'Daftar', value: 'list', icon: <UnorderedListOutlined /> },
+                ]}
+              />
+              <Segmented
+                value={day}
+                onChange={(v) => {
+                  setDay(v)
+                  setPage(1)
+                }}
+                options={[
+                  { label: 'Semua', value: '' },
+                  ...Object.entries(DAY_LABELS).map(([value, label]) => ({
+                    label,
+                    value,
+                  })),
+                ]}
+              />
+              <Input
+                ref={searchRef}
+                placeholder="Cari kelas, mapel, guru, atau ruang"
+                prefix={<SearchOutlined />}
+                allowClear
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
+                style={{ flex: '1 1 200px', minWidth: 200 }}
+              />
+              <Select
+                placeholder="Kelas"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={tabClasses.map((c) => ({ value: c.id, label: c.name }))}
+                value={classId}
+                onChange={(v) => {
+                  setClassId(v)
+                  setPage(1)
+                }}
+                style={{ minWidth: 140 }}
+              />
+              {hasActiveFilters && (
+                <Button icon={<UndoOutlined />} onClick={resetFilters}>
+                  Reset
+                </Button>
+              )}
+            </div>
+          </Card>
+
+          {view === 'grid' ? (
+            <Card loading={schedulesQuery.isPending}>
+              <GridView
+                schedules={rows}
+                days={Object.entries(DAY_LABELS)
+                  .map(([value, label]) => ({ value: Number(value), label }))
+                  .filter((d) => d.value <= 6 || rows.some((r) => r.day_of_week === d.value))}
+                todayDay={todayDay}
+                colorSource={allSchedules}
+                conflictIds={conflictScheduleIds}
+                conflictInfoMap={conflictInfoMap}
+                onCellClick={canWrite ? openEdit : undefined}
+              />
+            </Card>
+          ) : (
+            <Card>
+              <Table<Schedule>
+                rowKey="id"
+                columns={columns}
+                dataSource={paginatedRows}
+                loading={schedulesQuery.isPending}
+                rowClassName={(row) => {
+                  if (conflictScheduleIds.has(row.id)) return 'student-row-risk'
+                  return row.day_of_week === todayDay && !day ? 'student-row-risk' : ''
+                }}
+                locale={{
+                  emptyText: (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={hasActiveFilters ? 'Tidak ada jadwal yang cocok dengan filter' : 'Belum ada jadwal KBM'}
+                    />
+                  ),
+                }}
+                pagination={{
+                  current: page,
+                  pageSize,
+                  total: rows.length,
+                  showSizeChanger: true,
+                  showTotal: (t) => `Total ${t} jadwal`,
+                  onChange: (p, ps) => {
+                    setPage(p)
+                    setPageSize(ps)
+                  },
+                }}
+                scroll={{ x: true }}
+              />
+            </Card>
+          )}
+        </>
+        )}
+      </ShellItem>
+      </ShellStagger>
 
       <ScheduleForm
         open={formOpen}
         schedule={editing}
         submitting={createMutation.isPending || updateMutation.isPending}
+        existingSchedules={allSchedules}
         onCancel={() => setFormOpen(false)}
         onSubmit={handleSubmit}
+      />
+
+      <ConflictDrawer
+        open={conflictDrawerOpen}
+        conflictGroups={conflictGroups}
+        onClose={() => setConflictDrawerOpen(false)}
+        onEditSchedule={canWrite ? openEdit : undefined}
+      />
+
+      <ImportModal
+        open={importOpen}
+        existing={allSchedules}
+        onClose={() => setImportOpen(false)}
+      />
+
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        activeLevelName={activeTab === 'sma' ? 'SMA' : 'SMP'}
+        filteredSchedules={rows}
+        levelSchedules={levelSchedules}
+        allSchedules={allSchedules}
+        conflictSchedules={allSchedules.filter((s) => conflictScheduleIds.has(s.id))}
+      />
+
+      <SubstitutionModal
+        open={substitutionSchedule !== null}
+        schedule={substitutionSchedule}
+        date={dayjs()}
+        onClose={() => setSubstitutionSchedule(null)}
       />
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />

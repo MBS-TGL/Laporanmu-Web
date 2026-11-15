@@ -1,0 +1,160 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "9router": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "9Router",
+      "options": {
+        "baseURL": "http://localhost:20128/v1",
+        "apiKey": "{env:NINEROUTER_API_KEY}"
+      },
+      "models": {
+        "oc/deepseek-v4.1-flash-free": {
+          "name": "OpenCode Free · deepseek-v4.1-flash-free"
+        },
+        "oc/glm-5.3-flash-free": {
+          "name": "OpenCode Free · glm-5.3-flash-free"
+        },
+        "oc/mimo-v2.6-flash-free": {
+          "name": "OpenCode Free · mimo-v2.6-flash-free"
+        },
+        "muse/muse-spark-1.1": {
+          "name": "Muse · muse-spark-1.1"
+        },
+        "muse/muse-spark-1.2": {
+          "name": "Muse · muse-spark-1.2"
+        },
+        "muse/muse-spark-1.2-contributor": {
+          "name": "Muse · muse-spark-1.2-contributor"
+        },
+        "muse/muse-spark-1.3": {
+          "name": "Muse · muse-spark-1.3"
+        },
+        "muse/muse-spark-1.3-contributor": {
+          "name": "Muse · muse-spark-1.3-contributor"
+        },
+        "gemini/gemini-3-flash-preview": {
+          "name": "Gemini · gemini-3-flash-preview"
+        },
+        "gemini/gemini-3.1-flash-lite-preview": {
+          "name": "Gemini · gemini-3.1-flash-lite-preview"
+        },
+        "gemini/gemini-3.5-flash-lite": {
+          "name": "Gemini · gemini-3.5-flash-lite"
+        },
+        "gemini/gemini-3.6-flash": {
+          "name": "Gemini · gemini-3.6-flash"
+        },
+        "groq/openai/gpt-oss-120b": {
+          "name": "Groq · openai/gpt-oss-120b"
+        },
+        "qd/qfmodel": {
+          "name": "Qoder · qfmodel"
+        },
+        "zro/deepseek-v4-flash-0731": {
+          "name": "Zro · deepseek-v4-flash-0731"
+        },
+        "zro/deepseek-v4.1-flash": {
+          "name": "Zro · deepseek-v4.1-flash"
+        },
+        "zro/glm-5.3-flash": {
+          "name": "Zro · glm-5.3-flash"
+        },
+        "di/Atria-Dawn": {
+          "name": "DiscoveryIntern · Atria-Dawn"
+        },
+        "di/Atria-Dawn-Preview": {
+          "name": "DiscoveryIntern · Atria-Dawn-Preview"
+        },
+        "di/Sage-A1.5": {
+          "name": "DiscoveryIntern · Sage-A1.5"
+        },
+        "di/deepseek-v4-flash-vision": {
+          "name": "DiscoveryIntern · deepseek-v4-flash-vision"
+        },
+        "di/deepseek-v4.1-flash-1017": {
+          "name": "DiscoveryIntern · deepseek-v4.1-flash-1017"
+        },
+        "di/glm-5.3": {
+          "name": "DiscoveryIntern · glm-5.3"
+        },
+        "di/intern-s2": {
+          "name": "DiscoveryIntern · intern-s2"
+        },
+        "di/kimi-k2.6": {
+          "name": "DiscoveryIntern · kimi-k2.6"
+        },
+        "di/minimax-m3": {
+          "name": "DiscoveryIntern · minimax-m3"
+        },
+        "di/qwen3.8-27b": {
+          "name": "DiscoveryIntern · qwen3.8-27b"
+        },
+        "ag/claude-opus-4-6-thinking": {
+          "name": "Antigravity · claude-opus-4-6-thinking"
+        },
+        "ag/gemini-3.8-flash": {
+          "name": "Antigravity · gemini-3.8-flash"
+        },
+        "ag/gemini-3.8-flash-high": {
+          "name": "Antigravity · gemini-3.8-flash-high"
+        },
+        "ag/gemini-3.8-flash-low": {
+          "name": "Antigravity · gemini-3.8-flash-low"
+        },
+        "ag/gemini-3.8-flash-medium": {
+          "name": "Antigravity · gemini-3.8-flash-medium"
+        },
+        "cu/claude-fable-5-1-high": {
+          "name": "Cursor · claude-fable-5-1-high"
+        },
+        "cu/claude-haiku-5-5-medium": {
+          "name": "Cursor · claude-haiku-5-5-medium"
+        },
+        "cu/claude-opus-5-5-high": {
+          "name": "Cursor · claude-opus-5-5-high"
+        },
+        "cu/claude-sonnet-5-5-high": {
+          "name": "Cursor · claude-sonnet-5-5-high"
+        },
+        "cu/composer-2.5": {
+          "name": "Cursor · composer-2.5"
+        },
+        "cu/deepseek-v41-flash-1017-high": {
+          "name": "Cursor · deepseek-v41-flash-1017-high"
+        },
+        "cu/default": {
+          "name": "Cursor · default"
+        },
+        "cu/gemini-3.8-flash-high": {
+          "name": "Cursor · gemini-3.8-flash-high"
+        },
+        "cu/glm-5.2-high": {
+          "name": "Cursor · glm-5.2-high"
+        },
+        "cu/gpt-5.3-codex-high": {
+          "name": "Cursor · gpt-5.3-codex-high"
+        },
+        "cu/gpt-5.6-luna-high": {
+          "name": "Cursor · gpt-5.6-luna-high"
+        },
+        "cu/gpt-5.6-sol-high": {
+          "name": "Cursor · gpt-5.6-sol-high"
+        },
+        "cu/gpt-5.6-terra-high": {
+          "name": "Cursor · gpt-5.6-terra-high"
+        },
+        "cu/grok-4.7-high": {
+          "name": "Cursor · grok-4.7-high"
+        },
+        "cu/kimi-k3-high": {
+          "name": "Cursor · kimi-k3-high"
+        },
+        "cu/muse-spark-1.3-high": {
+          "name": "Cursor · muse-spark-1.3-high"
+        }
+      }
+    }
+  },
+  "model": "9router/muse/muse-spark-1.3"
+}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Card, Col, Empty, List, Row, Segmented, Space, Tag, Tooltip, Typography, theme } from 'antd'
+import { Alert, Button, Card, Col, Empty, List, Row, Segmented, Tag, Tooltip, Typography, theme } from 'antd'
 import {
   AuditOutlined,
   CrownFilled,
@@ -9,8 +9,9 @@ import {
   ThunderboltOutlined,
   UserOutlined,
   WarningOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   Area,
   AreaChart,
@@ -24,9 +25,9 @@ import {
   YAxis,
 } from 'recharts'
 import dayjs from 'dayjs'
-import { PageHeader } from '../../shared/components/PageHeader'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { StatChip } from '../../shared/components/StatChip'
+import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useAuditActivity, useAuditLogs, useIntegrityIssues, useTableStats } from './hooks'
 
@@ -38,16 +39,18 @@ const RANGE_OPTIONS = [
   { label: '30 hari', value: 30 },
 ]
 
+// Tab tujuan memakai key tab ?tab= AdminPage (bukan URL /admin/* legacy
+// yang hanya melewati ALIAS_REDIRECTS sebelum sampai ke tab yang sama)
 const QUICK_LINKS = [
-  { to: '/admin/database', label: 'Kesehatan Database', desc: 'Hitungan tabel & integritas', icon: <DatabaseOutlined /> },
-  { to: '/admin/storage', label: 'Penyimpanan', desc: 'Bucket & pembersihan file', icon: <DatabaseOutlined /> },
-  { to: '/admin/tasks', label: 'Otomasi', desc: 'Tugas pemeliharaan manual', icon: <ThunderboltOutlined /> },
-  { to: '/admin/settings', label: 'Pengaturan Developer', desc: 'Feature flags & maintenance', icon: <SafetyOutlined /> },
-  { to: '/admin/users', label: 'Pengguna', desc: 'Kelola akun & role', icon: <UserOutlined /> },
-  { to: '/admin/audit-log', label: 'Audit Log', desc: 'Jejak perubahan data', icon: <AuditOutlined /> },
+  { tab: 'database', label: 'Kesehatan Database', desc: 'Hitungan tabel & integritas', icon: <DatabaseOutlined /> },
+  { tab: 'penyimpanan', label: 'Penyimpanan', desc: 'Bucket & pembersihan file', icon: <DatabaseOutlined /> },
+  { tab: 'otomatisasi', label: 'Otomatisasi', desc: 'Tugas pemeliharaan manual', icon: <ThunderboltOutlined /> },
+  { tab: 'pengaturan', label: 'Pengaturan Developer', desc: 'Feature flags & maintenance', icon: <SafetyOutlined /> },
+  { tab: 'pengguna', label: 'Pengguna', desc: 'Kelola akun & role', icon: <UserOutlined /> },
+  { tab: 'audit', label: 'Audit Log', desc: 'Jejak perubahan data', icon: <AuditOutlined /> },
 ]
 
-export function DashboardPage() {
+export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (tab: string) => void; active: boolean }) {
   const { token } = theme.useToken()
   const navigate = useNavigate()
   const [range, setRange] = useState(7)
@@ -99,22 +102,41 @@ export function DashboardPage() {
   const isRefreshing =
     statsQuery.isFetching || activityQuery.isFetching || integrityQuery.isFetching || recentQuery.isFetching
 
+  // Aksi tab diportal ke kanan judul shell — hasil WAJIB dirender di JSX
+  const actions = useTabActions(
+    active,
+    <>
+      <Tooltip title="Segarkan semua data (R)">
+        <Button icon={<ThunderboltOutlined spin={isRefreshing} />} aria-label="Segarkan semua data" onClick={() => shortcutItems[0].run()} />
+      </Tooltip>
+      <Tooltip title="Shortcut keyboard (?)">
+        <Button aria-label="Bantuan shortcut keyboard" icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+      </Tooltip>
+    </>,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Dashboard Admin"
-        subtitle="Pusat pantauan teknis: volume data, aktivitas sistem, dan akses cepat alat developer"
-        extra={
-          <Space wrap>
-            <Tooltip title="Segarkan semua data (R)">
-              <Button icon={<ThunderboltOutlined spin={isRefreshing} />} onClick={() => shortcutItems[0].run()} />
-            </Tooltip>
-            <Tooltip title="Shortcut keyboard (?)">
-              <Button icon={<span style={{ fontWeight: 700, fontSize: 12 }}>?</span>} onClick={shortcuts.open} />
-            </Tooltip>
-          </Space>
-        }
-      />
+      {actions}
+
+      {(statsQuery.isError || activityQuery.isError || integrityQuery.isError || recentQuery.isError) && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Sebagian data gagal dimuat"
+          description="Ada query yang tidak bisa diambil dari server. Coba segarkan, dan kalau berulang periksa koneksi Supabase."
+          action={
+            <Button
+              size="small"
+              icon={<ThunderboltOutlined />}
+              onClick={() => shortcutItems[0].run()}
+            >
+              Segarkan
+            </Button>
+          }
+        />
+      )}
 
       {/* Statistik — klik untuk melompat ke halaman terkait */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: openIssues.length || biggestTable ? 10 : 0 }}>
@@ -124,7 +146,7 @@ export function DashboardPage() {
           value={totalRows.toLocaleString('id-ID')}
           color="indigo"
           loading={statsQuery.isPending}
-          onClick={() => navigate('/admin/database')}
+          onClick={() => onNavigateTab('database')}
         />
         <StatChip
           icon={<TeamOutlined />}
@@ -132,7 +154,7 @@ export function DashboardPage() {
           value={studentsStat?.active ?? '–'}
           color="sky"
           loading={statsQuery.isPending}
-          onClick={() => navigate('/master/students')}
+          onClick={() => navigate('/students')}
         />
         <StatChip
           icon={<UserOutlined />}
@@ -140,7 +162,7 @@ export function DashboardPage() {
           value={profilesStat?.total ?? '–'}
           color="emerald"
           loading={statsQuery.isPending}
-          onClick={() => navigate('/admin/users')}
+          onClick={() => onNavigateTab('pengguna')}
         />
         <StatChip
           icon={<AuditOutlined />}
@@ -148,7 +170,7 @@ export function DashboardPage() {
           value={auditStat?.total?.toLocaleString('id-ID') ?? '–'}
           color="purple"
           loading={statsQuery.isPending}
-          onClick={() => navigate('/admin/audit-log')}
+          onClick={() => onNavigateTab('audit')}
         />
         <StatChip
           icon={<ThunderboltOutlined />}
@@ -163,7 +185,7 @@ export function DashboardPage() {
             label="Temuan Integritas"
             value={openIssues.reduce((sum, i) => sum + i.count, 0)}
             color="rose"
-            onClick={() => navigate('/admin/database')}
+            onClick={() => onNavigateTab('database')}
           />
         )}
       </div>
@@ -187,7 +209,7 @@ export function DashboardPage() {
           {biggestTable && (
             <button
               type="button"
-              onClick={() => navigate('/admin/database')}
+              onClick={() => onNavigateTab('database')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
               title="Lihat kesehatan database"
             >
@@ -200,7 +222,7 @@ export function DashboardPage() {
           {openIssues.length > 0 && (
             <button
               type="button"
-              onClick={() => navigate('/admin/database')}
+              onClick={() => onNavigateTab('database')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
               title="Lihat cek integritas"
             >
@@ -276,9 +298,9 @@ export function DashboardPage() {
             title="Audit Terbaru"
             size="small"
             extra={
-              <Link to="/admin/audit-log">
-                <Typography.Link style={{ fontSize: 12.5 }}>Lihat semua</Typography.Link>
-              </Link>
+              <Typography.Link style={{ fontSize: 12.5 }} onClick={() => onNavigateTab('audit')}>
+                Lihat semua
+              </Typography.Link>
             }
           >
             <List
@@ -322,21 +344,25 @@ export function DashboardPage() {
           <Card title="Akses Cepat" size="small">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
               {QUICK_LINKS.map((link) => (
-                <Link key={link.to} to={link.to} style={{ textDecoration: 'none' }}>
-                  <div
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: 12,
-                      border: `1px solid ${token.colorBorderSecondary}`,
-                      background: token.colorBgContainer,
-                      transition: 'border-color .2s, box-shadow .2s',
-                    }}
-                  >
-                    <div style={{ fontSize: 18, color: token.colorPrimary, marginBottom: 6 }}>{link.icon}</div>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: token.colorText }}>{link.label}</div>
-                    <div style={{ fontSize: 11.5, color: token.colorTextSecondary, marginTop: 2 }}>{link.desc}</div>
-                  </div>
-                </Link>
+                <button
+                  key={link.tab}
+                  type="button"
+                  onClick={() => onNavigateTab(link.tab)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    border: `1px solid ${token.colorBorderSecondary}`,
+                    background: token.colorBgContainer,
+                    transition: 'border-color .2s, box-shadow .2s',
+                    cursor: 'pointer',
+                    font: 'inherit',
+                  }}
+                >
+                  <div style={{ fontSize: 18, color: token.colorPrimary, marginBottom: 6 }}>{link.icon}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: token.colorText }}>{link.label}</div>
+                  <div style={{ fontSize: 11.5, color: token.colorTextSecondary, marginTop: 2 }}>{link.desc}</div>
+                </button>
               ))}
             </div>
           </Card>

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Button, Popover, Tooltip } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { DownOutlined } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   DASHBOARD_ITEM,
   NAV_GROUPS,
@@ -12,6 +13,9 @@ import {
   type NavItem,
 } from '../shared/constants/navItems'
 import { useProfile } from '../shared/hooks/useProfile'
+import { useRbac } from '../shared/rbac/useRbac'
+import { useFlagMap } from '../shared/hooks/useFeatureFlags'
+import { collapseTransition, collapseVariants, railTransition } from '../shared/motion'
 import { supabase } from '../lib/supabase'
 
 /** Tahun akademik aktif untuk subjudul brand di sidebar (mis. "TA 2026/2027"). */
@@ -33,26 +37,17 @@ function useActiveAcademicYear() {
   })
 }
 
-// ─── Persistensi grup terbuka (mengikuti sidebar legacy) ────────────────────
-// v2: default semua grup terbuka — key dinaikkan agar state lama yang
-// tersimpan (semua tertutup) tidak menimpa default baru.
-const GROUPS_KEY = 'sidebar-groups-open-v2'
-
-const DEFAULT_GROUPS_OPEN: Record<string, boolean> = {
-  master: true,
-  behavior: true,
-  boarding: true,
-  'report-cards': true,
-  gate: true,
-  settings: true,
-}
+// ─── Persistensi grup terbuka ───────────────────────────────────────────────
+// Default: semua grup terbuka (key yang belum pernah di-toggle dianggap terbuka).
+// v4: key dinaikkan karena struktur grup berubah (regroup kategori); state lama tidak dipakai lagi.
+const GROUPS_KEY = 'sidebar-groups-open-v4'
 
 function getInitialGroupsOpen(): Record<string, boolean> {
   try {
     const stored = localStorage.getItem(GROUPS_KEY)
-    return stored ? { ...DEFAULT_GROUPS_OPEN, ...JSON.parse(stored) } : DEFAULT_GROUPS_OPEN
+    return stored ? (JSON.parse(stored) as Record<string, boolean>) : {}
   } catch {
-    return DEFAULT_GROUPS_OPEN
+    return {}
   }
 }
 
@@ -64,17 +59,31 @@ interface NavItemButtonProps {
   iconOnly?: boolean
   /** Anak grup: indikator menempel di guide line (left: -4) */
   inGroup?: boolean
+  /**
+   * layoutId rail indigo — satu id per instance Sidebar (desktop Sider vs
+   * mobile Drawer terpisah). Kosongkan untuk item di popover (portal lain).
+   */
+  railId?: string
   onClick: () => void
 }
 
-function NavItemButton({ item, active, iconOnly = false, inGroup = false, onClick }: NavItemButtonProps) {
+function NavItemButton({
+  item,
+  active,
+  iconOnly = false,
+  inGroup = false,
+  railId,
+  onClick,
+}: NavItemButtonProps) {
   const Icon = item.icon
   return (
     <div style={{ position: 'relative' }}>
-      {/* Indikator aktif — bar tipis di tepi kiri */}
-      {active && (
-        <span
+      {/* Indikator aktif — bar tipis di tepi kiri; layoutId = rail melompat antar item */}
+      {active && railId && (
+        <motion.span
           aria-hidden="true"
+          layoutId={railId}
+          transition={railTransition}
           style={{
             position: 'absolute',
             top: 4,
@@ -146,11 +155,15 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
   const { profile } = useProfile()
   const activeYear = useActiveAcademicYear()
   const role = profile?.role ?? null
+  // Unik per instance Sidebar — Sider desktop & Drawer mobile tidak share layoutId
+  const railId = useId()
+  const flagMap = useFlagMap()
+  const { can } = useRbac()
 
-  const visibleGroups = useMemo(() => filterNavGroups(NAV_GROUPS, role), [role])
+  const visibleGroups = useMemo(() => filterNavGroups(NAV_GROUPS, role, flagMap, can), [role, flagMap, can])
   const visibleDashboard = useMemo(
-    () => filterNavItems([DASHBOARD_ITEM], role)[0] ?? DASHBOARD_ITEM,
-    [role],
+    () => filterNavItems([DASHBOARD_ITEM], role, flagMap, can)[0] ?? DASHBOARD_ITEM,
+    [role, flagMap, can],
   )
 
   const allItems = useMemo(
@@ -185,7 +198,15 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
     }
   }, [groupsOpen])
 
-  const toggleGroup = (key: string) => setGroupsOpen((prev) => ({ ...prev, [key]: !prev[key] }))
+  // Saat pindah ke halaman di grup yang sedang tertutup, buka grup itu.
+  // Hanya berjalan saat halaman aktif berganti, jadi grup aktif tetap bisa ditutup manual.
+  useEffect(() => {
+    if (!activeGroupKey) return
+    setGroupsOpen((prev) => (prev[activeGroupKey] === false ? { ...prev, [activeGroupKey]: true } : prev))
+  }, [activeGroupKey])
+
+  const toggleGroup = (key: string) =>
+    setGroupsOpen((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }))
 
   const goTo = (to: string) => {
     navigate(to)
@@ -199,6 +220,7 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
         active={activeItem?.to === item.to}
         iconOnly={collapsed}
         inGroup={inGroup}
+        railId={railId}
         onClick={() => goTo(item.to)}
       />
     )
@@ -283,9 +305,7 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
           />
 
           {visibleGroups.map((group: NavGroup) => {
-            const isOpen = groupsOpen[group.key] ?? true
-            // Auto-expand saat halaman di dalam grup ini aktif
-            const showChildren = isOpen || activeGroupKey === group.key
+            const showChildren = groupsOpen[group.key] ?? true
             return (
               <div key={group.key} style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
                 <Button
@@ -326,21 +346,30 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
                   />
                 </Button>
 
-                {/* Anak grup: indent + guide line sebagai penanda hierarki */}
-                {showChildren && (
-                  <div
-                    style={{
-                      margin: '4px 4px 0 10px',
-                      padding: '4px 0 4px 4px',
-                      borderLeft: '1px solid #e2e8f0',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4,
-                    }}
-                  >
-                    {group.items.map((item) => renderNavItem(item, true))}
-                  </div>
-                )}
+                {/* Anak grup: indent + guide line sebagai penanda hierarki.
+                    Expand/collapse dianimasikan agar daftar berubah secara kontinu, tidak pop. */}
+                <AnimatePresence initial={false}>
+                  {showChildren && (
+                    <motion.div
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      variants={collapseVariants}
+                      transition={collapseTransition}
+                      style={{
+                        margin: '4px 4px 0 10px',
+                        padding: '4px 0 4px 4px',
+                        borderLeft: '1px solid #e2e8f0',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {group.items.map((item) => renderNavItem(item, true))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )
           })}
@@ -392,6 +421,7 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
                 item={{ to: group.key, label: group.label, icon: group.icon, desc: '' }}
                 active={hasActive}
                 iconOnly
+                railId={railId}
                 onClick={() => undefined}
               />
             </Popover>

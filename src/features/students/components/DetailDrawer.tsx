@@ -20,8 +20,10 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
+import { motion } from 'motion/react'
+import { pageShellItemVariants, shellTransition } from '../../../shared/motion'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts'
 import {
   AuditOutlined,
@@ -40,11 +42,8 @@ import {
 } from '@ant-design/icons'
 import { StatusTag } from '../../../shared/components/StatusTag'
 import { usePermissions } from '../../../shared/hooks/useProfile'
-import { fetchReportsByStudent } from '../../behavior/api'
-import { fetchGateLogsByStudent } from '../../gate/api'
-import { fetchAuditLogs } from '../../admin/api'
-import { fetchMonthlyRowsByStudent } from '../../report-cards/api'
 import { updateStudentTags } from '../api'
+import { useStudentOverview } from '../useStudentOverview'
 import { completenessPercent, missingFieldsOf } from '../completeness'
 import { useStudentGuardians } from '../hooks'
 import { GENDER_LABEL, STUDENT_STATUS_META } from '../status'
@@ -238,9 +237,11 @@ interface DetailDrawerProps {
   onEdit?: (student: Student) => void
   /** mode privasi: sembunyikan kode / NISN / NIK / nomor telepon */
   isPrivacyMode?: boolean
+  /** banner opsional di atas header identitas (mis. peringatan status arsip) */
+  notice?: ReactNode
 }
 
-export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = false }: DetailDrawerProps) {
+export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = false, notice }: DetailDrawerProps) {
   const { canWrite } = usePermissions()
   const { message } = App.useApp()
   const [tab, setTab] = useState<ProfileTab>('info')
@@ -258,29 +259,11 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
     setTagsOverride(null)
   }, [studentId])
 
-  const reportsQuery = useQuery({
-    queryKey: ['behavior-reports', 'student', studentId],
-    queryFn: () => fetchReportsByStudent(studentId!, 100),
-    enabled: open && !!studentId,
-  })
-
-  const reportCardQuery = useQuery({
-    queryKey: ['raport-monthly', 'student', studentId],
-    queryFn: () => fetchMonthlyRowsByStudent(studentId!),
-    enabled: open && !!studentId,
-  })
-
-  const gateQuery = useQuery({
-    queryKey: ['gate-logs', 'student', studentId],
-    queryFn: () => fetchGateLogsByStudent(studentId!, 20),
-    enabled: open && !!studentId,
-  })
-
-  const auditQuery = useQuery({
-    queryKey: ['audit-logs', 'student', studentId],
-    queryFn: () => fetchAuditLogs({ tableName: 'students', recordId: studentId!, page: 1, pageSize: 50 }),
-    enabled: open && !!studentId,
-  })
+  // Ringkasan lintas-modul (poin, raport, gate, audit) — satu hook bersama
+  const { reportsQuery, reportCardQuery, gateQuery, auditQuery } = useStudentOverview(
+    studentId ?? undefined,
+    open && !!studentId,
+  )
 
   // Data ayah/ibu/wali (student_guardians, 0020) — RLS hanya admin/pengurus;
   // bila query gagal (mis. role guru) section ini saja yang disembunyikan
@@ -308,7 +291,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
 
   if (!student) return null
 
-  const mask = (value: string | null) => (isPrivacyMode && value ? MASK : (value ?? '—'))
+  const mask = (value: string | null) => (isPrivacyMode && value ? MASK : (value ?? '-'))
   const copyable = (value: string | null) =>
     value && !isPrivacyMode ? { text: value, tooltips: ['Salin', 'Tersalin'] as [string, string] } : false
 
@@ -339,7 +322,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
 
   const saveVcf = () => {
     if (isPrivacyMode) {
-      message.warning('Mode privasi aktif — data disembunyikan')
+      message.warning('Mode privasi aktif, data disembunyikan')
       return
     }
     if (!student.phone) {
@@ -349,12 +332,16 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
     const guardian = student.guardian_name || 'Ortu'
     const clean = student.phone.replace(/\D/g, '')
     const intl = clean.startsWith('0') ? `+62${clean.slice(1)}` : `+${clean}`
-    const vcf = `BEGIN:VCARD\nVERSION:3.0\nFN:Wali - ${student.name} (${guardian})\nTEL;TYPE=CELL:${intl}\nEND:VCARD`
+    const vcf = `BEGIN:VCARD
+VERSION:3.0
+FN:Wali - ${student.name} (${guardian})
+TEL;TYPE=CELL:${intl}
+END:VCARD`
     const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `Wali_${student.name.replace(/\s+/g, '_')}.vcf`
+    link.download = `Wali_${student.name.replace(/s+/g, '_')}.vcf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -397,6 +384,14 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
         </div>
       }
     >
+      <motion.div
+        variants={pageShellItemVariants}
+        initial="initial"
+        animate="animate"
+        transition={shellTransition}
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}
+      >
+      {notice}
       {/* ── Header low: identitas + ring kelengkapan + ringkasan domisili ── */}
       <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #eef2f7', background: '#fff' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -470,7 +465,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
 
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <StatPill icon={<ThunderboltOutlined />} label="Total Poin" value={points > 0 ? `+${points}` : points} color={points < 0 ? '#ef4444' : '#10b981'} />
-          <StatPill icon={<BookOutlined />} label="Kelas" value={student.classes?.name ?? student.last_class?.name ?? '—'} color="#4f46e5" />
+          <StatPill icon={<BookOutlined />} label="Kelas" value={student.classes?.name ?? student.last_class?.name ?? '-'} color="#4f46e5" />
           <StatPill icon={<HomeOutlined />} label="Asrama" value={student.dorms?.name ?? 'Tanpa asrama'} color="#0ea5e9" />
         </div>
       </div>
@@ -555,13 +550,13 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                     {mask(student.nik)}
                   </Typography.Text>
                 </InfoRow>
-                <InfoRow label="Jenis Kelamin">{student.gender ? GENDER_LABEL[student.gender] : '—'}</InfoRow>
-                <InfoRow label="Agama">{student.religion ?? '—'}</InfoRow>
-                <InfoRow label="Tempat, Tanggal Lahir">{ttl || '—'}</InfoRow>
+                <InfoRow label="Jenis Kelamin">{student.gender ? GENDER_LABEL[student.gender] : '-'}</InfoRow>
+                <InfoRow label="Agama">{student.religion ?? '-'}</InfoRow>
+                <InfoRow label="Tempat, Tanggal Lahir">{ttl || '-'}</InfoRow>
                 {student.nickname && <InfoRow label="Nama Panggilan">{student.nickname}</InfoRow>}
                 {student.status === 'graduated' && (
                   <InfoRow label="Tahun Lulus">
-                    {student.graduation_year ?? '—'}
+                    {student.graduation_year ?? '-'}
                     {student.last_class?.name ? ` · ${student.last_class.name}` : ''}
                   </InfoRow>
                 )}
@@ -569,16 +564,29 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
 
               <SectionTitle
                 extra={
-                  student.phone && !isPrivacyMode ? (
-                    <span style={{ display: 'inline-flex', gap: 6 }}>
-                      <Button icon={<WhatsAppOutlined />} onClick={openWa} style={{ color: '#059669', borderColor: '#a7f3d0' }}>
-                        Kirim WA
-                      </Button>
-                      <Button icon={<IdcardOutlined />} onClick={saveVcf}>
-                        Simpan Kontak VCF
-                      </Button>
-                    </span>
-                  ) : undefined
+                  <span style={{ display: 'inline-flex', gap: 6 }}>
+                    <Tooltip
+                      title={isPrivacyMode ? 'Mode privasi aktif' : student.phone ? 'Kirim laporan via WhatsApp' : 'Nomor HP belum tersedia'}
+                    >
+                      <span>
+                        <Button
+                          icon={<WhatsAppOutlined />}
+                          disabled={!student.phone || isPrivacyMode}
+                          onClick={openWa}
+                          style={
+                            student.phone && !isPrivacyMode
+                              ? { color: '#059669', borderColor: '#a7f3d0' }
+                              : undefined
+                          }
+                        >
+                          Kirim WA
+                        </Button>
+                      </span>
+                    </Tooltip>
+                    <Button icon={<IdcardOutlined />} onClick={saveVcf}>
+                      Simpan Kontak VCF
+                    </Button>
+                  </span>
                 }
               >
                 Wali &amp; Kontak
@@ -586,7 +594,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
               {student.guardian_name || student.phone ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
                   <InfoRow label="Nama Wali">{mask(student.guardian_name)}</InfoRow>
-                  <InfoRow label="Hubungan">{student.guardian_relation ?? '—'}</InfoRow>
+                  <InfoRow label="Hubungan">{student.guardian_relation ?? '-'}</InfoRow>
                   <InfoRow label="No. HP / WhatsApp">
                     <Typography.Text copyable={copyable(student.phone)} style={{ fontSize: 14.5 }}>
                       {mask(student.phone)}
@@ -636,9 +644,9 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                               {mask(g.phone)}
                             </Typography.Text>
                           </InfoRow>
-                          <InfoRow label="Pendidikan">{g.education ?? '—'}</InfoRow>
-                          <InfoRow label="Pekerjaan">{g.occupation ?? '—'}</InfoRow>
-                          <InfoRow label="Penghasilan / bulan">{g.income_range ?? '—'}</InfoRow>
+                          <InfoRow label="Pendidikan">{g.education ?? '-'}</InfoRow>
+                          <InfoRow label="Pekerjaan">{g.occupation ?? '-'}</InfoRow>
+                          <InfoRow label="Penghasilan / bulan">{g.income_range ?? '-'}</InfoRow>
                         </div>
                       </div>
                     ))}
@@ -649,7 +657,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
               <SectionTitle>Alamat &amp; Domisili</SectionTitle>
               {student.address || student.dorms?.name ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
-                  <InfoRow label="Alamat">{student.address ?? '—'}</InfoRow>
+                  <InfoRow label="Alamat">{student.address ?? '-'}</InfoRow>
                   <InfoRow label="Asrama">{student.dorms?.name ?? 'Tanpa asrama'}</InfoRow>
                 </div>
               ) : (
@@ -679,17 +687,17 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                         {mask(student.kk_number)}
                       </Typography.Text>
                     </InfoRow>
-                    <InfoRow label="Status Anak">{student.child_status ?? '—'}</InfoRow>
-                    <InfoRow label="Anak Ke">{student.child_number ?? '—'}</InfoRow>
-                    <InfoRow label="Jumlah Saudara">{student.siblings_count ?? '—'}</InfoRow>
+                    <InfoRow label="Status Anak">{student.child_status ?? '-'}</InfoRow>
+                    <InfoRow label="Anak Ke">{student.child_number ?? '-'}</InfoRow>
+                    <InfoRow label="Jumlah Saudara">{student.siblings_count ?? '-'}</InfoRow>
                     <InfoRow label="Telepon Rumah">{mask(student.home_phone)}</InfoRow>
-                    <InfoRow label="Ukuran Seragam">{student.uniform_size ?? '—'}</InfoRow>
-                    <InfoRow label="Sekolah Asal">{student.origin_school ?? '—'}</InfoRow>
+                    <InfoRow label="Ukuran Seragam">{student.uniform_size ?? '-'}</InfoRow>
+                    <InfoRow label="Sekolah Asal">{student.origin_school ?? '-'}</InfoRow>
                     <InfoRow label="Tahun Lulus Sekolah Asal">
-                      {student.origin_graduation_year ?? '—'}
+                      {student.origin_graduation_year ?? '-'}
                     </InfoRow>
                     <InfoRow label="Tanggal Diterima">
-                      {student.admitted_at ? dayjs(student.admitted_at).format('DD MMMM YYYY') : '—'}
+                      {student.admitted_at ? dayjs(student.admitted_at).format('DD MMMM YYYY') : '-'}
                     </InfoRow>
                   </div>
                 </>
@@ -776,7 +784,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                     children: (
                       <div style={{ paddingBottom: 4 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>{r.rule?.name ?? '—'}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>{r.rule?.name ?? '-'}</span>
                           <Tag
                             color={r.points > 0 ? 'green' : r.points < 0 ? 'red' : 'default'}
                             style={{ marginInlineEnd: 0, borderRadius: 6, fontSize: 12, fontWeight: 700 }}
@@ -829,7 +837,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
                     }
                     extra={
                       <span style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: 18, fontWeight: 700, color: '#4f46e5' }}>{avg ?? '—'}</span>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: '#4f46e5' }}>{avg ?? '-'}</span>
                         <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', color: '#94a3b8' }}>Rerata</span>
                       </span>
                     }
@@ -934,6 +942,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
             ))}
         </div>
       </div>
+      </motion.div>
     </Drawer>
   )
 }

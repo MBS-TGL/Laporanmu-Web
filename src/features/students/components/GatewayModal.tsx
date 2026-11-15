@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { App, Alert, Input, Space, Tag, Typography, theme } from 'antd'
+import { App, Input, Space, Switch, Tag, Typography } from 'antd'
 import { WhatsAppOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
 import { usePermissions } from '../../../shared/hooks/useProfile'
 import { useUpdateWaSettings, useWaSettingsStatus } from '../hooks'
 
@@ -13,20 +14,27 @@ interface GatewayModalProps {
 /** Pengaturan token Fonnte untuk broadcast WA — token tidak pernah dibaca ulang ke browser */
 export function GatewayModal({ open, onClose }: GatewayModalProps) {
   const { message } = App.useApp()
-  const { token: themeToken } = theme.useToken()
   const { canDelete } = usePermissions() // kredensial akun → developer/admin saja
   const statusQuery = useWaSettingsStatus()
   const updateMutation = useUpdateWaSettings()
 
   const [token, setToken] = useState('')
   const [senderName, setSenderName] = useState('')
+  const [autoViolation, setAutoViolation] = useState(false)
+  const [autoBk, setAutoBk] = useState(false)
+  const [autoSavings, setAutoSavings] = useState(false)
+  const [autoSpp, setAutoSpp] = useState(false)
 
-  // Prefill nama pengirim saat data status pertama kali terbaca
+  // Prefill nama pengirim & toggle saat data status pertama kali terbaca
   const [prevStatusLoaded, setPrevStatusLoaded] = useState(false)
   const status = statusQuery.data
   if (status && !prevStatusLoaded) {
     setPrevStatusLoaded(true)
     setSenderName(status.sender_name ?? '')
+    setAutoViolation(status.auto_violation_wa)
+    setAutoBk(status.auto_bk_wa)
+    setAutoSavings(status.auto_savings_wa)
+    setAutoSpp(status.auto_spp_wa)
   }
 
   // Reset field token tiap kali modal dibuka — token lama tidak pernah ditampilkan
@@ -42,7 +50,7 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
       return
     }
     updateMutation.mutate(
-      { token, senderName },
+      { token, senderName, autoViolation, autoBk, autoSavings, autoSpp },
       {
         onSuccess: () => {
           message.success('Pengaturan WA disimpan')
@@ -50,7 +58,7 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
           onClose()
         },
         onError: (err: Error) =>
-          message.error(err.message || 'Gagal menyimpan pengaturan — pastikan role developer/admin'),
+          message.error(err.message || 'Gagal menyimpan pengaturan, pastikan role developer/admin'),
       },
     )
   }
@@ -62,23 +70,20 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
       width={520}
       title="Pengaturan WA (Fonnte)"
       subtitle="Token device untuk broadcast WhatsApp ke wali santri"
-      icon={<WhatsAppOutlined style={{ color: themeToken.colorSuccess }} />}
+      icon={<WhatsAppOutlined />}
       okText="Simpan"
       okButtonProps={{ loading: updateMutation.isPending, disabled: !canDelete }}
       onOk={handleSave}
     >
       <Space direction="vertical" size={14} style={{ width: '100%' }}>
-        <Alert
-          type={configured ? 'success' : 'warning'}
-          showIcon
-          message={configured ? 'Token Fonnte terpasang — broadcast siap digunakan' : 'Token belum diatur — broadcast WA dinonaktifkan'}
-          description={
-            configured
-              ? 'Biarkan kolom token kosong untuk tetap memakai token yang tersimpan.'
-              : 'Isi token untuk mengaktifkan pengiriman broadcast.'
-          }
-          style={{ borderRadius: 10 }}
-        />
+        <ModalNotice
+          tone={configured ? 'success' : 'warning'}
+          title={configured ? 'Token Fonnte terpasang, broadcast siap digunakan' : 'Token belum diatur, broadcast WA dinonaktifkan'}
+        >
+          {configured
+            ? 'Biarkan kolom token kosong untuk tetap memakai token yang tersimpan.'
+            : 'Isi token untuk mengaktifkan pengiriman broadcast.'}
+        </ModalNotice>
 
         <div>
           <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
@@ -91,7 +96,7 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
             autoComplete="new-password"
           />
           <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            Token tersimpan di database internal dan <strong>tidak pernah dikirim ke browser</strong> —
+            Token tersimpan di database internal dan <strong>tidak pernah dikirim ke browser</strong>:{' '}
             pengiriman lewat Edge Function. Device WhatsApp harus tetap online di fonnte.com.
           </Typography.Paragraph>
         </div>
@@ -108,15 +113,75 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
           />
         </div>
 
+        <div>
+          <Typography.Text strong style={{ display: 'block', marginBottom: 10 }}>
+            WA otomatis (fire-and-forget ke nomor siswa)
+          </Typography.Text>
+          <Space direction="vertical" size={14} style={{ width: '100%' }}>
+            <AutoWaRow
+              title="Saat pelanggaran dicatat"
+              description="Wali menerima WA segera setelah poin pelanggaran tersimpan."
+              checked={autoViolation}
+              disabled={!configured || !canDelete}
+              onChange={setAutoViolation}
+            />
+            <AutoWaRow
+              title="Saat surat resmi BK diterbitkan"
+              description="Memuat nomor surat dan tautan verifikasi QR yang sama dengan kop surat."
+              checked={autoBk}
+              disabled={!configured || !canDelete}
+              onChange={setAutoBk}
+            />
+            <AutoWaRow
+              title="Saat mutasi tabungan"
+              description="Setoran/penarikan beserta saldo akhir setelah dicatat petugas kas."
+              checked={autoSavings}
+              disabled={!configured || !canDelete}
+              onChange={setAutoSavings}
+            />
+            <AutoWaRow
+              title="Saat pembayaran SPP dicatat"
+              description="Konfirmasi pembayaran: komponen, nominal, dan sisa tagihan."
+              checked={autoSpp}
+              disabled={!configured || !canDelete}
+              onChange={setAutoSpp}
+            />
+          </Space>
+        </div>
+
         {!canDelete && (
-          <Alert
-            type="info"
-            showIcon
-            message="Hanya developer/admin yang dapat mengubah token"
-            style={{ borderRadius: 10 }}
-          />
+          <ModalNotice tone="info" title="Hanya developer/admin yang dapat mengubah token" />
         )}
       </Space>
     </AppModal>
+  )
+}
+
+/** Baris toggle WA otomatis: judul + deskripsi kiri, switch kanan. */
+function AutoWaRow({
+  title,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  title: string
+  description: string
+  checked: boolean
+  disabled: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+      <div>
+        <Typography.Text strong style={{ display: 'block', marginBottom: 4 }}>
+          {title}
+        </Typography.Text>
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: 0 }}>
+          {description}
+        </Typography.Paragraph>
+      </div>
+      <Switch checked={checked} disabled={disabled} onChange={onChange} />
+    </div>
   )
 }

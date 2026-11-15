@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { Drawer, Grid, Layout } from 'antd'
+import { DebugPanel } from '../shared/components/DebugPanel'
 import { MaintenanceGate } from '../shared/components/MaintenanceGate'
+import { DetailProvider } from '../features/students/DetailProvider'
+import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
@@ -13,6 +16,7 @@ export function MainLayout() {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
+    <DetailProvider>
     <Layout style={{ minHeight: '100vh' }}>
       {!isMobile && (
         <Sider
@@ -47,12 +51,15 @@ export function MainLayout() {
           onCloseDrawer={() => setDrawerOpen(false)}
         />
 
-        <Content style={{ padding: isMobile ? 12 : 20 }}>
+        <Content style={{ padding: isMobile ? '12px 12px 76px' : 20 }}>
           <div style={{ maxWidth: 1800, margin: '0 auto' }}>
             <MaintenanceGate />
           </div>
         </Content>
       </Layout>
+      {isMobile && <BottomNav onOpenMore={() => setDrawerOpen(true)} />}
+      <DebugPanel />
     </Layout>
+    </DetailProvider>
   )
 }

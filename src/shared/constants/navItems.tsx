@@ -1,38 +1,37 @@
 import type { ComponentProps, ComponentType } from 'react'
 import {
+  AccountBookOutlined,
   ApartmentOutlined,
   AppstoreOutlined,
-  AudioOutlined,
+  AuditOutlined,
   BankOutlined,
   BookOutlined,
   CalendarOutlined,
+  CommentOutlined,
   DashboardOutlined,
   DatabaseOutlined,
   DeploymentUnitOutlined,
+  ExportOutlined,
+  FieldTimeOutlined,
   FileDoneOutlined,
+  FileProtectOutlined,
   FileTextOutlined,
-  FolderOpenOutlined,
+  FlagOutlined,
   GatewayOutlined,
-  HddOutlined,
-  HeartOutlined,
-  HistoryOutlined,
+  HomeOutlined,
+  IdcardOutlined,
   InboxOutlined,
+  MedicineBoxOutlined,
   MoneyCollectOutlined,
   NotificationOutlined,
-  ProfileOutlined,
+  OrderedListOutlined,
   ReadOutlined,
-  RobotOutlined,
-  SafetyCertificateOutlined,
   SafetyOutlined,
   ScheduleOutlined,
   SettingOutlined,
   SolutionOutlined,
   TeamOutlined,
-  ThunderboltOutlined,
-  ToolOutlined,
   TrophyOutlined,
-  UserAddOutlined,
-  UsergroupAddOutlined,
   WalletOutlined,
 } from '@ant-design/icons'
 
@@ -43,7 +42,13 @@ export interface NavItem {
   label: string
   icon: IconType
   desc: string
-  requireRoles?: string[]
+  /**
+   * Permission `<module>:<action>` yang dibutuhkan item ini (RBAC,
+   * dicek lewat useRbac().can). Item tanpa perm terlihat semua staff.
+   */
+  perm?: string
+  /** Key feature flag `module.*` — item hilang dari menu saat flag MATI */
+  flag?: string
 }
 
 export interface NavGroup {
@@ -51,107 +56,117 @@ export interface NavGroup {
   label: string
   icon: IconType
   items: NavItem[]
-  hideForRoles?: string[]
 }
+
+export type CanFn = (perm: string) => boolean
 
 export const DASHBOARD_ITEM: NavItem = {
   to: '/dashboard',
   label: 'Dashboard',
   icon: DashboardOutlined,
   desc: 'Ringkasan utama dan statistik sistem',
+  perm: 'dashboard:read',
 }
 
-const MASTER_ITEMS: NavItem[] = [
-  { to: '/master/students', label: 'Data Siswa', icon: TeamOutlined, desc: 'Pusat database seluruh santri aktif' },
-  { to: '/master/students/alumni', label: 'Alumni', icon: SafetyCertificateOutlined, desc: 'Jejak siswa yang telah lulus' },
-  { to: '/master/teachers', label: 'Data Guru', icon: ReadOutlined, desc: 'Data pengajar, musyrif, dan staf' },
-  { to: '/master/classes', label: 'Data Kelas', icon: BankOutlined, desc: 'Struktur kelas dan wali kelas' },
-  { to: '/master/subjects', label: 'Mata Pelajaran', icon: BookOutlined, desc: 'Daftar mapel, kelompok, dan beban JP' },
-  { to: '/master/academic-years', label: 'Tahun Akademik', icon: CalendarOutlined, desc: 'Periode semester dan kalender akademik' },
-  { to: '/master/inventory', label: 'Inventaris', icon: InboxOutlined, desc: 'Aset dan barang beserta kondisinya' },
-  { to: '/master/admissions', label: 'PPDB', icon: UserAddOutlined, desc: 'Penerimaan santri baru dari daftar hingga daftar ulang' },
-]
-
-const ACADEMIC_ITEMS: NavItem[] = [
-  { to: '/academic/tahfidz', label: 'Tahfidz', icon: AudioOutlined, desc: 'Setoran hafalan ziyadah & murojaah santri' },
-  { to: '/academic/schedules', label: 'Jadwal KBM', icon: ScheduleOutlined, desc: 'Jadwal mengajar per kelas, mapel, dan guru' },
-  { to: '/academic/halaqah', label: 'Halaqah', icon: DeploymentUnitOutlined, desc: 'Kelompok halaqah, musyrif, dan anggota' },
-  { to: '/academic/ekskul', label: 'Ekstrakurikuler', icon: TrophyOutlined, desc: 'Kegiatan ekstrakurikuler dan pembina' },
-  { to: '/academic/library', label: 'Perpustakaan', icon: BookOutlined, desc: 'Katalog buku dan peminjaman santri' },
-]
-
-const FINANCE_ITEMS: NavItem[] = [
-  { to: '/finance/savings', label: 'Tabungan', icon: MoneyCollectOutlined, desc: 'Rekening tabungan, setor-tarik, dan buku tabungan' },
-]
-
-const BEHAVIOR_ITEMS: NavItem[] = [
-  { to: '/points/rules', label: 'Aturan Poin', icon: FileDoneOutlined, desc: 'Daftar pelanggaran dan prestasi beserta bobot poin' },
-  { to: '/points/reports', label: 'Catatan Poin', icon: ProfileOutlined, desc: 'Riwayat pelanggaran dan prestasi santri' },
-]
-
+// ─── Kesantrian: operasional harian santri ──────────────────────────────────
 const BOARDING_ITEMS: NavItem[] = [
-  { to: '/attendance', label: 'Absensi Santri', icon: SolutionOutlined, desc: 'Kehadiran harian per kelas per bulan' },
-  { to: '/boarding/dorms', label: 'Asrama', icon: ApartmentOutlined, desc: 'Kamar dan plotting santri asrama' },
-  { to: '/boarding/health', label: 'Kesehatan', icon: HeartOutlined, desc: 'Rekam medis, observasi, stok obat' },
-  { to: '/boarding/counseling', label: 'Bimbingan Konseling', icon: ProfileOutlined, desc: 'Sesi BK dan pembinaan santri' },
-  { to: '/boarding/leave-permit', label: 'Izin Pulang', icon: FileTextOutlined, desc: 'Surat izin keluar pondok' },
-  { to: '/suspension', label: 'Skorsing', icon: SafetyCertificateOutlined, desc: 'Skorsing & pembinaan di rumah' },
+  { to: '/attendance', label: 'Absensi', icon: SolutionOutlined, desc: 'Absensi santri, guru & karyawan, dan mesin presensi', perm: 'attendance:read' },
+  { to: '/leave-permit', label: 'Izin Keluar', icon: ExportOutlined, desc: 'Surat izin keluar pondok', flag: 'module.leave_permit', perm: 'leave_permit:read' },
+  { to: '/gate', label: 'Gerbang', icon: GatewayOutlined, desc: 'Log keluar-masuk santri di gerbang', flag: 'module.gate', perm: 'gate:read' },
+  { to: '/dorms', label: 'Asrama', icon: ApartmentOutlined, desc: 'Kamar dan plotting santri asrama', flag: 'module.dorms', perm: 'dorms:read' },
+  { to: '/health', label: 'Kesehatan', icon: MedicineBoxOutlined, desc: 'Rekam medis, observasi, stok obat', flag: 'module.health', perm: 'health:read' },
+  { to: '/counseling', label: 'Bimbingan Konseling', icon: CommentOutlined, desc: 'Sesi BK dan pembinaan santri', flag: 'module.counseling', perm: 'counseling:read' },
+  { to: '/disiplin', label: 'Poin & Disiplin', icon: AuditOutlined, desc: 'Catatan poin, aturan pelanggaran-prestasi, dan skorsing santri', perm: 'disiplin:read' },
 ]
 
-const GATE_ITEMS: NavItem[] = [
-  { to: '/gate/logs', label: 'Gate Santri', icon: GatewayOutlined, desc: 'Log keluar-masuk santri di gerbang' },
+// ─── Akademik: KBM dan penilaian ────────────────────────────────────────────
+const ACADEMIC_ITEMS: NavItem[] = [
+  { to: '/grades', label: 'Penilaian', icon: FileDoneOutlined, desc: 'Nilai formatif, sumatif, PTS, PAS, dan leger', flag: 'module.grades', perm: 'grades:read' },
+  { to: '/cbt', label: 'CBT', icon: FileProtectOutlined, desc: 'Bank soal, ujian ber-token, dan pemantauan ujian', flag: 'module.cbt', perm: 'cbt:read' },
+  { to: '/schedules', label: 'Jadwal KBM', icon: ScheduleOutlined, desc: 'Jadwal mengajar per kelas, mapel, dan guru', flag: 'module.schedules', perm: 'schedules:read' },
+  { to: '/teaching-load', label: 'Beban Mengajar', icon: FieldTimeOutlined, desc: 'Distribusi jam mengajar guru dan cakupan kelas', perm: 'teaching_load:read' },
+  { to: '/report-cards', label: 'Raport', icon: FileTextOutlined, desc: 'Input raport bulanan & semester per kelas', flag: 'module.report_cards', perm: 'report_cards:read' },
+  { to: '/library', label: 'Perpustakaan', icon: BookOutlined, desc: 'Katalog buku dan peminjaman santri', flag: 'module.library', perm: 'library:read' },
 ]
 
-const REPORT_CARD_ITEMS: NavItem[] = [
-  { to: '/report-cards', label: 'Raport', icon: FileTextOutlined, desc: 'Input raport bulanan & semester per kelas' },
-  { to: '/report-cards/archive', label: 'Arsip Raport', icon: FolderOpenOutlined, desc: 'Riwayat raport per kelas dan periode' },
+// ─── Kegiatan Santri: kegiatan pembinaan di luar KBM ────────────────────────
+const ACTIVITY_ITEMS: NavItem[] = [
+  { to: '/halaqah', label: 'Halaqah', icon: DeploymentUnitOutlined, desc: 'Presensi halaqah, setoran hafalan (ziyadah & murojaah), dan kelompok', flag: 'module.halaqah', perm: 'halaqah:read' },
+  { to: '/ekskul', label: 'Ekstrakurikuler', icon: FlagOutlined, desc: 'Kegiatan ekstrakurikuler dan pembina', flag: 'module.ekskul', perm: 'ekskul:read' },
 ]
 
-const SETTINGS_ITEMS: NavItem[] = [
-  { to: '/settings/announcements', label: 'Informasi', icon: NotificationOutlined, desc: 'Pengumuman untuk staf dan wali santri' },
-  { to: '/settings/school', label: 'Profil Sekolah', icon: SettingOutlined, desc: 'Identitas sekolah untuk kop raport' },
+// ─── Keuangan & Aset ────────────────────────────────────────────────────────
+const FINANCE_ITEMS: NavItem[] = [
+  { to: '/keuangan', label: 'Keuangan SPP', icon: AccountBookOutlined, desc: 'Kewajiban biaya, pembayaran, dan tunggakan per santri', flag: 'module.keuangan_spp', perm: 'keuangan:read' },
+  { to: '/savings', label: 'Tabungan', icon: MoneyCollectOutlined, desc: 'Rekening tabungan, setor-tarik, dan buku tabungan', flag: 'module.savings', perm: 'savings:read' },
+  { to: '/inventory', label: 'Inventaris', icon: InboxOutlined, desc: 'Aset dan barang beserta kondisinya', flag: 'module.inventory', perm: 'inventory:read' },
 ]
 
-const ADMIN_ITEMS: NavItem[] = [
-  { to: '/admin', label: 'Dashboard Admin', icon: AppstoreOutlined, desc: 'Pusat pantauan teknis sistem', requireRoles: ['developer', 'admin'] },
-  { to: '/insights', label: 'AI Insights', icon: RobotOutlined, desc: 'Analisis cerdas data pondok', requireRoles: ['developer', 'admin'] },
-  { to: '/admin/database', label: 'Database', icon: DatabaseOutlined, desc: 'Kesehatan database & cek integritas', requireRoles: ['developer', 'admin'] },
-  { to: '/admin/storage', label: 'Penyimpanan', icon: HddOutlined, desc: 'Bucket storage & pembersihan file', requireRoles: ['developer', 'admin'] },
-  { to: '/admin/tasks', label: 'Otomasi', icon: ThunderboltOutlined, desc: 'Tugas pemeliharaan manual', requireRoles: ['developer', 'admin'] },
-  { to: '/admin/settings', label: 'Pengaturan', icon: ToolOutlined, desc: 'Feature flags & mode maintenance', requireRoles: ['developer', 'admin'] },
-  { to: '/admin/users', label: 'Pengguna', icon: UsergroupAddOutlined, desc: 'Kelola nama & role akun staff', requireRoles: ['developer', 'admin'] },
-  { to: '/admin/audit-log', label: 'Audit Log', icon: HistoryOutlined, desc: 'Jejak perubahan data oleh pengguna', requireRoles: ['developer', 'admin'] },
+// ─── Master Data: referensi inti sistem ─────────────────────────────────────
+const MASTER_ITEMS: NavItem[] = [
+  { to: '/students', label: 'Data Siswa', icon: TeamOutlined, desc: 'Pusat database seluruh santri aktif', perm: 'students:read' },
+  { to: '/teachers', label: 'Data Guru', icon: IdcardOutlined, desc: 'Data pengajar, musyrif, dan staf', perm: 'teachers:read' },
+  { to: '/classes', label: 'Data Kelas', icon: BankOutlined, desc: 'Struktur kelas dan wali kelas', perm: 'classes:read' },
+  { to: '/subjects', label: 'Mata Pelajaran', icon: OrderedListOutlined, desc: 'Daftar mapel, kelompok, dan beban JP', perm: 'subjects:read' },
+  { to: '/academic-years', label: 'Tahun Akademik', icon: CalendarOutlined, desc: 'Periode semester, slot jam KBM, dan ruang kelas', perm: 'academic_years:read' },
+]
+
+// ─── Sistem: pengaturan umum + admin ────────────────────────────────────────
+const SYSTEM_ITEMS: NavItem[] = [
+  { to: '/announcements', label: 'Informasi', icon: NotificationOutlined, desc: 'Pengumuman untuk staf dan wali santri', perm: 'announcements:read' },
+  { to: '/school', label: 'Profil Sekolah', icon: SettingOutlined, desc: 'Identitas sekolah untuk kop raport', perm: 'school:read' },
+  { to: '/admin', label: 'Dashboard Admin', icon: AppstoreOutlined, desc: 'Pusat kendali teknis: insights, pengguna, roles, database, storage, media, sampah, audit', perm: 'admin:access' },
 ]
 
 export const NAV_GROUPS: NavGroup[] = [
-  { key: 'master', label: 'Master Data', icon: TeamOutlined, items: MASTER_ITEMS },
-  { key: 'behavior', label: 'Poin Santri', icon: FileDoneOutlined, items: BEHAVIOR_ITEMS },
-  { key: 'boarding', label: 'Kesantrian', icon: ApartmentOutlined, items: BOARDING_ITEMS },
+  { key: 'boarding', label: 'Kesantrian', icon: HomeOutlined, items: BOARDING_ITEMS },
   { key: 'academic', label: 'Akademik', icon: ReadOutlined, items: ACADEMIC_ITEMS },
-  { key: 'finance', label: 'Keuangan', icon: WalletOutlined, items: FINANCE_ITEMS },
-  { key: 'report-cards', label: 'Raport', icon: FileTextOutlined, items: REPORT_CARD_ITEMS },
-  { key: 'gate', label: 'Gerbang', icon: GatewayOutlined, items: GATE_ITEMS },
-  { key: 'settings', label: 'Pengaturan', icon: SettingOutlined, items: SETTINGS_ITEMS },
-  { key: 'admin', label: 'Admin', icon: SafetyOutlined, items: ADMIN_ITEMS },
+  { key: 'activity', label: 'Kegiatan Santri', icon: TrophyOutlined, items: ACTIVITY_ITEMS },
+  { key: 'finance', label: 'Keuangan & Aset', icon: WalletOutlined, items: FINANCE_ITEMS },
+  { key: 'master', label: 'Master Data', icon: DatabaseOutlined, items: MASTER_ITEMS },
+  { key: 'system', label: 'Sistem', icon: SafetyOutlined, items: SYSTEM_ITEMS },
 ]
 
-const STAFF_ROLES = ['developer', 'admin', 'pengurus', 'guru']
+const STAFF_ROLES = ['developer', 'admin', 'manager', 'teacher']
 
-export function filterNavItems(items: NavItem[], role: string | null | undefined): NavItem[] {
+/** Peta key flag → enabled. Bila undefined/ belum termuat, item bert-flag tetap tampil (fail-open). */
+export function buildFlagMap(flags?: { key: string; enabled: boolean }[] | null): Record<string, boolean> | undefined {
+  if (!flags) return undefined
+  const map: Record<string, boolean> = {}
+  for (const f of flags) map[f.key] = f.enabled
+  return map
+}
+
+/**
+ * Filter item menu berdasarkan permission RBAC + flag modul.
+ * `can` dari useRbac().can — fail-open saat data RBAC belum termuat
+ * (hook return true selama loading), sehingga menu tidak berkedip.
+ * Item tanpa perm terlihat oleh semua staff (perilaku lama).
+ */
+export function filterNavItems(
+  items: NavItem[],
+  role: string | null | undefined,
+  flags?: Record<string, boolean>,
+  can?: CanFn,
+): NavItem[] {
   return items.filter((item) => {
-    if (item.requireRoles && item.requireRoles.length > 0) {
-      if (!role || !item.requireRoles.includes(role)) return false
-    }
+    if (can && item.perm && !can(item.perm)) return false
     if (role && !STAFF_ROLES.includes(role)) return false
+    if (item.flag && flags?.[item.flag] === false) return false
     return true
   })
 }
 
-export function filterNavGroups(groups: NavGroup[], role: string | null | undefined): NavGroup[] {
+export function filterNavGroups(
+  groups: NavGroup[],
+  role: string | null | undefined,
+  flags?: Record<string, boolean>,
+  can?: CanFn,
+): NavGroup[] {
   return groups
     .map((group) => ({
       ...group,
-      items: filterNavItems(group.items, role),
+      items: filterNavItems(group.items, role, flags, can),
     }))
     .filter((group) => group.items.length > 0)
 }

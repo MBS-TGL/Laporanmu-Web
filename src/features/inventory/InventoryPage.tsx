@@ -344,9 +344,9 @@ export function InventoryPage() {
             <Tooltip title="Muat ulang (R)">
               <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={() => void itemsQuery.refetch()} />
             </Tooltip>
-            <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport}>
-              CSV
-            </Button>
+            <Tooltip title="Ekspor data barang (CSV)">
+              <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport} />
+            </Tooltip>
             <Tooltip title="Palet shortcut (?)">
               <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
             </Tooltip>
@@ -386,6 +386,7 @@ export function InventoryPage() {
           color="amber"
           loading={itemsQuery.isPending}
           active={lowOnly}
+          hideIfZero
           onClick={() => {
             setLowOnly(!lowOnly)
             setPage(1)
@@ -398,6 +399,7 @@ export function InventoryPage() {
           color="rose"
           loading={itemsQuery.isPending}
           active={condition === 'light_damaged' || condition === 'heavy_damaged'}
+          hideIfZero
           onClick={() => {
             setCondition(condition ? '' : 'light_damaged')
             setPage(1)
@@ -483,6 +485,13 @@ export function InventoryPage() {
         open={formOpen}
         item={editing}
         submitting={createMutation.isPending || updateMutation.isPending}
+        usedCategories={Array.from(
+          new Set(
+            (itemsQuery.data ?? [])
+              .map((i) => i.category?.trim())
+              .filter((c): c is string => Boolean(c)),
+          ),
+        )}
         onCancel={() => setFormOpen(false)}
         onSubmit={handleSubmit}
       />

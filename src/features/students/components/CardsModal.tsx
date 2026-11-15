@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { App, Button, Radio, Select, Typography } from 'antd'
+import { App, Radio, Select, Typography } from 'antd'
 import { IdcardOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalFooter } from '../../../shared/components/ModalFooter'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
 import type { Student } from '../types'
 
 const { Text } = Typography
@@ -66,7 +68,7 @@ export function CardsModal({
     return (
       <span>
         {label}
-        {count !== null ? <Text type="secondary"> — {count} siswa</Text> : null}
+        {count !== null ? <Text type="secondary"> · {count} siswa</Text> : null}
       </span>
     )
   }
@@ -80,24 +82,20 @@ export function CardsModal({
       subtitle="Pilih cakupan siswa, lalu tinjau kartu sebelum dicetak"
       icon={<IdcardOutlined />}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {list.length > 0 ? `${list.length} kartu siap ditinjau` : 'Belum ada siswa pada cakupan ini'}
-          </Text>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button onClick={onClose}>Batal</Button>
-            <Button
-              type="primary"
-              disabled={list.length === 0}
-              onClick={() => {
-                onSubmit(list)
-                message.info(`${list.length} kartu ditampilkan — periksa lalu klik Cetak`)
-              }}
-            >
-              Tampilkan {list.length} Kartu
-            </Button>
-          </div>
-        </div>
+        <ModalFooter
+          left={
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {list.length > 0 ? `${list.length} kartu siap ditinjau` : 'Belum ada siswa pada cakupan ini'}
+            </Text>
+          }
+          onCancel={onClose}
+          onOk={() => {
+            onSubmit(list)
+            message.info(`${list.length} kartu ditampilkan, periksa lalu klik Cetak`)
+          }}
+          okText={`Tampilkan ${list.length} Kartu`}
+          okDisabled={list.length === 0}
+        />
       }
     >
       <Radio.Group
@@ -128,9 +126,14 @@ export function CardsModal({
       </Radio.Group>
 
       {list.length > 0 && missingPin > 0 && (
-        <Text type="warning" style={{ display: 'block', marginTop: 14, fontSize: 12.5 }}>
-          {missingPin} dari {list.length} siswa belum memiliki PIN — PIN bisa dibuat otomatis di layar kartu sebelum dibagikan.
-        </Text>
+        <div style={{ marginTop: 14 }}>
+          <ModalNotice
+            tone="warning"
+            title={`${missingPin} dari ${list.length} siswa belum memiliki PIN`}
+          >
+            PIN bisa dibuat otomatis di layar kartu sebelum dibagikan.
+          </ModalNotice>
+        </div>
       )}
     </AppModal>
   )

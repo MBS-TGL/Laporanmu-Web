@@ -4,6 +4,7 @@ import { ApartmentOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import type { Dorm, DormFormValues } from '../types'
 import { useMusyrifBrief } from '../hooks'
+import { GENDER_OPTIONS, STATUS_OPTIONS } from '../meta'
 
 interface DormFormProps {
   open: boolean
@@ -12,18 +13,6 @@ interface DormFormProps {
   onCancel: () => void
   onSubmit: (values: DormFormValues) => void
 }
-
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Aktif' },
-  { value: 'full', label: 'Penuh' },
-  { value: 'inactive', label: 'Nonaktif' },
-]
-
-const GENDER_OPTIONS = [
-  { value: 'male', label: 'Putra' },
-  { value: 'female', label: 'Putri' },
-  { value: 'mixed', label: 'Campur' },
-]
 
 export function DormForm({ open, dorm, submitting, onCancel, onSubmit }: DormFormProps) {
   const [form] = Form.useForm<DormFormValues>()
@@ -54,7 +43,7 @@ export function DormForm({ open, dorm, submitting, onCancel, onSubmit }: DormFor
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={submitting}
-      width={520}
+      size="md"
       destroyOnHidden
     >
       <Form<DormFormValues> form={form} layout="vertical" onFinish={onSubmit} disabled={submitting}>

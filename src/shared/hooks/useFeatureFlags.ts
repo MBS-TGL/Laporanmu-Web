@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+import { buildFlagMap } from '../constants/navItems'
 import { logAudit } from '../utils/auditLogger'
 
 export interface FeatureFlag {
@@ -40,6 +41,13 @@ export function useFlag(key: string, fallback = true): boolean {
   return flag ? flag.enabled : fallback
 }
 
+// Peta key → enabled untuk filter menu (navItems). undefined saat data
+// belum termuat, sehingga menu tetap tampil penuh (fail-open).
+export function useFlagMap(): Record<string, boolean> | undefined {
+  const { data } = useFeatureFlags()
+  return buildFlagMap(data)
+}
+
 export function useToggleFlag() {
   const qc = useQueryClient()
   return useMutation({
@@ -61,6 +69,72 @@ export function useToggleFlag() {
         tableName: 'feature_flags',
         recordId: id,
         newData: { key, enabled },
+      })
+    },
+  })
+}
+
+// ─── CRUD flag penuh (tab Pengaturan Developer) ──────────────────────────────
+
+export interface FlagInput {
+  id?: string
+  key: string
+  label: string
+  category: string
+  description: string | null
+  sort_order: number
+  enabled: boolean
+}
+
+export async function saveFlag(input: FlagInput): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const payload = { ...input, updated_by: user?.id ?? null }
+  if (input.id) {
+    const { id, ...updates } = payload
+    const { error } = await supabase.from('feature_flags').update(updates).eq('id', id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('feature_flags').insert(payload)
+    if (error) throw error
+  }
+}
+
+export async function deleteFlag(id: string): Promise<void> {
+  const { error } = await supabase.from('feature_flags').delete().eq('id', id)
+  if (error) throw error
+}
+
+export function useSaveFlag() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: saveFlag,
+    onSuccess: (_d, input) => {
+      void qc.invalidateQueries({ queryKey: ['feature-flags'] })
+      void logAudit({
+        action: input.id ? 'UPDATE' : 'INSERT',
+        source: 'SYSTEM',
+        tableName: 'feature_flags',
+        recordId: input.id ?? input.key,
+        newData: { key: input.key, label: input.label, enabled: input.enabled },
+      })
+    },
+  })
+}
+
+export function useDeleteFlag() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: { id: string; key: string }) => deleteFlag(id),
+    onSuccess: (_d, { id, key }) => {
+      void qc.invalidateQueries({ queryKey: ['feature-flags'] })
+      void logAudit({
+        action: 'DELETE',
+        source: 'SYSTEM',
+        tableName: 'feature_flags',
+        recordId: id,
+        newData: { key },
       })
     },
   })

@@ -1,26 +1,50 @@
 import { useMemo, useState } from 'react'
 import {
+  Alert,
   App,
   Button,
   Card,
+  Dropdown,
   Empty,
   Input,
   Popconfirm,
+  Segmented,
+  Select,
   Space,
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   type TableColumnsType,
 } from 'antd'
-import { DeleteOutlined, EyeOutlined, FileTextOutlined, PlusOutlined, WarningOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  ExportOutlined,
+  EyeOutlined,
+  FileAddOutlined,
+  FileExcelOutlined,
+  FileTextOutlined,
+  ImportOutlined,
+  MedicineBoxOutlined,
+  PlusCircleOutlined,
+  PlusOutlined,
+  PrinterOutlined,
+  SwapOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatChip } from '../../shared/components/StatChip'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { logAudit } from '../../shared/utils/auditLogger'
+import { useStudentDetail } from '../students/useStudentDetail'
 import { supabase } from '../../lib/supabase'
 import {
+  useAdjustMedicineStock,
+  useDeleteHealthLogsBulk,
   useCreateHealthLog,
   useCreateMedicine,
   useDeleteHealthLog,
@@ -30,61 +54,113 @@ import {
   useUpdateHealthLogStatus,
   useUpdateMedicine,
 } from './hooks'
-import type {
-  HealthLog,
-  HealthFormValues,
-  HealthMedicine,
-  HealthMedicineFormValues,
-  HealthStatus,
-} from './types'
+import { RESTING_STATUSES, STATUS_COLOR, STATUS_LABEL } from './constants'
+import { printRekamJournal } from './export'
+import { computeMedicineUsage, countTodayVisits, filterHealthLogs } from './stats'
+import type { HealthPeriod, HealthLog, HealthFormValues, HealthMedicine, HealthMedicineFormValues, HealthStatus } from './types'
 import { HealthForm } from './components/HealthForm'
 import { MedicineForm } from './components/MedicineForm'
+import { HealthInsights } from './components/HealthInsights'
+import { DetailDrawer } from './components/DetailDrawer'
+import { ExportModal } from './components/ExportModal'
+import { ImportModal } from './components/ImportModal'
+import { MedicineModal } from './components/MedicineModal'
+import { RestockModal } from './components/RestockModal'
 
-const STATUS_LABEL: Record<HealthStatus, string> = {
-  UKS: 'Rawat di UKS',
-  Dormitory: 'Rest di Asrama',
-  Returned: 'Kembali KBM',
-}
-
-const STATUS_COLOR: Record<HealthStatus, string> = {
-  UKS: 'orange',
-  Dormitory: 'purple',
-  Returned: 'green',
-}
+type TabKey = 'rekam' | 'observasi' | 'stok'
 
 export function HealthPage() {
   const { message } = App.useApp()
   const { canWrite, canDelete } = usePermissions()
-  const [tab, setTab] = useState<'rekam' | 'observasi' | 'stok'>('rekam')
+  const { open: openStudentDetail } = useStudentDetail()
+  const [tab, setTab] = useState<TabKey>('rekam')
   const [logOpen, setLogOpen] = useState(false)
+  const [formStudentId, setFormStudentId] = useState<string | undefined>(undefined)
   const [medicineOpen, setMedicineOpen] = useState(false)
   const [editingMedicine, setEditingMedicine] = useState<HealthMedicine | null>(null)
+  const [restockMedicine, setRestockMedicine] = useState<HealthMedicine | null>(null)
+  const [logImportOpen, setLogImportOpen] = useState(false)
+  const [medImportOpen, setMedImportOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [detailLogId, setDetailLogId] = useState<string | null>(null)
+
+  // Filter tab rekam — semua client-side (logs sudah termuat penuh)
   const [search, setSearch] = useState('')
+  const [period, setPeriod] = useState<HealthPeriod>('all')
+  const [statusFilter, setStatusFilter] = useState<HealthStatus | 'all'>('all')
+  const [classFilter, setClassFilter] = useState<string | 'all'>('all')
+  const [medSearch, setMedSearch] = useState('')
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
   const medicinesQuery = useMedicines()
   const logsQuery = useHealthLogs()
-  const medicines = medicinesQuery.data ?? []
+  const medicines = useMemo(() => medicinesQuery.data ?? [], [medicinesQuery.data])
   const logs = useMemo(() => logsQuery.data ?? [], [logsQuery.data])
 
   const createLogMutation = useCreateHealthLog()
   const statusMutation = useUpdateHealthLogStatus()
   const deleteLogMutation = useDeleteHealthLog()
+  const bulkDeleteMutation = useDeleteHealthLogsBulk()
   const createMedicineMutation = useCreateMedicine()
   const updateMedicineMutation = useUpdateMedicine()
   const deleteMedicineMutation = useDeleteMedicine()
+  const adjustStockMutation = useAdjustMedicineStock()
 
-  const resting = logs.filter((l) => l.status === 'UKS' || l.status === 'Dormitory')
+  const today = useMemo(() => dayjs().format('YYYY-MM-DD'), [])
+  const filters = useMemo(
+    () => ({ search, period, status: statusFilter, className: classFilter }),
+    [search, period, statusFilter, classFilter],
+  )
+  const filteredLogs = useMemo(() => filterHealthLogs(logs, filters, today), [logs, filters, today])
+  const usage = useMemo(() => computeMedicineUsage(logs, 30, today), [logs, today])
+
+  const resting = logs.filter((l) => RESTING_STATUSES.includes(l.status))
   const lowStock = medicines.filter((m) => m.stock <= m.min_stock)
-
-  const filteredLogs = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) return logs
-    return logs.filter((l) =>
-      [l.student_name, l.complaint, l.diagnosis, l.treatment, l.medicine_name]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(term)),
+  const todayCount = countTodayVisits(logs, today)
+  const detailLog = logs.find((l) => l.id === detailLogId) ?? null
+  const selectedLogs = useMemo(
+    () => logs.filter((l) => selectedRowKeys.includes(l.id)),
+    [logs, selectedRowKeys],
+  )
+  const medTerm = medSearch.trim().toLowerCase()
+  const filteredMedicines = useMemo(() => {
+    if (!medTerm) return medicines
+    return medicines.filter(
+      (m) => m.name.toLowerCase().includes(medTerm) || (m.category ?? '').toLowerCase().includes(medTerm),
     )
-  }, [logs, search])
+  }, [medicines, medTerm])
+
+  const classOptions = useMemo(() => {
+    const names = [...new Set(logs.map((l) => l.class_name).filter(Boolean))] as string[]
+    return names.sort((a, b) => a.localeCompare(b)).map((n) => ({ value: n, label: n }))
+  }, [logs])
+
+  const openLogForm = (studentId?: string) => {
+    setFormStudentId(studentId)
+    setLogOpen(true)
+  }
+
+  /** Cetak jurnal medis: terpilih bila ada, jika tidak ikut filter aktif. */
+  const handlePrintJournal = () => {
+    const rows = selectedLogs.length > 0 ? selectedLogs : filteredLogs
+    if (rows.length === 0) {
+      message.info('Tidak ada data untuk dicetak')
+      return
+    }
+    try {
+      printRekamJournal(rows, today)
+      void logAudit({
+        action: 'EXPORT',
+        source: 'OPERATIONAL',
+        tableName: 'health_logs',
+        newData: { printed: true, count: rows.length, scope: selectedLogs.length > 0 ? 'selected' : 'filtered' },
+      })
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal membuka dialog cetak')
+    }
+  }
+
+  // ---------------- handlers rekam medis ----------------
 
   const handleCreateLog = async (values: HealthFormValues) => {
     // ambil nama & kelas santri dari DB (snapshot historis)
@@ -105,6 +181,7 @@ export function HealthPage() {
         onSuccess: (log) => {
           message.success('Catatan kunjungan tersimpan' + (medicine ? ' — stok obat dikurangi' : ''))
           setLogOpen(false)
+          setFormStudentId(undefined)
           void logAudit({
             action: 'INSERT',
             source: 'OPERATIONAL',
@@ -117,6 +194,57 @@ export function HealthPage() {
       },
     )
   }
+
+  const handleMarkReturned = (log: HealthLog, opts?: { keepDrawer?: boolean }) => {
+    statusMutation.mutate(
+      { id: log.id, status: 'Returned' },
+      {
+        onSuccess: () => {
+          message.success(`${log.student_name} dinyatakan sembuh & kembali KBM`)
+          if (!opts?.keepDrawer) setDetailLogId(null)
+        },
+        onError: (err: Error) => message.error(err.message || 'Gagal memperbarui'),
+      },
+    )
+  }
+
+  const handleDeleteLog = (log: HealthLog) => {
+    deleteLogMutation.mutate(log.id, {
+      onSuccess: () => {
+        message.success('Catatan dihapus')
+        setDetailLogId(null)
+        setSelectedRowKeys((keys) => keys.filter((k) => k !== log.id))
+        void logAudit({
+          action: 'DELETE',
+          source: 'OPERATIONAL',
+          tableName: 'health_logs',
+          recordId: log.id,
+          oldData: { student: log.student_name, date: log.date, complaint: log.complaint },
+        })
+      },
+      onError: (err: Error) => message.error(err.message || 'Gagal menghapus'),
+    })
+  }
+
+  const handleBulkDelete = () => {
+    const ids = [...selectedRowKeys] as string[]
+    bulkDeleteMutation.mutate(ids, {
+      onSuccess: () => {
+        message.success(`${ids.length} catatan dihapus`)
+        setSelectedRowKeys([])
+        void logAudit({
+          action: 'DELETE',
+          source: 'OPERATIONAL',
+          tableName: 'health_logs',
+          recordId: null,
+          oldData: { ids, count: ids.length },
+        })
+      },
+      onError: (err: Error) => message.error(err.message || 'Gagal menghapus'),
+    })
+  }
+
+  // ---------------- handler obat ----------------
 
   const handleMedicineSubmit = (values: HealthMedicineFormValues) => {
     const onError = (err: Error) => message.error(err.message || 'Gagal menyimpan obat')
@@ -158,24 +286,61 @@ export function HealthPage() {
     }
   }
 
+  const handleRestock = (amount: number, note: string) => {
+    if (!restockMedicine) return
+    const target = restockMedicine
+    adjustStockMutation.mutate(
+      { id: target.id, stock: target.stock + amount },
+      {
+        onSuccess: () => {
+          message.success(`Stok ${target.name} +${amount} ${target.unit}`)
+          setRestockMedicine(null)
+          void logAudit({
+            action: 'UPDATE',
+            source: 'OPERATIONAL',
+            tableName: 'health_medicines',
+            recordId: target.id,
+            oldData: { stock: target.stock },
+            newData: { stock: target.stock + amount, restock: amount, note: note || null },
+          })
+        },
+        onError: (err: Error) => message.error(err.message || 'Gagal menambah stok'),
+      },
+    )
+  }
+
+  // ---------------- kolom tabel ----------------
+
   const logColumns: TableColumnsType<HealthLog> = [
     {
       title: 'Santri',
       key: 'student',
+      width: 180,
       render: (_, l) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{l.student_name}</div>
-          <span style={{ fontSize: 12, color: '#888' }}>{l.class_name ?? '—'}</span>
+        <div style={{ minWidth: 0 }}>
+          <Tooltip title={l.student_name}>
+            <Typography.Link
+              strong
+              ellipsis
+              style={{ maxWidth: 152, display: 'block', fontSize: 13 }}
+              onClick={() => l.student_id && openStudentDetail(l.student_id)}
+            >
+              {l.student_name}
+            </Typography.Link>
+          </Tooltip>
+          <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+            {l.class_name ?? '—'}
+          </Typography.Text>
         </div>
       ),
     },
     {
       title: 'Waktu',
       key: 'when',
-      width: 130,
+      width: 95,
       render: (_, l) => (
-        <Typography.Text style={{ fontSize: 12.5 }}>
-          {new Date(l.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+        <Typography.Text style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+          {new Date(`${l.date}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
           <br />
           {l.time}
         </Typography.Text>
@@ -188,53 +353,52 @@ export function HealthPage() {
     {
       title: 'Obat',
       key: 'medicine',
-      render: (_, l) => (l.medicine_name ? <Tag>{l.medicine_name}</Tag> : '-'),
+      width: 165,
+      render: (_, l) =>
+        l.medicine_name ? (
+          <Typography.Text ellipsis style={{ maxWidth: 145, display: 'block', fontSize: 12.5 }} title={l.medicine_name}>
+            {l.medicine_name}
+          </Typography.Text>
+        ) : (
+          '-'
+        ),
       responsive: ['xl'],
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 140,
-      render: (v: HealthStatus) => (
-        <StatusTag color={STATUS_COLOR[v]}>{STATUS_LABEL[v] ?? v}</StatusTag>
-      ),
+      width: 115,
+      render: (v: HealthStatus) => <StatusTag color={STATUS_COLOR[v]}>{STATUS_LABEL[v] ?? v}</StatusTag>,
     },
     {
       title: 'Aksi',
       key: 'actions',
-      width: 110,
+      width: 140,
       render: (_, l) => (
         <Space size="small">
-          {(l.status === 'UKS' || l.status === 'Dormitory') && canWrite && (
-            <Button
-              size="small"
-              onClick={() =>
-                statusMutation.mutate(
-                  { id: l.id, status: 'Returned' },
-                  {
-                    onSuccess: () => message.success(`${l.student_name} dinyatakan sembuh`),
-                    onError: (err: Error) => message.error(err.message || 'Gagal memperbarui'),
-                  },
-                )
-              }
-            >
+          {RESTING_STATUSES.includes(l.status) && canWrite && (
+            <Button size="small" onClick={() => handleMarkReturned(l)}>
               Sembuh
             </Button>
           )}
+          <Tooltip title="Lihat Detail">
+            <Button size="small" type="text" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); setDetailLogId(l.id) }} />
+          </Tooltip>
           {canDelete && (
             <Popconfirm
               title="Hapus catatan ini?"
-              onConfirm={() =>
-                deleteLogMutation.mutate(l.id, {
-                  onSuccess: () => message.success('Catatan dihapus'),
-                  onError: (err: Error) => message.error(err.message || 'Gagal menghapus'),
-                })
-              }
+              onConfirm={(e) => { e?.stopPropagation(); handleDeleteLog(l) }}
+              onCancel={(e) => e?.stopPropagation()}
               okText="Hapus"
               cancelText="Batal"
             >
-              <Button type="text" danger icon={<DeleteOutlined />} />
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={(e) => e.stopPropagation()}
+              />
             </Popconfirm>
           )}
         </Space>
@@ -243,14 +407,17 @@ export function HealthPage() {
   ]
 
   const medicineColumns: TableColumnsType<HealthMedicine> = [
-    { title: 'Nama Obat', dataIndex: 'name', key: 'name', render: (_, m) => (
-      <span style={{ fontWeight: 600 }}>{m.name}</span>
-    ) },
+    {
+      title: 'Nama Obat',
+      dataIndex: 'name',
+      key: 'name',
+      render: (_, m) => <span style={{ fontWeight: 600 }}>{m.name}</span>,
+    },
     { title: 'Kategori', dataIndex: 'category', key: 'category', responsive: ['md'] },
     {
       title: 'Stok',
       key: 'stock',
-      width: 130,
+      width: 120,
       render: (_, m) => (
         <span style={{ fontWeight: 700, color: m.stock <= m.min_stock ? '#dc2626' : undefined }}>
           {m.stock} {m.unit}
@@ -258,24 +425,50 @@ export function HealthPage() {
       ),
     },
     { title: 'Min.', dataIndex: 'min_stock', key: 'min_stock', width: 60, responsive: ['lg'] },
+    {
+      title: 'Terpakai 30 Hari',
+      key: 'usage',
+      width: 120,
+      render: (_, m) => {
+        const used = usage.get(m.id) ?? 0
+        return (
+          <span style={{ fontVariantNumeric: 'tabular-nums', color: used > 0 ? undefined : '#aaa' }}>
+            {used} {used > 0 ? m.unit : ''}
+          </span>
+        )
+      },
+      responsive: ['md'],
+    },
     { title: 'Keterangan', dataIndex: 'description', key: 'description', ellipsis: true, responsive: ['xl'] },
     {
       title: 'Aksi',
       key: 'actions',
-      width: 110,
+      width: 120,
       render: (_, m) =>
         canWrite || canDelete ? (
           <Space size="small">
             {canWrite && (
-              <Button
-                type="text"
-                onClick={() => {
-                  setEditingMedicine(m)
-                  setMedicineOpen(true)
-                }}
-              >
-                Edit
-              </Button>
+              <Tooltip title="Tambah Stok">
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<PlusCircleOutlined />}
+                  onClick={() => setRestockMedicine(m)}
+                />
+              </Tooltip>
+            )}
+            {canWrite && (
+              <Tooltip title="Edit Obat">
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    setEditingMedicine(m)
+                    setMedicineOpen(true)
+                  }}
+                />
+              </Tooltip>
             )}
             {canDelete && (
               <Popconfirm
@@ -298,27 +491,81 @@ export function HealthPage() {
     },
   ]
 
+  const importMenu = {
+    items: [
+      { key: 'logs', icon: <FileTextOutlined />, label: 'Rekam Medis' },
+      { key: 'medicines', icon: <MedicineBoxOutlined />, label: 'Stok Obat' },
+    ],
+    onClick: ({ key }: { key: string }) => {
+      if (key === 'logs') setLogImportOpen(true)
+      if (key === 'medicines') setMedImportOpen(true)
+    },
+  }
+
   return (
     <div>
       <PageHeader
         title="Kesehatan"
         subtitle="Rekam medis santri, observasi, dan stok obat poskestren"
         extra={
-          canWrite ? (
-            <Space>
-              <Button
-                onClick={() => {
-                  setEditingMedicine(null)
-                  setMedicineOpen(true)
-                }}
-              >
-                Tambah Obat
-              </Button>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setLogOpen(true)}>
-                Tambah Catatan
-              </Button>
-            </Space>
-          ) : undefined
+          <Space wrap>
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'print',
+                    icon: <PrinterOutlined />,
+                    label: (
+                      <div style={{ padding: '2px 0' }}>
+                        <div style={{ fontWeight: 600 }}>Cetak Jurnal Medis</div>
+                        <div style={{ fontSize: 11.5, opacity: 0.65 }}>PDF / Kertas</div>
+                      </div>
+                    ),
+                  },
+                  { type: 'divider' },
+                  {
+                    key: 'download',
+                    icon: <FileExcelOutlined />,
+                    label: (
+                      <div style={{ padding: '2px 0' }}>
+                        <div style={{ fontWeight: 600 }}>Unduh Data Rekam Medis</div>
+                        <div style={{ fontSize: 11.5, opacity: 0.65 }}>XLSX / CSV</div>
+                      </div>
+                    ),
+                  },
+                ],
+                onClick: ({ key }) => {
+                  if (key === 'print') handlePrintJournal()
+                  else setExportOpen(true)
+                },
+              }}
+            >
+              <Tooltip title="Opsi data (cetak jurnal / unduh rekap)">
+                <Button icon={<ExportOutlined />} />
+              </Tooltip>
+            </Dropdown>
+            {canWrite && (
+              <>
+                <Dropdown menu={importMenu}>
+                  <Tooltip title="Impor data kesehatan">
+                    <Button icon={<ImportOutlined />} />
+                  </Tooltip>
+                </Dropdown>
+                <Button
+                  icon={<MedicineBoxOutlined />}
+                  onClick={() => {
+                    setEditingMedicine(null)
+                    setMedicineOpen(true)
+                  }}
+                >
+                  Tambah Obat
+                </Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => openLogForm()}>
+                  Tambah Catatan
+                </Button>
+              </>
+            )}
+          </Space>
         }
       />
 
@@ -331,6 +578,17 @@ export function HealthPage() {
           loading={logsQuery.isPending}
           active={tab === 'rekam'}
           onClick={() => setTab('rekam')}
+        />
+        <StatChip
+          icon={<FileAddOutlined />}
+          label="Kunjungan Hari Ini"
+          value={todayCount}
+          color="sky"
+          active={tab === 'rekam' && period === 'today'}
+          onClick={() => {
+            setTab('rekam')
+            setPeriod('today')
+          }}
         />
         <StatChip
           icon={<EyeOutlined />}
@@ -350,32 +608,136 @@ export function HealthPage() {
         />
       </div>
 
+      <HealthInsights
+        logs={logs}
+        medicines={medicines}
+        today={today}
+        onSearchComplaint={(term) => {
+          setSearch(term)
+          setTab('rekam')
+        }}
+        onFilterClass={(className) => {
+          setClassFilter(className)
+          setTab('rekam')
+        }}
+      />
+
       <Tabs
         activeKey={tab}
-        onChange={(k) => setTab(k as 'rekam' | 'observasi' | 'stok')}
+        onChange={(k) => setTab(k as TabKey)}
         items={[
           {
             key: 'rekam',
             label: 'Rekam Medis',
             children: (
               <Card>
-                <Input
-                  placeholder="Cari santri / keluhan / obat"
-                  allowClear
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ maxWidth: 300, marginBottom: 12 }}
-                />
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 8,
+                    alignItems: 'center',
+                    marginBottom: 12,
+                  }}
+                >
+                  <Segmented
+                    value={period}
+                    onChange={(v) => setPeriod(v as HealthPeriod)}
+                    options={[
+                      { label: 'Semua', value: 'all' },
+                      { label: 'Hari Ini', value: 'today' },
+                      { label: '7 Hari', value: '7d' },
+                      { label: '30 Hari', value: '30d' },
+                    ]}
+                  />
+                  <Select
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    style={{ minWidth: 150 }}
+                    options={[
+                      { value: 'all', label: 'Semua Status' },
+                      { value: 'UKS', label: STATUS_LABEL.UKS },
+                      { value: 'Dormitory', label: STATUS_LABEL.Dormitory },
+                      { value: 'Returned', label: STATUS_LABEL.Returned },
+                    ]}
+                  />
+                  <Select
+                    value={classFilter}
+                    onChange={setClassFilter}
+                    style={{ minWidth: 150 }}
+                    options={[{ value: 'all', label: 'Semua Kelas' }, ...classOptions]}
+                  />
+                  <Input
+                    placeholder="Cari santri / keluhan / obat"
+                    allowClear
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ flex: 1, minWidth: 180 }}
+                  />
+                </div>
+
+                {selectedRowKeys.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      marginBottom: 12,
+                      padding: '8px 12px',
+                      background: '#e6f4ff',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Typography.Text strong style={{ fontSize: 13 }}>
+                      {selectedRowKeys.length} dipilih
+                    </Typography.Text>
+                    <Button size="small" icon={<ExportOutlined />} onClick={() => setExportOpen(true)}>
+                      Export Terpilih
+                    </Button>
+                    {canDelete && (
+                      <Popconfirm
+                        title={`Hapus ${selectedRowKeys.length} catatan terpilih?`}
+                        description="Tindakan tidak dapat dibatalkan."
+                        onConfirm={handleBulkDelete}
+                        okText="Hapus"
+                        cancelText="Batal"
+                        okButtonProps={{ loading: bulkDeleteMutation.isPending }}
+                      >
+                        <Button size="small" danger icon={<DeleteOutlined />}>
+                          Hapus Terpilih
+                        </Button>
+                      </Popconfirm>
+                    )}
+                    <Button size="small" type="text" onClick={() => setSelectedRowKeys([])}>
+                      Bersihkan
+                    </Button>
+                  </div>
+                )}
+
                 <Table<HealthLog>
                   rowKey="id"
                   columns={logColumns}
                   dataSource={filteredLogs}
                   loading={logsQuery.isLoading}
+                  rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys([...keys]) }}
+                  onRow={(record) => ({
+                    onClick: (e) => {
+                      if ((e.target as HTMLElement).closest('.ant-table-selection-column')) return
+                      setDetailLogId(record.id)
+                    },
+                    style: { cursor: 'pointer' },
+                  })}
                   locale={{
-                    emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada catatan kunjungan" />,
+                    emptyText: (
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={logs.length === 0 ? 'Belum ada catatan kunjungan' : 'Tidak ada catatan yang cocok dengan filter'}
+                      />
+                    ),
                   }}
                   pagination={{ pageSize: 10, showSizeChanger: false }}
-                  scroll={{ x: true }}
+                  scroll={{ x: 950 }}
                 />
               </Card>
             ),
@@ -405,24 +767,13 @@ export function HealthPage() {
                           <Space>
                             <StatusTag color={STATUS_COLOR[l.status]}>{STATUS_LABEL[l.status]}</StatusTag>
                             {canWrite && (
-                              <Button
-                                size="small"
-                                type="primary"
-                                ghost
-                                onClick={() =>
-                                  statusMutation.mutate(
-                                    { id: l.id, status: 'Returned' },
-                                    {
-                                      onSuccess: () =>
-                                        message.success(`${l.student_name} dinyatakan sembuh & kembali KBM`),
-                                      onError: (err: Error) => message.error(err.message || 'Gagal memperbarui'),
-                                    },
-                                  )
-                                }
-                              >
+                              <Button size="small" type="primary" ghost onClick={() => handleMarkReturned(l, { keepDrawer: true })}>
                                 Sembuh
                               </Button>
                             )}
+                            <Button size="small" icon={<EyeOutlined />} onClick={() => setDetailLogId(l.id)}>
+                              Detail
+                            </Button>
                           </Space>
                         </div>
                       </Card>
@@ -437,13 +788,52 @@ export function HealthPage() {
             label: 'Stok Obat',
             children: (
               <Card>
+                {lowStock.length > 0 && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    message={`${lowStock.length} obat mencapai batas minimum`}
+                    description={
+                      <Space size={4} wrap>
+                        {lowStock.map((m) => (
+                          <Tag key={m.id} color="error">
+                            {m.name} · {m.stock}/{m.min_stock} {m.unit}
+                          </Tag>
+                        ))}
+                      </Space>
+                    }
+                  />
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+                  <Input
+                    placeholder="Cari obat / kategori"
+                    allowClear
+                    value={medSearch}
+                    onChange={(e) => setMedSearch(e.target.value)}
+                    style={{ flex: 1, minWidth: 180 }}
+                  />
+                  {canWrite && (
+                    <Button icon={<SwapOutlined />} onClick={() => setMedImportOpen(true)}>
+                      Import Obat
+                    </Button>
+                  )}
+                  <Button icon={<FileExcelOutlined />} onClick={() => setExportOpen(true)}>
+                    Export Stok
+                  </Button>
+                </div>
                 <Table<HealthMedicine>
                   rowKey="id"
                   columns={medicineColumns}
-                  dataSource={medicines}
+                  dataSource={filteredMedicines}
                   loading={medicinesQuery.isLoading}
                   locale={{
-                    emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada obat di stok" />,
+                    emptyText: (
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={medicines.length === 0 ? 'Belum ada obat di stok' : 'Tidak ada obat yang cocok'}
+                      />
+                    ),
                   }}
                   pagination={false}
                 />
@@ -457,7 +847,11 @@ export function HealthPage() {
         open={logOpen}
         medicines={medicines}
         submitting={createLogMutation.isPending}
-        onCancel={() => setLogOpen(false)}
+        initialStudentId={formStudentId}
+        onCancel={() => {
+          setLogOpen(false)
+          setFormStudentId(undefined)
+        }}
         onSubmit={(values) => void handleCreateLog(values)}
       />
 
@@ -470,6 +864,53 @@ export function HealthPage() {
           setEditingMedicine(null)
         }}
         onSubmit={handleMedicineSubmit}
+      />
+
+      <RestockModal
+        open={restockMedicine !== null}
+        medicine={restockMedicine}
+        submitting={adjustStockMutation.isPending}
+        onCancel={() => setRestockMedicine(null)}
+        onSubmit={handleRestock}
+      />
+
+      <DetailDrawer
+        open={detailLog !== null}
+        onClose={() => setDetailLogId(null)}
+        log={detailLog}
+        logs={logs}
+        today={today}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        onMarkReturned={(l) => handleMarkReturned(l, { keepDrawer: true })}
+        onDelete={handleDeleteLog}
+        onAddVisit={(studentId) => {
+          setDetailLogId(null)
+          openLogForm(studentId)
+        }}
+      />
+
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        filteredLogs={filteredLogs}
+        selectedLogs={selectedLogs}
+        medicines={medicines}
+        usage={usage}
+        today={today}
+      />
+
+      <ImportModal
+        open={logImportOpen}
+        onClose={() => setLogImportOpen(false)}
+        medicines={medicines}
+        logs={logs}
+      />
+
+      <MedicineModal
+        open={medImportOpen}
+        onClose={() => setMedImportOpen(false)}
+        medicines={medicines}
       />
     </div>
   )

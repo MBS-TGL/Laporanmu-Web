@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo } from 'react'
 import {
   Card,
   Col,
@@ -13,8 +13,9 @@ import {
   Typography,
   type TableColumnsType,
 } from 'antd'
-import { PageHeader } from '../../shared/components/PageHeader'
-import { useAuditLogs } from './hooks'
+import { useSearchParams } from 'react-router-dom'
+import dayjs, { type Dayjs } from 'dayjs'
+import { useAuditLogs, useProfiles } from './hooks'
 import type { AuditLog } from './types'
 
 const SOURCE_OPTIONS = [
@@ -61,11 +62,11 @@ const TABLE_LABELS: Record<string, string> = {
   health_logs: 'Kesehatan',
   health_medicines: 'Stok Obat',
   counseling_logs: 'BK',
-  leave_permits: 'Izin Pulang',
+  leave_permits: 'Izin Keluar',
   suspensions: 'Skorsing',
   announcements: 'Informasi',
   feature_flags: 'Feature Flags',
-  tasks: 'Tugas Otomasi',
+  tasks: 'Tugas Otomatisasi',
   'storage.objects': 'Penyimpanan',
 }
 
@@ -79,21 +80,55 @@ function fmtTime(iso: string): string {
 }
 
 export function AuditPage() {
-  const [source, setSource] = useState<string | undefined>()
-  const [action, setAction] = useState<string | undefined>()
-  const [tableName, setTableName] = useState<string | undefined>()
-  const [search, setSearch] = useState('')
-  const [dateRange, setDateRange] = useState<[import('dayjs').Dayjs, import('dayjs').Dayjs] | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize] = useState(20)
+  // Filter bersumber dari URL (?tab=audit&q=&source=&…&p=2) — bertahan saat
+  // refresh/ganti tab dan bisa dibagikan sebagai deep-link. Param `tab`
+  // dipertahankan karena params dibangun dari yang sudah ada.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const source = searchParams.get('source') ?? undefined
+  const action = searchParams.get('action') ?? undefined
+  const tableName = searchParams.get('table') ?? undefined
+  const userId = searchParams.get('user') ?? undefined
+  const search = searchParams.get('q') ?? ''
+  const fromDate = searchParams.get('from') ?? undefined
+  const toDate = searchParams.get('to') ?? undefined
+  const page = Number(searchParams.get('p') ?? '1') || 1
+  const pageSize = 20
+
+  /** Tulis perubahan filter ke URL (replace) dan reset ke halaman 1. */
+  const applyFilters = (updates: Record<string, string | undefined>) => {
+    const sp = new URLSearchParams(searchParams)
+    for (const [k, v] of Object.entries(updates)) {
+      if (!v) sp.delete(k)
+      else sp.set(k, v)
+    }
+    sp.delete('p')
+    setSearchParams(sp, { replace: true })
+  }
+  const setPage = (p: number) => {
+    const sp = new URLSearchParams(searchParams)
+    if (p <= 1) sp.delete('p')
+    else sp.set('p', String(p))
+    setSearchParams(sp, { replace: true })
+  }
+
+  const profilesQuery = useProfiles()
+  const profiles = useMemo(() => profilesQuery.data ?? [], [profilesQuery.data])
+
+  const dateRange = useMemo<[Dayjs, Dayjs] | null>(() => {
+    if (!fromDate || !toDate) return null
+    const from = dayjs(fromDate)
+    const to = dayjs(toDate)
+    return from.isValid() && to.isValid() ? [from, to] : null
+  }, [fromDate, toDate])
 
   const logsQuery = useAuditLogs({
     source,
     action,
     tableName,
+    userId,
     search: search || undefined,
-    from: dateRange?.[0]?.format('YYYY-MM-DD'),
-    to: dateRange?.[1]?.format('YYYY-MM-DD'),
+    from: fromDate,
+    to: toDate,
     page,
     pageSize,
   })
@@ -213,19 +248,14 @@ export function AuditPage() {
 
   return (
     <div>
-      <PageHeader title="Audit Log" subtitle="Jejak seluruh perubahan data oleh pengguna" />
-
-      <Card style={{ marginBottom: 16 }}>
+      <Card>
         <Row gutter={[12, 12]}>
           <Col xs={24} sm={12} lg={6}>
             <Input
               placeholder="Cari pelaku / tabel / aksi"
               allowClear
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
-              }}
+              onChange={(e) => applyFilters({ q: e.target.value || undefined })}
             />
           </Col>
           <Col xs={12} sm={6} lg={4}>
@@ -234,10 +264,7 @@ export function AuditPage() {
               allowClear
               style={{ width: '100%' }}
               value={source}
-              onChange={(v) => {
-                setSource(v)
-                setPage(1)
-              }}
+              onChange={(v) => applyFilters({ source: v ?? undefined })}
               options={SOURCE_OPTIONS}
             />
           </Col>
@@ -247,10 +274,7 @@ export function AuditPage() {
               allowClear
               style={{ width: '100%' }}
               value={action}
-              onChange={(v) => {
-                setAction(v)
-                setPage(1)
-              }}
+              onChange={(v) => applyFilters({ action: v ?? undefined })}
               options={ACTION_OPTIONS}
             />
           </Col>
@@ -261,28 +285,38 @@ export function AuditPage() {
               showSearch
               style={{ width: '100%' }}
               value={tableName}
-              onChange={(v) => {
-                setTableName(v)
-                setPage(1)
-              }}
+              onChange={(v) => applyFilters({ table: v ?? undefined })}
               options={Object.entries(TABLE_LABELS).map(([value, label]) => ({ value, label }))}
             />
           </Col>
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={12} sm={6} lg={6}>
+            <Select
+              placeholder="Pengguna (pelaku)"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              style={{ width: '100%' }}
+              value={userId}
+              onChange={(v) => applyFilters({ user: v ?? undefined })}
+              loading={profilesQuery.isLoading}
+              options={profiles.map((p) => ({ value: p.id, label: `${p.name} (${p.email})` }))}
+            />
+          </Col>
+          <Col xs={24} sm={12} lg={12}>
             <DatePicker.RangePicker
               style={{ width: '100%' }}
               value={dateRange}
-              onChange={(v) => {
-                setDateRange(v as [import('dayjs').Dayjs, import('dayjs').Dayjs] | null)
-                setPage(1)
-              }}
+              onChange={(v) =>
+                applyFilters({
+                  from: v?.[0]?.format('YYYY-MM-DD'),
+                  to: v?.[1]?.format('YYYY-MM-DD'),
+                })
+              }
             />
           </Col>
         </Row>
-      </Card>
 
-      <Card>
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 16 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
             Total {total} entri
           </Typography.Text>

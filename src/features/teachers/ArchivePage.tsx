@@ -1,20 +1,31 @@
 import { useState } from 'react'
-import { App, Button, Card, Input, Popconfirm, Table } from 'antd'
-import { ArrowLeftOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
-import { Link } from 'react-router-dom'
+import { App, Button, Card, Input, Popconfirm, Space, Table } from 'antd'
+import { DeleteOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { PageHeader } from '../../shared/components/PageHeader'
+import { hardDeleteErrorMessage } from '../../shared/api/crud'
+import { ActionBar } from '../../shared/components/ActionBar'
 import { StatusTag } from '../../shared/components/StatusTag'
-import { useArchivedTeachers, useRestoreTeacher } from './hooks'
-import { TEACHER_STATUS_META } from './status'
+import { usePermissions } from '../../shared/hooks/useProfile'
+import {
+  useArchivedTeachers,
+  useBulkRestoreTeachers,
+  useHardDeleteTeacher,
+  useHardDeleteTeachersBulk,
+  useRestoreTeacher,
+} from './hooks'
 import type { Teacher } from './types'
 
-/** Daftar guru yang sudah di-soft delete + aksi pulihkan */
+/** Daftar guru yang sudah di-soft delete + aksi pulihkan & hapus permanen */
 export function ArchivePage() {
   const { message } = App.useApp()
+  const { canWrite, canDelete } = usePermissions()
   const [search, setSearch] = useState('')
-  const restoreMutation = useRestoreTeacher()
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const archivedQuery = useArchivedTeachers(search)
+  const restoreMutation = useRestoreTeacher()
+  const bulkRestoreMutation = useBulkRestoreTeachers()
+  const hardDeleteMutation = useHardDeleteTeacher()
+  const bulkHardDeleteMutation = useHardDeleteTeachersBulk()
 
   const handleRestore = (teacher: Teacher) => {
     restoreMutation.mutate(teacher.id, {
@@ -23,18 +34,33 @@ export function ArchivePage() {
     })
   }
 
+  const handleHardDelete = (teacher: Teacher) => {
+    hardDeleteMutation.mutate(teacher.id, {
+      onSuccess: () => message.success(`${teacher.name} dihapus permanen`),
+      onError: (err: unknown) => message.error(hardDeleteErrorMessage(err)),
+    })
+  }
+
+  const bulkRestore = () =>
+    bulkRestoreMutation.mutate(selectedIds, {
+      onSuccess: () => {
+        message.success(`${selectedIds.length} guru dipulihkan`)
+        setSelectedIds([])
+      },
+      onError: (err: Error) => message.error(err.message || 'Gagal memulihkan guru'),
+    })
+
+  const bulkHardDelete = () =>
+    bulkHardDeleteMutation.mutate(selectedIds, {
+      onSuccess: () => {
+        message.success(`${selectedIds.length} guru dihapus permanen`)
+        setSelectedIds([])
+      },
+      onError: (err: unknown) => message.error(hardDeleteErrorMessage(err)),
+    })
+
   return (
     <div>
-      <PageHeader
-        title="Arsip Guru"
-        subtitle="Lihat & pulihkan data guru yang sudah dihapus"
-        extra={
-          <Link to="/master/teachers">
-            <Button icon={<ArrowLeftOutlined />}>Kembali</Button>
-          </Link>
-        }
-      />
-
       <Card>
         <Input
           placeholder="Cari nama / NBM / mapel"
@@ -51,6 +77,14 @@ export function ArchivePage() {
           dataSource={archivedQuery.data ?? []}
           locale={{ emptyText: 'Tidak ada guru di arsip' }}
           pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+          rowSelection={
+            canWrite
+              ? {
+                  selectedRowKeys: selectedIds,
+                  onChange: (keys) => setSelectedIds(keys as string[]),
+                }
+              : undefined
+          }
           columns={[
             {
               title: 'Guru',
@@ -72,14 +106,12 @@ export function ArchivePage() {
               dataIndex: 'status',
               key: 'status',
               width: 120,
-              render: (v: Teacher['status']) => {
-                const meta = TEACHER_STATUS_META[v]
-                return (
-                  <StatusTag color={meta.color} icon={meta.icon}>
-                    {meta.label}
-                  </StatusTag>
-                )
-              },
+              // Semua baris di arsip adalah soft-deleted — status aslinya tak relevan
+              render: () => (
+                <StatusTag color="default">
+                  Terarsip
+                </StatusTag>
+              ),
             },
             {
               title: 'Dihapus',
@@ -91,29 +123,85 @@ export function ArchivePage() {
             {
               title: '',
               key: 'action',
-              width: 120,
+              width: 150,
               align: 'right',
               render: (_, row) => (
-                <Popconfirm
-                  title="Pulihkan guru ini?"
-                  description="Data akan aktif kembali."
-                  onConfirm={() => handleRestore(row)}
-                  okText="Pulihkan"
-                  cancelText="Batal"
-                >
-                  <Button
-                    size="small"
-                    icon={<ReloadOutlined />}
-                    loading={restoreMutation.isPending && restoreMutation.variables === row.id}
+                <Space size={4}>
+                  <Popconfirm
+                    title="Pulihkan guru ini?"
+                    description="Data akan aktif kembali."
+                    onConfirm={() => handleRestore(row)}
+                    okText="Ya, Pulihkan"
+                    cancelText="Batal"
                   >
-                    Pulihkan
-                  </Button>
-                </Popconfirm>
+                    <Button
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      loading={restoreMutation.isPending && restoreMutation.variables === row.id}
+                    >
+                      Pulihkan
+                    </Button>
+                  </Popconfirm>
+                  {canDelete && (
+                    <Popconfirm
+                      title="Hapus permanen guru ini?"
+                      description={`${row.name} akan dihapus permanen dari database dan tidak bisa dipulihkan lagi.`}
+                      okText="Ya, Hapus Permanen"
+                      okButtonProps={{ danger: true }}
+                      cancelText="Batal"
+                      onConfirm={() => handleHardDelete(row)}
+                    >
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        loading={
+                          hardDeleteMutation.isPending && hardDeleteMutation.variables === row.id
+                        }
+                      />
+                    </Popconfirm>
+                  )}
+                </Space>
               ),
             },
           ]}
         />
       </Card>
+
+      <ActionBar
+        count={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        actions={[
+          {
+            key: 'restore',
+            label: 'Pulihkan',
+            icon: <ReloadOutlined />,
+            hidden: !canWrite,
+            loading: bulkRestoreMutation.isPending,
+            confirm: {
+              title: `Pulihkan ${selectedIds.length} guru terpilih?`,
+              description: 'Semua data guru terpilih akan aktif kembali.',
+              okText: 'Ya, Pulihkan',
+            },
+            onClick: bulkRestore,
+          },
+          {
+            key: 'hard-delete',
+            label: 'Hapus Permanen',
+            icon: <DeleteOutlined />,
+            variant: 'danger',
+            hidden: !canDelete,
+            loading: bulkHardDeleteMutation.isPending,
+            confirm: {
+              title: `Hapus permanen ${selectedIds.length} guru terpilih?`,
+              description: 'Semua data guru terpilih akan dihapus permanen dari database dan tidak bisa dipulihkan lagi.',
+              okText: 'Ya, Hapus Permanen',
+            },
+            onClick: bulkHardDelete,
+          },
+        ]}
+      />
     </div>
   )
 }

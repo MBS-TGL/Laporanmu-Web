@@ -18,8 +18,8 @@ declare
   v_id uuid;
   v_pin text;
 begin
-  if not public.has_any_role(array['developer', 'admin', 'pengurus']::public.app_role[]) then
-    raise exception 'Hanya developer, admin, atau pengurus yang dapat membuat PIN siswa';
+  if not public.has_any_role(array['developer', 'admin', 'manager']::public.app_role[]) then
+    raise exception 'Hanya developer, admin, atau manager yang dapat membuat PIN siswa';
   end if;
 
   if p_ids is null or array_length(p_ids, 1) = 0 then

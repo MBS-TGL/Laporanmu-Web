@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -27,20 +28,21 @@ import {
   TableOutlined,
   ToolOutlined,
   WarningOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import { PageHeader } from '../../shared/components/PageHeader'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { StatChip } from '../../shared/components/StatChip'
+import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { logAudit } from '../../shared/utils/auditLogger'
-import { runDetachRefs, TABLE_CONFIG } from './api'
+import { runDetachRefs } from './api'
 import { useIntegrityIssues, useTableStats } from './hooks'
 import type { IntegrityIssue, TableStat } from './types'
 
-export function DatabasePage() {
+export function DatabasePage({ active }: { active: boolean }) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
   const qc = useQueryClient()
@@ -49,8 +51,10 @@ export function DatabasePage() {
   const debouncedSearch = useDebounce(search, 300)
   const [autoRefresh, setAutoRefresh] = useState(false)
 
-  const statsQuery = useTableStats()
-  const integrityQuery = useIntegrityIssues()
+  // Auto-refresh via refetchInterval react-query (bukan setInterval manual —
+  // bebas stale-closure dan berhenti otomatis saat tab tidak aktif)
+  const statsQuery = useTableStats({ refetchInterval: autoRefresh ? 60_000 : false })
+  const integrityQuery = useIntegrityIssues({ refetchInterval: autoRefresh ? 60_000 : false })
 
   const repairMutation = useMutation({
     mutationFn: runDetachRefs,
@@ -73,13 +77,6 @@ export function DatabasePage() {
     void statsQuery.refetch()
     void integrityQuery.refetch()
   }
-
-  useEffect(() => {
-    if (!autoRefresh) return
-    const id = setInterval(handleRefresh, 60_000)
-    return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh])
 
   const tableStats = useMemo(() => statsQuery.data ?? [], [statsQuery.data])
   const filteredTables = useMemo(() => {
@@ -159,6 +156,19 @@ export function DatabasePage() {
   )
   const shortcuts = useShortcuts({ items: shortcutItems })
 
+  // Aksi tab diportal ke kanan judul shell — hasil dirender di JSX
+  const actions = useTabActions(
+    active,
+    <>
+      <Tooltip title="Shortcut keyboard (?)">
+        <Button aria-label="Bantuan shortcut keyboard" icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+      </Tooltip>
+      <Tooltip title="Muat ulang (R)">
+        <Button icon={<ReloadOutlined spin={statsQuery.isFetching || integrityQuery.isFetching} />} aria-label="Muat ulang hitungan & cek" onClick={handleRefresh} />
+      </Tooltip>
+    </>,
+  )
+
   const renderIssue = (issue: IntegrityIssue) => {
     const ok = issue.count === 0
     return (
@@ -217,21 +227,7 @@ export function DatabasePage() {
 
   return (
     <div>
-      <PageHeader
-        title="Kesehatan Database"
-        subtitle={`${TABLE_CONFIG.length} tabel terpantau · ${totalRows.toLocaleString('id-ID')} total baris`}
-        extra={
-          <Space wrap>
-            <Tooltip title="Shortcut keyboard (?)">
-              <Button icon={<span style={{ fontWeight: 700, fontSize: 12 }}>?</span>} onClick={shortcuts.open} />
-            </Tooltip>
-            <Tooltip title="Muat ulang (R)">
-              <Button icon={<ReloadOutlined spin={statsQuery.isFetching || integrityQuery.isFetching} />} onClick={handleRefresh} />
-            </Tooltip>
-          </Space>
-        }
-      />
-
+      {actions}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <StatChip
           icon={<DatabaseOutlined />}
@@ -264,6 +260,21 @@ export function DatabasePage() {
         )}
       </div>
 
+      {(statsQuery.isError || integrityQuery.isError) && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Gagal memuat data database"
+          description={statsQuery.isError ? 'Hitungan tabel tidak bisa diambil dari server.' : 'Cek integritas tidak bisa dijalankan dari server.'}
+          action={
+            <Button size="small" icon={<ReloadOutlined />} onClick={handleRefresh}>
+              Coba lagi
+            </Button>
+          }
+        />
+      )}
+
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={13}>
           <Card title="Hitungan Tabel" size="small">
@@ -290,6 +301,7 @@ export function DatabasePage() {
               columns={columns}
               dataSource={filteredTables}
               loading={statsQuery.isPending}
+              scroll={{ x: 'max-content' }}
               pagination={false}
               locale={{
                 emptyText: (

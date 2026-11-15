@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   App,
   Button,
@@ -8,7 +9,6 @@ import {
   Empty,
   Form,
   Input,
-  Modal,
   Row,
   Select,
   Statistic,
@@ -17,11 +17,11 @@ import {
   Tag,
   type TableColumnsType,
 } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined, StopOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
-import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '../../shared/components/PageHeader'
+import { AppModal } from '../../shared/components/AppModal'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { logAudit } from '../../shared/utils/auditLogger'
@@ -29,6 +29,7 @@ import { usePermissions } from '../../shared/hooks/useProfile'
 import { supabase } from '../../lib/supabase'
 import { searchStudents } from '../students/api'
 import { useCreateSuspension, useSuspensions } from './hooks'
+import { DetailDrawer } from './DetailDrawer'
 import type { Suspension, SuspensionStatus } from './types'
 
 const STATUS_META: Record<SuspensionStatus, { label: string; color: string }> = {
@@ -44,13 +45,24 @@ function isSmaGrade(grade: string | null): boolean {
 
 export function SuspensionPage() {
   const { message } = App.useApp()
-  const navigate = useNavigate()
   const { canWrite } = usePermissions()
   const suspensionsQuery = useSuspensions()
   const suspensions = useMemo(() => suspensionsQuery.data ?? [], [suspensionsQuery.data])
   const createMutation = useCreateSuspension()
 
   const [formOpen, setFormOpen] = useState(false)
+  // Deep-link: /disiplin?tab=skorsing&detail=<id> langsung membuka drawer skorsing
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [detailId, setDetailId] = useState<string | null>(searchParams.get('detail'))
+
+  const closeDetail = () => {
+    setDetailId(null)
+    if (searchParams.get('detail')) {
+      const sp = new URLSearchParams(searchParams)
+      sp.delete('detail')
+      setSearchParams(sp, { replace: true })
+    }
+  }
 
   const active = suspensions.filter((s) => s.status === 'active')
   const done = suspensions.filter((s) => s.status === 'completed')
@@ -60,9 +72,9 @@ export function SuspensionPage() {
       title: 'Santri',
       key: 'student',
       render: (_, s) => (
-        <Link to={`/suspension/detail/${s.id}`} style={{ fontWeight: 600 }}>
+        <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => setDetailId(s.id)}>
           {s.student?.name ?? '—'}
-        </Link>
+        </Button>
       ),
     },
     {
@@ -104,7 +116,11 @@ export function SuspensionPage() {
       title: 'Aksi',
       key: 'actions',
       width: 90,
-      render: (_, s) => <Link to={`/suspension/detail/${s.id}`}>Detail</Link>,
+      render: (_, s) => (
+        <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setDetailId(s.id)}>
+          Detail
+        </Button>
+      ),
     },
   ]
 
@@ -133,7 +149,7 @@ export function SuspensionPage() {
               end_date: created.end_date,
             },
           })
-          navigate(`/suspension/detail/${created.id}`)
+          setDetailId(created.id)
         },
         onError: (err: Error) => message.error(err.message || 'Gagal menerbitkan skorsing'),
       },
@@ -190,6 +206,8 @@ export function SuspensionPage() {
         onCancel={() => setFormOpen(false)}
         onSubmit={(values) => void handleCreate(values)}
       />
+
+      <DetailDrawer suspensionId={detailId} onClose={closeDetail} />
     </div>
   )
 }
@@ -248,8 +266,10 @@ function SuspensionFormModal({
   }
 
   return (
-    <Modal
+    <AppModal
       title="Terbitkan Skorsing"
+      subtitle="Skor penggantungan sementara dengan tanggal mulai & selesai"
+      icon={<StopOutlined />}
       open={open}
       onCancel={onCancel}
       onOk={() => void form.submit()}
@@ -315,6 +335,6 @@ function SuspensionFormModal({
           <Input.TextArea rows={3} maxLength={500} placeholder="Ringkasan pelanggaran berat yang menyebabkan skorsing" />
         </Form.Item>
       </Form>
-    </Modal>
+    </AppModal>
   )
 }

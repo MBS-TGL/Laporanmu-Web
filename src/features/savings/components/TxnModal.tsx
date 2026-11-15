@@ -10,6 +10,7 @@ interface TxnFormShape {
   amount: number
   note?: string
   occurred_at: Dayjs
+  pin?: string
 }
 
 interface TxnModalProps {
@@ -18,7 +19,7 @@ interface TxnModalProps {
   studentName?: string
   submitting: boolean
   onCancel: () => void
-  onSubmit: (values: { amount: number; note?: string; occurred_at: string }) => void
+  onSubmit: (values: { amount: number; note?: string; occurred_at: string; pin?: string }) => void
 }
 
 export function TxnModal({ open, kind, studentName, submitting, onCancel, onSubmit }: TxnModalProps) {
@@ -36,6 +37,7 @@ export function TxnModal({ open, kind, studentName, submitting, onCancel, onSubm
       amount: values.amount,
       note: values.note,
       occurred_at: values.occurred_at.format('YYYY-MM-DD'),
+      pin: values.pin,
     })
   }
 
@@ -105,6 +107,15 @@ export function TxnModal({ open, kind, studentName, submitting, onCancel, onSubm
 
         <Form.Item name="note" label="Keterangan">
           <Input.TextArea rows={2} placeholder="Contoh: setor harian, uang jajan (opsional)" maxLength={200} />
+        </Form.Item>
+
+        <Form.Item
+          name="pin"
+          label="PIN Petugas Keuangan"
+          rules={[{ required: true, message: 'PIN petugas wajib diisi untuk keamanan transaksi' }]}
+          extra="Masukkan PIN staf Anda untuk otorisasi transaksi kas."
+        >
+          <Input.Password maxLength={8} placeholder="4 - 8 digit angka" />
         </Form.Item>
       </Form>
     </AppModal>

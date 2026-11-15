@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { App, Alert, InputNumber, Space, Tag, Typography } from 'antd'
+import { App, InputNumber, Space, Tag, Typography } from 'antd'
 import { SafetyCertificateOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
 import { useGraduateStudentsBulk } from '../hooks'
 import type { Student } from '../types'
 
@@ -53,7 +54,7 @@ export function GraduateModal({ open, onClose, students, onGraduated }: Graduate
       onCancel={onClose}
       width={520}
       title="Luluskan Siswa"
-      subtitle={`${students.length} siswa terpilih — status akan menjadi Lulus`}
+      subtitle={`${students.length} siswa terpilih, status akan menjadi Lulus`}
       icon={<SafetyCertificateOutlined />}
       okText={`Luluskan (${students.length})`}
       okButtonProps={{ disabled: !graduationYear, loading: graduateMutation.isPending }}
@@ -88,21 +89,14 @@ export function GraduateModal({ open, onClose, students, onGraduated }: Graduate
           </div>
         </div>
 
-        <Alert
-          type="warning"
-          showIcon
-          icon={<SafetyCertificateOutlined />}
-          message="Kelas & asrama siswa akan dikosongkan"
-          description="Siswa pindah ke daftar Alumni dengan kelas terakhir tercatat. Riwayat poin, raport, dan log gerbang tetap tersimpan. Arsip asrama/kelas otomatis bersih."
-          style={{ borderRadius: 10 }}
-        />
+        <ModalNotice tone="warning" title="Kelas & asrama siswa akan dikosongkan">
+          Siswa pindah ke daftar Alumni dengan kelas terakhir tercatat. Riwayat poin, raport, dan log gerbang tetap tersimpan. Arsip asrama/kelas otomatis bersih.
+        </ModalNotice>
 
         {alreadyGraduated > 0 && (
-          <Alert
-            type="info"
-            showIcon
-            message={`${alreadyGraduated} siswa sudah berstatus Lulus — tahun & tanggal kelulusannya akan diperbarui.`}
-            style={{ borderRadius: 10 }}
+          <ModalNotice
+            tone="info"
+            title={`${alreadyGraduated} siswa sudah berstatus Lulus, tahun & tanggal kelulusannya akan diperbarui.`}
           />
         )}
       </Space>

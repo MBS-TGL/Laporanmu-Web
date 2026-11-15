@@ -236,23 +236,34 @@ export function ReportCard({
 
       {/* Blok data semester */}
       {!isMonthly && semesterExtras && (
-        <div className="report-card-blocks">
-          <Block
-            title="DATA PENDUKUNG"
-            rows={[
-              ['Berat Badan', semesterExtras.weight_kg ? `${semesterExtras.weight_kg} kg` : ''],
-              ['Tinggi Badan', semesterExtras.height_cm ? `${semesterExtras.height_cm} cm` : ''],
-              ['Sholat', semesterExtras.sholat ?? ''],
-              [
-                'Absensi',
-                `Sakit ${semesterExtras.sick_days ?? 0} · Izin ${semesterExtras.excused_days ?? 0} · Alpa ${
-                  semesterExtras.absent_days ?? 0
-                } · Pulang ${semesterExtras.early_leave_days ?? 0}`,
-              ],
-              ['Catatan', semesterExtras.notes ?? ''],
-            ]}
-          />
-        </div>
+        <>
+          <div className="report-card-blocks">
+            <Block
+              title="DATA PENDUKUNG"
+              rows={[
+                ['Berat Badan', semesterExtras.weight_kg ? `${semesterExtras.weight_kg} kg` : ''],
+                ['Tinggi Badan', semesterExtras.height_cm ? `${semesterExtras.height_cm} cm` : ''],
+                ['Sholat', semesterExtras.sholat ?? ''],
+                [
+                  'Absensi',
+                  `Sakit ${semesterExtras.sick_days ?? 0} · Izin ${semesterExtras.excused_days ?? 0} · Alpa ${
+                    semesterExtras.absent_days ?? 0
+                  } · Pulang ${semesterExtras.early_leave_days ?? 0}`,
+                ],
+                ['Catatan', semesterExtras.notes ?? ''],
+              ]}
+            />
+            {(semesterExtras.ekskul?.length ?? 0) > 0 && (
+              <Block
+                title="EKSTRAKURIKULER"
+                rows={(semesterExtras.ekskul ?? []).map((e) => [
+                  e.name,
+                  e.note ?? '',
+                ])}
+              />
+            )}
+          </div>
+        </>
       )}
 
       {/* Tanda tangan */}

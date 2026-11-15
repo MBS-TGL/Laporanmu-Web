@@ -1,70 +1,100 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   App,
   Button,
   Card,
+  Dropdown,
   Empty,
   Input,
   Popconfirm,
   Progress,
+  Segmented,
   Select,
   Space,
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
   type InputRef,
   type TableColumnsType,
 } from 'antd'
 import {
+  AppstoreOutlined,
+  ApartmentOutlined,
   CheckCircleOutlined,
+  DeploymentUnitOutlined,
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
+  FileExcelOutlined,
+  FileTextOutlined,
+  ImportOutlined,
+  MoreOutlined,
   PlusOutlined,
+  PrinterOutlined,
   QuestionCircleOutlined,
+  RestOutlined,
   SearchOutlined,
-  StopOutlined,
+  TableOutlined,
   TeamOutlined,
 } from '@ant-design/icons'
-import Papa from 'papaparse'
 import dayjs from 'dayjs'
+import Papa from 'papaparse'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { StatChip } from '../../shared/components/StatChip'
-import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
+import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
+import { ShortcutsModal, Kbd } from '../../shared/components/ShortcutsModal'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
+import {
+  fetchDormResidentIds,
+  downloadDormsXlsx,
+  downloadPlacementsXlsx,
+  type DormExportRow,
+} from './api'
+import { usePlacementsExport } from './hooks'
 import {
   useAssignStudents,
   useCreateDorm,
   useDeleteDorm,
   useDormOccupancy,
   useDorms,
+  useMusyrifBrief,
   useUpdateDorm,
 } from './hooks'
 import { DormForm } from './components/DormForm'
 import { AssignModal } from './components/AssignModal'
 import { DetailDrawer } from './components/DetailDrawer'
 import { TabPlacements } from './components/TabPlacements'
+import { BoardView } from './components/BoardView'
+import { ImportModal } from './components/ImportModal'
+import { DistributeModal } from './components/DistributeModal'
+import { PlaceModal } from './components/PlaceModal'
+import { PrintModal } from './components/PrintModal'
+import {
+  GENDER_COLOR,
+  GENDER_LABEL,
+  GENDER_OPTIONS,
+  occupancyStroke,
+  STATUS_META,
+  STATUS_OPTIONS,
+} from './meta'
 import type { Dorm, DormFormValues, DormGender, DormStatus } from './types'
 
-const STATUS_META: Record<string, { label: string; color?: string; icon: ReactNode }> = {
-  active: { label: 'Aktif', color: 'green', icon: <CheckCircleOutlined /> },
-  full: { label: 'Penuh', color: 'orange', icon: <TeamOutlined /> },
-  nonactive: { label: 'Nonaktif', icon: <StopOutlined /> },
-}
+// ------------------------------------------------------------
+// Persistensi mode tampilan (pola versi-key ala Sidebar)
+// ------------------------------------------------------------
+const VIEW_KEY = 'dorms-view-v1'
+type ViewMode = 'tabel' | 'papan'
 
-const GENDER_LABEL: Record<string, string> = {
-  male: 'Putra',
-  female: 'Putri',
-  mixed: 'Campur',
-}
-
-const GENDER_COLOR: Record<string, string> = {
-  male: 'geekblue',
-  female: 'magenta',
-  mixed: 'purple',
+function loadView(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'papan' ? 'papan' : 'tabel'
+  } catch {
+    return 'tabel'
+  }
 }
 
 interface AssignState {
@@ -76,27 +106,40 @@ export function DormsPage() {
   const { message } = App.useApp()
   const { canWrite, canDelete } = usePermissions()
 
+  // ------------------------------------------------------------
+  // Filter — dihitung di KLIEN (data kamar ≤200 baris, satu fetch)
+  // ------------------------------------------------------------
   const [search, setSearch] = useState('')
   const [gender, setGender] = useState<DormGender | undefined>()
   const [status, setStatus] = useState<DormStatus | undefined>()
+  const [musyrifId, setMusyrifId] = useState<string | undefined>()
   const [showPenuhOnly, setShowPenuhOnly] = useState(false)
+  const [showTersediaOnly, setShowTersediaOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [view, setView] = useState<ViewMode>(loadView)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Dorm | null>(null)
   const [drawerDorm, setDrawerDorm] = useState<Dorm | null>(null)
   const [assignState, setAssignState] = useState<AssignState | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [distributeOpen, setDistributeOpen] = useState(false)
+  const [textPlaceOpen, setTextPlaceOpen] = useState(false)
+  /** null = tertutup; array id kamar yang dicetak (1 kamar dari drawer / semua dari header) */
+  const [rosterDormIds, setRosterDormIds] = useState<string[] | null>(null)
   const searchRef = useRef<InputRef>(null)
 
-  const filters = useMemo(
-    () => ({ search: search || undefined, gender, status }),
-    [search, gender, status],
-  )
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_KEY, view)
+    } catch {
+      /* private mode — abaikan */
+    }
+  }, [view])
 
-  const dormsQuery = useDorms(filters)
-  // Statistik global — tidak terpengaruh filter
-  const statsQuery = useDorms({})
+  const dormsQuery = useDorms()
   const occupancyQuery = useDormOccupancy()
+  const musyrifQuery = useMusyrifBrief()
 
   const createMutation = useCreateDorm()
   const updateMutation = useUpdateDorm()
@@ -108,27 +151,86 @@ export function DormsPage() {
     [occupancyQuery.data],
   )
 
+  const allDorms = dormsQuery.data ?? []
+
+  const isFull = (d: Dorm) => d.capacity > 0 && (occupancyMap.get(d.id) ?? 0) >= d.capacity
+
   const stats = useMemo(() => {
-    const all = statsQuery.data ?? []
-    const capacity = all.reduce((sum, d) => sum + d.capacity, 0)
+    const capacity = allDorms.reduce((sum, d) => sum + d.capacity, 0)
     const occupied = (occupancyQuery.data ?? []).reduce((sum, o) => sum + o.occupied, 0)
-    const full = all.filter((d) => (occupancyMap.get(d.id) ?? 0) >= d.capacity && d.capacity > 0).length
     return {
-      total: all.length,
+      total: allDorms.length,
       capacity,
       occupied,
       occupancyPct: capacity > 0 ? Math.round((occupied / capacity) * 100) : 0,
-      full,
+      full: allDorms.filter(isFull).length,
+      available: allDorms.filter((d) => d.status !== 'inactive' && d.capacity - (occupancyMap.get(d.id) ?? 0) > 0)
+        .length,
+      emptyBeds: allDorms.reduce((sum, d) => sum + Math.max(0, d.capacity - (occupancyMap.get(d.id) ?? 0)), 0),
     }
-  }, [statsQuery.data, occupancyQuery.data, occupancyMap])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDorms, occupancyQuery.data, occupancyMap])
 
-  // Filter klien "hanya kamar penuh" — data sudah lengkap (tanpa pagination server)
+  const resetFilters = () => {
+    setSearch('')
+    setGender(undefined)
+    setStatus(undefined)
+    setMusyrifId(undefined)
+    setShowPenuhOnly(false)
+    setShowTersediaOnly(false)
+    setPage(1)
+  }
+
+  // Filter klien — instan, tanpa refetch server
   const rows = useMemo(() => {
-    const data = dormsQuery.data ?? []
-    if (!showPenuhOnly) return data
-    return data.filter((d) => (occupancyMap.get(d.id) ?? 0) >= d.capacity && d.capacity > 0)
-  }, [dormsQuery.data, showPenuhOnly, occupancyMap])
+    const q = search.trim().toLowerCase()
+    return allDorms.filter((d) => {
+      if (q && !d.name.toLowerCase().includes(q) && !d.musyrif?.name?.toLowerCase().includes(q))
+        return false
+      if (gender && d.gender !== gender) return false
+      if (status && d.status !== status) return false
+      if (musyrifId && d.musyrif_id !== musyrifId) return false
+      if (showPenuhOnly && !isFull(d)) return false
+      if (
+        showTersediaOnly &&
+        (d.status === 'inactive' || d.capacity - (occupancyMap.get(d.id) ?? 0) <= 0)
+      )
+        return false
+      return true
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDorms, search, gender, status, musyrifId, showPenuhOnly, showTersediaOnly, occupancyMap])
 
+  const filterChips = useMemo<FilterChip[]>(() => {
+    const chips: FilterChip[] = []
+    if (search)
+      chips.push({ key: 'search', label: `Cari: "${search}"`, onClear: () => setSearch('') })
+    if (gender)
+      chips.push({
+        key: 'gender',
+        label: `Gender: ${GENDER_LABEL[gender]}`,
+        onClear: () => setGender(undefined),
+      })
+    if (status)
+      chips.push({
+        key: 'status',
+        label: `Status: ${STATUS_META[status].label}`,
+        onClear: () => setStatus(undefined),
+      })
+    if (musyrifId) {
+      const name = (musyrifQuery.data ?? []).find((t) => t.id === musyrifId)?.name
+      chips.push({ key: 'musyrif', label: `Musyrif: ${name ?? ''}`, onClear: () => setMusyrifId(undefined) })
+    }
+    if (showPenuhOnly)
+      chips.push({ key: 'penuh', label: 'Hanya penuh', onClear: () => setShowPenuhOnly(false) })
+    if (showTersediaOnly)
+      chips.push({ key: 'tersedia', label: 'Hanya bersisa slot', onClear: () => setShowTersediaOnly(false) })
+    return chips
+  }, [search, gender, status, musyrifId, showPenuhOnly, showTersediaOnly, musyrifQuery.data])
+
+  // ------------------------------------------------------------
+  // CRUD kamar
+  // ------------------------------------------------------------
   const openCreate = () => {
     setEditing(null)
     setFormOpen(true)
@@ -207,32 +309,41 @@ export function DormsPage() {
   }
 
   // ------------------------------------------------------------
-  // Export CSV
+  // Export CSV/Excel kamar (mengikuti filter aktif) & penempatan
   // ------------------------------------------------------------
+  const buildDormExportRows = (): DormExportRow[] =>
+    rows.map((d) => {
+      const occupied = occupancyMap.get(d.id) ?? 0
+      return {
+        name: d.name,
+        gender: d.gender ? (GENDER_LABEL[d.gender] ?? null) : null,
+        capacity: d.capacity,
+        occupied,
+        musyrifName: d.musyrif?.name ?? null,
+        status: STATUS_META[d.status]?.label ?? d.status,
+      }
+    })
+
   const [exporting, setExporting] = useState(false)
   const handleExport = async () => {
     setExporting(true)
     try {
-      const rowsExport = dormsQuery.data ?? []
-      if (rowsExport.length === 0) {
+      const exportRows = buildDormExportRows()
+      if (exportRows.length === 0) {
         message.warning('Tidak ada kamar untuk diekspor')
         return
       }
       const csv = Papa.unparse({
         fields: ['Kamar', 'Gender', 'Kapasitas', 'Terisi', 'Okupansi %', 'Musyrif', 'Status'],
-        data: rowsExport.map((d) => {
-          const occupied = occupancyMap.get(d.id) ?? 0
-          const pct = d.capacity > 0 ? Math.round((occupied / d.capacity) * 100) : 0
-          return [
-            d.name,
-            d.gender ? (GENDER_LABEL[d.gender] ?? d.gender) : '',
-            d.capacity,
-            occupied,
-            pct,
-            d.musyrif?.name ?? '',
-            STATUS_META[d.status]?.label ?? d.status,
-          ]
-        }),
+        data: exportRows.map((d) => [
+          d.name,
+          d.gender ?? '',
+          d.capacity,
+          d.occupied,
+          d.capacity > 0 ? Math.round((d.occupied / d.capacity) * 100) : 0,
+          d.musyrifName ?? '',
+          d.status,
+        ]),
       })
       // BOM agar UTF-8 terbaca benar saat dibuka di Excel
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
@@ -242,7 +353,7 @@ export function DormsPage() {
       link.download = `asrama-${dayjs().format('YYYY-MM-DD')}.csv`
       link.click()
       URL.revokeObjectURL(url)
-      message.success(`${rowsExport.length} kamar diekspor`)
+      message.success(`${exportRows.length} kamar diekspor`)
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Gagal mengekspor CSV')
     } finally {
@@ -250,10 +361,66 @@ export function DormsPage() {
     }
   }
 
+  const handleExportXlsx = async () => {
+    setExporting(true)
+    try {
+      const exportRows = buildDormExportRows()
+      if (exportRows.length === 0) {
+        message.warning('Tidak ada kamar untuk diekspor')
+        return
+      }
+      await downloadDormsXlsx(exportRows)
+      message.success(`${exportRows.length} kamar diekspor (Excel)`)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal mengekspor Excel')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const placementsExportMutation = usePlacementsExport()
+  const handleExportPlacementsXlsx = () => {
+    placementsExportMutation.mutate({ placement: 'all' }, {
+      onSuccess: (data) => {
+        if (data.length === 0) {
+          message.warning('Tidak ada data penempatan untuk diekspor')
+          return
+        }
+        void downloadPlacementsXlsx(data)
+        message.success(`${data.length} baris penempatan diekspor (Excel)`)
+      },
+      onError: (err: Error) => message.error(err.message || 'Gagal mengekspor penempatan'),
+    })
+  }
+
+  /** Kosongkan seluruh penghuni satu kamar — id diambil saat tombol ditekan */
+  const handleEvictDorm = (dorm: Dorm) => {
+    void fetchDormResidentIds(dorm.id)
+      .then((ids) => {
+        if (ids.length > 0) handleEvict(ids)
+      })
+      .catch((err: Error) => message.error(err.message || 'Gagal mengambil penghuni kamar'))
+  }
+
+  const handlePrintAllRosters = () => {
+    if (allDorms.length === 0) {
+      message.warning('Belum ada kamar untuk dicetak')
+      return
+    }
+    setRosterDormIds(allDorms.map((d) => d.id))
+  }
+
   // ------------------------------------------------------------
   // Shortcut keyboard (palet via tombol ? atau ikon di header)
   // ------------------------------------------------------------
-  const anyOverlayOpen = formOpen || !!drawerDorm || !!assignState
+  const anyOverlayOpen =
+    formOpen ||
+    !!drawerDorm ||
+    !!assignState ||
+    importOpen ||
+    distributeOpen ||
+    textPlaceOpen ||
+    rosterDormIds !== null
   const shortcutItems = useMemo<ShortcutItem[]>(
     () => [
       {
@@ -266,19 +433,55 @@ export function DormsPage() {
         when: canWrite,
       },
       {
+        keys: ['D'],
+        label: 'Distribusi Otomatis',
+        description: 'Bagi santri belum ditempatkan ke kamar bersisa',
+        group: 'Aksi',
+        icon: <DeploymentUnitOutlined />,
+        run: () => setDistributeOpen(true),
+        when: canWrite,
+      },
+      {
+        keys: ['I'],
+        label: 'Import Kamar',
+        description: 'Impor kamar dari CSV',
+        group: 'Aksi',
+        icon: <ImportOutlined />,
+        run: () => setImportOpen(true),
+        when: canWrite,
+      },
+      {
+        keys: ['T'],
+        label: 'Penempatan via Teks',
+        description: 'Tempel daftar kamar & santri, dicocokkan otomatis',
+        group: 'Aksi',
+        icon: <FileTextOutlined />,
+        run: () => setTextPlaceOpen(true),
+        when: canWrite,
+      },
+      {
+        keys: ['E'],
+        label: 'Export CSV',
+        description: 'Unduh kamar sesuai filter aktif',
+        group: 'Aksi',
+        icon: <DownloadOutlined />,
+        run: () => void handleExport(),
+      },
+      {
         keys: ['Ctrl', 'K'],
         label: 'Fokus pencarian',
         group: 'Aksi',
         icon: <SearchOutlined />,
         run: () => searchRef.current?.focus(),
       },
-    ],
-    [canWrite],
-  )
-
-  const { isOpen, close, toggle, sections } = useShortcuts({
-    items: [
-      ...shortcutItems,
+      {
+        keys: ['B'],
+        label: 'Ganti Tampilan',
+        description: 'Tabel ↔ Papan kamar',
+        group: 'Tampilan',
+        icon: <AppstoreOutlined />,
+        run: () => setView((v) => (v === 'tabel' ? 'papan' : 'tabel')),
+      },
       {
         keys: ['?'],
         label: 'Palet shortcut',
@@ -287,6 +490,12 @@ export function DormsPage() {
         run: () => toggle(),
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canWrite, rows],
+  )
+
+  const { isOpen, close, toggle, sections } = useShortcuts({
+    items: shortcutItems,
     isBlocked: anyOverlayOpen,
   })
 
@@ -298,6 +507,7 @@ export function DormsPage() {
       title: 'Kamar',
       dataIndex: 'name',
       key: 'name',
+      sorter: (a, b) => a.name.localeCompare(b.name),
       render: (_, row) => (
         <Button type="link" style={{ padding: 0, height: 'auto', fontWeight: 600 }} onClick={() => setDrawerDorm(row)}>
           {row.name}
@@ -317,10 +527,14 @@ export function DormsPage() {
       key: 'occupancy',
       width: 180,
       responsive: ['md'],
+      sorter: (a, b) => {
+        const pa = a.capacity > 0 ? (occupancyMap.get(a.id) ?? 0) / a.capacity : 0
+        const pb = b.capacity > 0 ? (occupancyMap.get(b.id) ?? 0) / b.capacity : 0
+        return pa - pb
+      },
       render: (_, row) => {
         const occupied = occupancyMap.get(row.id) ?? 0
         const pct = row.capacity > 0 ? Math.min(100, Math.round((occupied / row.capacity) * 100)) : 0
-        const stroke = pct >= 100 ? '#ef4444' : pct >= 80 ? '#f59e0b' : '#10b981'
         return (
           <Space size={10}>
             <Progress
@@ -328,11 +542,16 @@ export function DormsPage() {
               showInfo={false}
               size="small"
               style={{ width: 72, marginBottom: 0 }}
-              strokeColor={stroke}
+              strokeColor={occupancyStroke(pct)}
             />
             <Typography.Text style={{ fontSize: 12.5 }}>
               {occupied}/{row.capacity}
             </Typography.Text>
+            {occupied > row.capacity && (
+              <Tag color="red" style={{ marginInlineEnd: 0 }}>
+                +{occupied - row.capacity}
+              </Tag>
+            )}
           </Space>
         )
       },
@@ -340,6 +559,7 @@ export function DormsPage() {
     {
       title: 'Musyrif',
       key: 'musyrif',
+      sorter: (a, b) => (a.musyrif?.name ?? '').localeCompare(b.musyrif?.name ?? ''),
       render: (_, row) => row.musyrif?.name || '-',
       responsive: ['lg'],
     },
@@ -355,6 +575,7 @@ export function DormsPage() {
           <Space size={4} wrap>
             {v && <StatusTag color={STATUS_META[v].color} icon={STATUS_META[v].icon}>{STATUS_META[v].label}</StatusTag>}
             {autoFull && <Tag color="orange">penuh (otomatis)</Tag>}
+            {occupied > row.capacity && <Tag color="red">lebih {occupied - row.capacity}</Tag>}
           </Space>
         )
       },
@@ -393,17 +614,12 @@ export function DormsPage() {
     <div>
       <Space wrap style={{ marginBottom: 16 }}>
         <StatChip
-          icon={<TeamOutlined />}
+          icon={<ApartmentOutlined />}
           label="Total Kamar"
           value={stats.total}
           color="indigo"
-          loading={statsQuery.isLoading}
-          onClick={() => {
-            setShowPenuhOnly(false)
-            setStatus(undefined)
-            setSearch('')
-            setGender(undefined)
-          }}
+          loading={dormsQuery.isLoading}
+          onClick={resetFilters}
         />
         <StatChip
           icon={<CheckCircleOutlined />}
@@ -417,24 +633,41 @@ export function DormsPage() {
           label="Kamar Penuh"
           value={stats.full}
           color="rose"
-          loading={statsQuery.isLoading}
+          loading={dormsQuery.isLoading}
           active={showPenuhOnly}
-          onClick={() => setShowPenuhOnly((v) => !v)}
+          onClick={() => {
+            setShowPenuhOnly((v) => !v)
+            setShowTersediaOnly(false)
+            setPage(1)
+          }}
         />
         <StatChip
-          icon={<TeamOutlined />}
-          label="Kapasitas Total"
-          value={stats.capacity}
+          icon={<PlusOutlined />}
+          label="Bersisa Slot"
+          value={stats.available}
+          color="amber"
+          loading={dormsQuery.isLoading}
+          active={showTersediaOnly}
+          onClick={() => {
+            setShowTersediaOnly((v) => !v)
+            setShowPenuhOnly(false)
+            setPage(1)
+          }}
+        />
+        <StatChip
+          icon={<RestOutlined />}
+          label="Tempat Tidur Kosong"
+          value={stats.emptyBeds}
           color="purple"
-          loading={statsQuery.isLoading}
+          loading={dormsQuery.isLoading}
         />
       </Space>
 
       <Card style={{ marginBottom: 16 }}>
-        <Space wrap size="middle">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <Input
             ref={searchRef}
-            placeholder="Cari nama kamar"
+            placeholder="Cari nama kamar / musyrif"
             prefix={<SearchOutlined />}
             allowClear
             value={search}
@@ -442,7 +675,7 @@ export function DormsPage() {
               setSearch(e.target.value)
               setPage(1)
             }}
-            style={{ width: 240 }}
+            style={{ flex: 1, minWidth: 220 }}
           />
           <Select
             placeholder="Gender"
@@ -453,11 +686,7 @@ export function DormsPage() {
               setGender(v)
               setPage(1)
             }}
-            options={[
-              { value: 'male', label: 'Putra' },
-              { value: 'female', label: 'Putri' },
-              { value: 'mixed', label: 'Campur' },
-            ]}
+            options={GENDER_OPTIONS}
           />
           <Select
             placeholder="Status"
@@ -468,43 +697,82 @@ export function DormsPage() {
               setStatus(v)
               setPage(1)
             }}
+            options={STATUS_OPTIONS}
+          />
+          <Select
+            placeholder="Musyrif"
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            style={{ minWidth: 170 }}
+            value={musyrifId}
+            onChange={(v) => {
+              setMusyrifId(v)
+              setPage(1)
+            }}
+            loading={musyrifQuery.isLoading}
+            options={(musyrifQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
+          />
+          <Segmented
+            style={{ marginInlineStart: 'auto' }}
+            value={view}
+            onChange={(v) => setView(v as ViewMode)}
             options={[
-              { value: 'active', label: 'Aktif' },
-              { value: 'full', label: 'Penuh' },
-              { value: 'inactive', label: 'Nonaktif' },
+              { value: 'tabel', label: 'Tabel', icon: <TableOutlined /> },
+              { value: 'papan', label: 'Papan', icon: <AppstoreOutlined /> },
             ]}
           />
-        </Space>
+        </div>
+        <FilterChips chips={filterChips} />
       </Card>
 
-      <Card>
-        <Table<Dorm>
-          rowKey="id"
-          columns={columns}
-          dataSource={rows}
+      {view === 'papan' ? (
+        <BoardView
+          dorms={rows}
+          occupancyMap={occupancyMap}
+          canWrite={canWrite}
+          canDelete={canDelete}
           loading={dormsQuery.isPending}
-          locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={showPenuhOnly ? 'Tidak ada kamar penuh' : 'Belum ada kamar'}
-              />
-            ),
-          }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} kamar`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
-          scroll={{ x: true }}
+          onOpen={(dorm) => setDrawerDorm(dorm)}
+          onFill={(dorm) => openAssign([], dorm.id)}
+          onEdit={openEdit}
+          onDelete={handleDelete}
+          onEvictAll={handleEvictDorm}
         />
-      </Card>
+      ) : (
+        <Card>
+          <Table<Dorm>
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            loading={dormsQuery.isPending}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    allDorms.length === 0
+                      ? 'Belum ada kamar'
+                      : 'Tidak ada kamar yang cocok dengan filter'
+                  }
+                />
+              ),
+            }}
+            pagination={{
+              current: page,
+              pageSize,
+              total: rows.length,
+              showSizeChanger: true,
+              showTotal: (t) => `Total ${t} kamar`,
+              onChange: (p, ps) => {
+                setPage(p)
+                setPageSize(ps)
+              },
+            }}
+            scroll={{ x: true }}
+          />
+        </Card>
+      )}
     </div>
   )
 
@@ -515,20 +783,134 @@ export function DormsPage() {
         subtitle="Kelola kamar, okupansi, dan penempatan santri"
         extra={
           <>
-            <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => void handleExport()}>
-              Export CSV
-            </Button>
+            <Dropdown
+              trigger={['click']}
+              placement="bottomRight"
+              overlayStyle={{ minWidth: 320 }}
+              menu={{
+                items: [
+                  {
+                    key: 'data',
+                    type: 'group' as const,
+                    label: 'Data',
+                    children: [
+                      {
+                        key: 'import',
+                        icon: <ImportOutlined />,
+                        disabled: !canWrite,
+                        label: (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>
+                              <div style={{ fontWeight: 600 }}>Import Kamar (CSV)</div>
+                              <div style={{ fontSize: 12, opacity: 0.65 }}>Unggah data kamar dari file CSV</div>
+                            </span>
+                            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                              <Kbd>I</Kbd>
+                            </span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'export-csv',
+                        icon: <FileTextOutlined />,
+                        label: (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>
+                              <div style={{ fontWeight: 600 }}>Export Kamar (CSV)</div>
+                              <div style={{ fontSize: 12, opacity: 0.65 }}>Sesuai filter kamar aktif</div>
+                            </span>
+                            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                              <Kbd>E</Kbd>
+                            </span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'export-xlsx',
+                        icon: <FileExcelOutlined />,
+                        label: (
+                          <div>
+                            <div style={{ fontWeight: 600 }}>Export Kamar (Excel)</div>
+                            <div style={{ fontSize: 12, opacity: 0.65 }}>Spreadsheet .xlsx berformat rapi</div>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'export-placements-xlsx',
+                        icon: <FileExcelOutlined />,
+                        label: (
+                          <div>
+                            <div style={{ fontWeight: 600 }}>Export Penempatan Santri</div>
+                            <div style={{ fontSize: 12, opacity: 0.65 }}>Seluruh penempatan santri (Excel)</div>
+                          </div>
+                        ),
+                      },
+                    ],
+                  },
+                  {
+                    key: 'manajemen',
+                    type: 'group' as const,
+                    label: 'Manajemen',
+                    children: [
+                      {
+                        key: 'text-place',
+                        icon: <EditOutlined />,
+                        disabled: !canWrite,
+                        label: (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span>
+                              <div style={{ fontWeight: 600 }}>Penempatan via Teks</div>
+                              <div style={{ fontSize: 12, opacity: 0.65 }}>Tempel daftar kamar &amp; santri</div>
+                            </span>
+                            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+                              <Kbd>T</Kbd>
+                            </span>
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'print',
+                        icon: <PrinterOutlined />,
+                        label: (
+                          <div>
+                            <div style={{ fontWeight: 600 }}>Cetak Daftar Penghuni</div>
+                            <div style={{ fontSize: 12, opacity: 0.65 }}>Cetak roster seluruh kamar</div>
+                          </div>
+                        ),
+                      },
+                    ],
+                  },
+                ],
+                onClick: ({ key }) => {
+                  if (key === 'import') setImportOpen(true)
+                  if (key === 'export-csv') void handleExport()
+                  if (key === 'export-xlsx') void handleExportXlsx()
+                  if (key === 'export-placements-xlsx') handleExportPlacementsXlsx()
+                  if (key === 'text-place') setTextPlaceOpen(true)
+                  if (key === 'print') handlePrintAllRosters()
+                },
+              }}
+            >
+              <Tooltip title="Impor, ekspor & manajemen data asrama">
+                <Button icon={<MoreOutlined />} loading={exporting} />
+              </Tooltip>
+            </Dropdown>
             {canWrite && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-                Tambah Kamar
-              </Button>
+              <>
+                <Tooltip title="Bagi santri belum ditempatkan ke kamar bersisa">
+                  <Button icon={<DeploymentUnitOutlined />} onClick={() => setDistributeOpen(true)} />
+                </Tooltip>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                  Tambah Kamar
+                </Button>
+              </>
             )}
           </>
         }
       />
 
       <Tabs
-        defaultActiveKey="kamar"
+        defaultActiveKey="rooms"
         items={[
           { key: 'rooms', label: 'Kamar', children: roomTab },
           {
@@ -539,6 +921,7 @@ export function DormsPage() {
                 onAssign={(ids) => openAssign(ids)}
                 onMoveOne={(id) => openAssign([id])}
                 onEvict={handleEvict}
+                onOpenTextPlace={() => setTextPlaceOpen(true)}
               />
             ),
           },
@@ -560,6 +943,8 @@ export function DormsPage() {
         onFill={() => drawerDorm && openAssign([], drawerDorm.id)}
         onMove={(studentId) => openAssign([studentId])}
         onEvict={(studentId) => handleEvict([studentId])}
+        onPrint={() => drawerDorm && setRosterDormIds([drawerDorm.id])}
+        onEvictAll={() => drawerDorm && handleEvictDorm(drawerDorm)}
       />
 
       <AssignModal
@@ -569,6 +954,18 @@ export function DormsPage() {
         submitting={assignMutation.isPending}
         onCancel={() => setAssignState(null)}
         onSubmit={handleAssignSubmit}
+      />
+
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
+
+      <DistributeModal open={distributeOpen} onClose={() => setDistributeOpen(false)} />
+
+      <PlaceModal open={textPlaceOpen} onClose={() => setTextPlaceOpen(false)} />
+
+      <PrintModal
+        open={rosterDormIds !== null}
+        onClose={() => setRosterDormIds(null)}
+        dorms={allDorms.filter((d) => rosterDormIds?.includes(d.id) ?? false)}
       />
 
       <ShortcutsModal open={isOpen} onClose={close} sections={sections} />

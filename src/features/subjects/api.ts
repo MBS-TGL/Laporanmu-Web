@@ -6,6 +6,7 @@ export async function fetchSubjects(): Promise<Subject[]> {
     .from('subjects')
     .select('*')
     .is('deleted_at', null)
+    .order('sort_order')
     .order('name')
   if (error) throw error
   return (data ?? []) as Subject[]
@@ -21,6 +22,10 @@ export async function createSubject(values: SubjectFormValues): Promise<Subject>
       category: values.category?.trim() || null,
       description: values.description?.trim() || null,
       is_active: values.is_active,
+      kkm: values.kkm ?? 50,
+      phase: values.phase || null,
+      curriculum_group: values.curriculum_group || null,
+      sort_order: values.sort_order ?? 0,
     })
     .select('*')
     .single()
@@ -38,6 +43,10 @@ export async function updateSubject(id: string, values: SubjectFormValues): Prom
       category: values.category?.trim() || null,
       description: values.description?.trim() || null,
       is_active: values.is_active,
+      kkm: values.kkm ?? 50,
+      phase: values.phase || null,
+      curriculum_group: values.curriculum_group || null,
+      sort_order: values.sort_order ?? 0,
     })
     .eq('id', id)
     .select('*')

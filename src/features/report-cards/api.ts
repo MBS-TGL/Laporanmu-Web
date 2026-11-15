@@ -28,7 +28,7 @@ export async function fetchReportCardClasses(): Promise<ReportCardClass[]> {
 export async function fetchReportCardStudents(classId: string): Promise<ReportCardStudent[]> {
   const { data, error } = await supabase
     .from('students')
-    .select('id, name, registration_code, gender, dorm_id, guardian_name, dorms(name)')
+    .select('id, name, registration_code, nisn, gender, dorm_id, guardian_name, dorms(name)')
     .eq('class_id', classId)
     .is('deleted_at', null)
     .order('name')

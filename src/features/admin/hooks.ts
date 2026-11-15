@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  createStaffUser,
   deleteStorageFiles,
   fetchAuditActivity,
   fetchAuditLogs,
@@ -7,8 +8,11 @@ import {
   fetchIntegrityIssues,
   fetchLargestFiles,
   fetchOrphanFiles,
+  fetchTeachersForLinking,
   fetchProfiles,
   fetchTableStats,
+  sendPasswordResetEmail,
+  setTeacherProfileLink,
   updateProfile,
   type AuditFilters,
 } from './api'
@@ -32,6 +36,48 @@ export function useUpdateProfile() {
   })
 }
 
+// ------------------------------------------------------------
+// Link guru ↔ akun & reset password
+// ------------------------------------------------------------
+export function useTeachersForLinking() {
+  return useQuery({
+    queryKey: ['admin', 'teachers-for-linking'],
+    queryFn: fetchTeachersForLinking,
+    staleTime: 60_000,
+  })
+}
+
+export function useSetTeacherLink() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teacherId, profileId }: { teacherId: string; profileId: string | null }) =>
+      setTeacherProfileLink(teacherId, profileId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', 'teachers-for-linking'] })
+      void qc.invalidateQueries({ queryKey: ['admin', 'integrity'] })
+      void qc.invalidateQueries({ queryKey: ['teachers'] })
+    },
+  })
+}
+
+export function useSendPasswordReset() {
+  return useMutation({
+    mutationFn: (email: string) => sendPasswordResetEmail(email),
+  })
+}
+
+export function useCreateStaffUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: createStaffUser,
+    // Akun baru muncul di daftar profil & status link guru berubah
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', 'profiles'] })
+      void qc.invalidateQueries({ queryKey: ['admin', 'teachers-for-linking'] })
+    },
+  })
+}
+
 export function useAuditLogs(filters: AuditFilters) {
   return useQuery({
     queryKey: ['admin', 'audit', filters],
@@ -42,20 +88,22 @@ export function useAuditLogs(filters: AuditFilters) {
 // ------------------------------------------------------------
 // Kesehatan database
 // ------------------------------------------------------------
-export function useTableStats() {
+export function useTableStats(opts?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ['admin', 'table-stats'],
     queryFn: fetchTableStats,
     // Hitungan per tabel mahal (puluhan head-count) — anggap segar 1 menit
     staleTime: 60_000,
+    refetchInterval: opts?.refetchInterval,
   })
 }
 
-export function useIntegrityIssues() {
+export function useIntegrityIssues(opts?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ['admin', 'integrity'],
     queryFn: fetchIntegrityIssues,
     staleTime: 60_000,
+    refetchInterval: opts?.refetchInterval,
   })
 }
 

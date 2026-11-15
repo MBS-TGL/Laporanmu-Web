@@ -3,7 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import {
   assignStudents,
+  bulkCreateDorms,
   createDorm,
+  distributeApply,
   fetchClassesBrief,
   fetchDormResidents,
   fetchDormRooms,
@@ -11,15 +13,19 @@ import {
   fetchPlacementCounts,
   fetchPlacementOptions,
   fetchPlacements,
+  fetchPlacementsForExport,
   softDeleteDorm,
   updateDorm,
 } from './api'
-import type { DormFilters, DormFormValues, PlacementFilters } from './types'
+import type { DistribAssignment, DormFormValues, PlacementFilters } from './types'
 
-export function useDorms(filters: DormFilters) {
+// Volumenya kecil (≤200 kamar) — SATU fetch tanpa filter; pencarian, filter,
+// sort, dan statistik dihitung di klien sehingga respons instan tanpa refetch.
+export function useDorms() {
   return useQuery({
-    queryKey: ['dorms', filters],
-    queryFn: () => fetchDorms(filters),
+    queryKey: ['dorms', 'list'],
+    queryFn: () => fetchDorms({}),
+    staleTime: 30_000,
   })
 }
 
@@ -184,6 +190,59 @@ export function useAssignStudents() {
         newData: { count: variables.ids.length, dorm_id: variables.dormId },
       })
       invalidate()
+    },
+  })
+}
+
+// ------------------------------------------------------------
+// Import bulk & distribusi otomatis
+// ------------------------------------------------------------
+export function useBulkCreateDorms() {
+  const invalidate = useInvalidateDormData()
+  return useMutation({
+    mutationFn: (values: DormFormValues[]) => bulkCreateDorms(values),
+    onSuccess: (result) => {
+      if (result.inserted > 0) {
+        void logAudit({
+          action: 'INSERT',
+          source: 'MASTER',
+          tableName: 'dorms',
+          newData: { count: result.inserted, mode: 'import' },
+        })
+      }
+      invalidate()
+    },
+  })
+}
+
+export function useDistributeStudents() {
+  const invalidate = useInvalidateDormData()
+  return useMutation({
+    mutationFn: ({
+      assignments,
+    }: {
+      assignments: DistribAssignment[]
+      /** Hanya untuk catatan audit — jalannya update sama */
+      mode?: 'distribusi-otomatis' | 'tempel-teks'
+    }) => distributeApply(assignments),
+    onSuccess: (moved, variables) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'students',
+        newData: { count: moved, mode: variables.mode ?? 'distribusi-otomatis' },
+      })
+      invalidate()
+    },
+  })
+}
+
+export function usePlacementsExport() {
+  return useMutation({
+    mutationFn: (filters: Omit<PlacementFilters, 'page' | 'pageSize'>) =>
+      fetchPlacementsForExport(filters),
+    onSuccess: (rows) => {
+      void logAudit({ action: 'EXPORT', source: 'MASTER', tableName: 'students', newData: { count: rows.length, mode: 'penempatan' } })
     },
   })
 }

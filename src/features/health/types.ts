@@ -1,5 +1,14 @@
 export type HealthStatus = 'UKS' | 'Dormitory' | 'Returned'
 
+export type HealthPeriod = 'today' | '7d' | '30d' | 'all'
+
+export interface HealthLogFilters {
+  search: string
+  period: HealthPeriod
+  status: HealthStatus | 'all'
+  className: string | 'all'
+}
+
 export interface HealthMedicine {
   id: string
   name: string

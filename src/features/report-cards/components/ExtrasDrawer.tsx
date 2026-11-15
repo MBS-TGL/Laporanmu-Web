@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space } from 'antd'
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { SectionDivider } from '../../../shared/components/SectionDivider'
+import { useEkskulByStudent } from '../../ekskul/hooks'
 import { CATATAN_TEMPLATES, HAFALAN_PRESETS } from '../constants'
 import type { MonthlyDraft, ReportCardStudent, ReportCardType, SemesterDraft } from '../types'
 
@@ -26,6 +28,9 @@ export function ExtrasDrawer({
   onSaveSemester,
 }: ExtrasDrawerProps) {
   const [form] = Form.useForm()
+  const isMonthly = type === 'monthly'
+  // Keikutsertaan ekskul santri — hanya relevan untuk raport semester
+  const ekskulQuery = useEkskulByStudent(!isMonthly && open ? student?.id : undefined)
 
   useEffect(() => {
     if (!open || !student) return
@@ -37,18 +42,34 @@ export function ExtrasDrawer({
     }
   }, [open, student, type, monthlyInitial, semesterInitial, form])
 
+  // Auto-append keikutsertaan ekskul dari DB yang belum ada di draf (tidak menimpa catatan)
+  useEffect(() => {
+    if (isMonthly || !open || !ekskulQuery.data) return
+    const current = ((form.getFieldValue('ekskul') ?? []) as { name?: string }[]).filter(
+      (r) => r && r.name,
+    )
+    const known = new Set(current.map((r) => r.name!.toLowerCase()))
+    const additions = ekskulQuery.data
+      .filter((e) => e.ekskul && !known.has(e.ekskul.name.toLowerCase()))
+      .map((e) => ({ name: e.ekskul!.name, note: '' }))
+    if (additions.length > 0) {
+      form.setFieldValue('ekskul', [...current, ...additions])
+    }
+  }, [ekskulQuery.data, open, isMonthly, form])
+
   const handleSave = () => {
     if (!student) return
     const values = form.getFieldsValue()
     if (type === 'monthly') {
       onSaveMonthly(student.id, values as MonthlyDraft)
     } else {
-      onSaveSemester(student.id, values as SemesterDraft)
+      // Baris ekskul tanpa nama dibuang agar jsonb raport tidak berisi sampah
+      const draft = values as SemesterDraft
+      draft.ekskul = (draft.ekskul ?? []).filter((r) => r && r.name?.trim())
+      onSaveSemester(student.id, draft)
     }
     onClose()
   }
-
-  const isMonthly = type === 'monthly'
 
   return (
     <Drawer
@@ -110,6 +131,58 @@ export function ExtrasDrawer({
         <Form.Item name="sholat" label="Sholat">
           <Input placeholder="Contoh: Berjamaah teratur" maxLength={120} />
         </Form.Item>
+
+        {!isMonthly && (
+          <>
+            <Col span={24}><SectionDivider>
+              Ekstrakurikuler
+            </SectionDivider></Col>
+            <Form.List name="ekskul">
+              {(fields, { add, remove }) => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {fields.map((field) => (
+                    <Row key={field.key} gutter={8} align="top">
+                      <Col span={9}>
+                        <Form.Item
+                          name={[field.name, 'name']}
+                          rules={[{ required: false }]}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Input placeholder="Nama kegiatan" maxLength={60} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          name={[field.name, 'note']}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Input placeholder="Keterangan / capaian" maxLength={200} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={3}>
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => remove(field.name)}
+                          aria-label="Hapus baris ekskul"
+                        />
+                      </Col>
+                    </Row>
+                  ))}
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    onClick={() => add({ name: '', note: '' })}
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    Tambah Ekskul
+                  </Button>
+                </div>
+              )}
+            </Form.List>
+          </>
+        )}
 
         {isMonthly && (
           <>

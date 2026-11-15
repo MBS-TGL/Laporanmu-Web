@@ -1,19 +1,27 @@
-import { useEffect } from 'react'
-import { Form, Input, InputNumber } from 'antd'
+import { useEffect, useMemo } from 'react'
+import { AutoComplete, Form, Input, InputNumber } from 'antd'
 import { BookOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import { bookCodeExists } from '../api'
 import type { Book, BookFormValues } from '../types'
 
+// Kategori bawaan — digabung dengan kategori yang sudah dipakai di katalog
+const PRESET_CATEGORIES = ['Fiqih', 'Hadits', 'Tauhid', 'Akhlak', 'Bahasa', 'Umum', 'Referensi', 'Novel']
+
 interface BookFormProps {
   open: boolean
   book: Book | null
   submitting: boolean
+  usedCategories?: string[]
   onCancel: () => void
   onSubmit: (values: BookFormValues) => void
 }
 
-export function BookForm({ open, book, submitting, onCancel, onSubmit }: BookFormProps) {
+export function BookForm({ open, book, submitting, usedCategories = [], onCancel, onSubmit }: BookFormProps) {
+  const categoryOptions = useMemo(
+    () => Array.from(new Set([...PRESET_CATEGORIES, ...usedCategories.filter(Boolean)])).map((c) => ({ value: c })),
+    [usedCategories],
+  )
   const [form] = Form.useForm<BookFormValues>()
 
   useEffect(() => {
@@ -80,7 +88,14 @@ export function BookForm({ open, book, submitting, onCancel, onSubmit }: BookFor
             <Input placeholder="Contoh: FIQ-001" maxLength={30} />
           </Form.Item>
           <Form.Item name="category" label="Kategori">
-            <Input placeholder="Contoh: Fiqih" maxLength={60} />
+            <AutoComplete
+              options={categoryOptions}
+              filterOption={(input, option) =>
+                String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              placeholder="Contoh: Fiqih"
+              maxLength={60}
+            />
           </Form.Item>
         </div>
 

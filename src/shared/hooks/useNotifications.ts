@@ -76,32 +76,41 @@ async function checkMonthlyReportCards(
   label: string,
 ): Promise<AppNotification | null> {
   try {
-    const { data: allStudents } = await supabase
-      .from('students')
-      .select('id, class_id')
-      .eq('status', 'active')
-      .is('deleted_at', null)
+    // Ringan: hanya kolom class_id, tanpa daftar ribuan student_id untuk .in()
+    const [studentsRes, reportsRes] = await Promise.all([
+      supabase
+        .from('students')
+        .select('class_id')
+        .eq('status', 'active')
+        .is('deleted_at', null),
+      supabase
+        .from('student_monthly_reports')
+        // Join FK + filter embed menggantikan .in('student_id', ribuan id):
+        // hanya baris raport santri aktif di bulan/yang dimaksud yang kembali.
+        .select('student_id, students!inner(class_id)')
+        .eq('month', month)
+        .eq('year', year)
+        .eq('students.status', 'active')
+        .is('students.deleted_at', null),
+    ])
+    const { data: allStudents } = studentsRes
+    const { data: reports } = reportsRes
     if (!allStudents?.length) return null
 
-    const studentIds = allStudents.map((s) => s.id)
-    const { data: reports } = await supabase
-      .from('student_monthly_reports')
-      .select('student_id')
-      .in('student_id', studentIds)
-      .eq('month', month)
-      .eq('year', year)
-
-    const archivedIds = new Set((reports ?? []).map((r) => r.student_id))
-
-    const byClass: Record<string, { total: number; archived: number }> = {}
+    const byClass: Record<string, { total: number; archived: Set<string> }> = {}
     for (const student of allStudents) {
       if (!student.class_id) continue
-      if (!byClass[student.class_id]) byClass[student.class_id] = { total: 0, archived: 0 }
+      if (!byClass[student.class_id]) byClass[student.class_id] = { total: 0, archived: new Set() }
       byClass[student.class_id].total++
-      if (archivedIds.has(student.id)) byClass[student.class_id].archived++
+    }
+    for (const report of reports ?? []) {
+      const classId = (report as { students?: { class_id?: string } | null })?.students?.class_id
+      if (classId && byClass[classId]) byClass[classId].archived.add(report.student_id)
     }
 
-    const entries = Object.entries(byClass)
+    const entries = Object.entries(byClass).map(
+      ([k, v]) => [k, { total: v.total, archived: v.archived.size }] as const,
+    )
     const classesNotDone = entries.filter(([, v]) => v.archived === 0).length
     const partialClasses = entries.filter(([, v]) => v.archived > 0 && v.archived < v.total).length
 
@@ -197,7 +206,7 @@ export function useNotifications() {
           type: 'warning',
           title: 'Siswa belum punya kelas',
           body: `${noClassRes.count} siswa belum ditempatkan ke kelas`,
-          action: { label: 'Data Siswa', route: '/master/students' },
+          action: { label: 'Data Siswa', route: '/students' },
           priority: 2,
         })
       }
@@ -209,7 +218,7 @@ export function useNotifications() {
           type: 'error',
           title: 'Tidak ada tahun ajaran aktif',
           body: 'Set tahun ajaran aktif agar semua fitur berjalan normal',
-          action: { label: 'Atur Sekarang', route: '/master/academic-years' },
+          action: { label: 'Atur Sekarang', route: '/academic-years' },
           priority: 0,
         })
       } else if (activeYears.length > 1) {
@@ -218,7 +227,7 @@ export function useNotifications() {
           type: 'warning',
           title: 'Ada lebih dari 1 tahun ajaran aktif',
           body: `${activeYears.length} tahun ajaran aktif sekaligus`,
-          action: { label: 'Periksa', route: '/master/academic-years' },
+          action: { label: 'Periksa', route: '/academic-years' },
           priority: 1,
         })
       }
@@ -229,7 +238,7 @@ export function useNotifications() {
           type: 'info',
           title: 'Kelas belum ada wali kelas',
           body: `${noTeacherRes.count} kelas belum memiliki wali kelas`,
-          action: { label: 'Data Kelas', route: '/master/classes' },
+          action: { label: 'Data Kelas', route: '/classes' },
           priority: 3,
         })
       }
@@ -240,7 +249,7 @@ export function useNotifications() {
           type: 'info',
           title: `Pelanggaran bulan ${monthStr}`,
           body: `${violationRes.count} pelanggaran tercatat bulan ini`,
-          action: { label: 'Lihat Catatan', route: '/points/reports' },
+          action: { label: 'Lihat Catatan', route: '/point-reports' },
           priority: 4,
         })
       }
@@ -251,7 +260,7 @@ export function useNotifications() {
           type: 'info',
           title: 'Siswa tanpa nomor WA',
           body: `${noPhoneRes.count} siswa tidak bisa menerima raport via WhatsApp`,
-          action: { label: 'Data Siswa', route: '/master/students' },
+          action: { label: 'Data Siswa', route: '/students' },
           priority: 5,
         })
       }

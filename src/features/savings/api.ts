@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase'
 import type { AccountFormValues, SavingsAccount, SavingsStatus, SavingsTxn, TxnValues } from './types'
 
 const ACCOUNT_SELECT =
-  '*, students(id, name, registration_code, classes(name))'
+  '*, students(id, name, registration_code, classes!students_class_id_fkey(name))'
 
 export async function fetchAccounts(): Promise<SavingsAccount[]> {
   const { data, error } = await supabase
@@ -52,6 +52,17 @@ export async function fetchTxns(accountId: string, limit = 100): Promise<Savings
     .limit(limit)
   if (error) throw error
   return (data ?? []) as unknown as SavingsTxn[]
+}
+
+export async function verifyStaffPin(pin: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('verify_staff_pin', { p_pin: pin })
+  if (error) throw error
+  return !!data
+}
+
+export async function setStaffPin(newPin: string): Promise<void> {
+  const { error } = await supabase.rpc('set_staff_pin', { p_new_pin: newPin })
+  if (error) throw error
 }
 
 /**

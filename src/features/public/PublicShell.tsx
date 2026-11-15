@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from 'antd'
+import { motion } from 'motion/react'
+import { shellTransition, shellVariants } from '../../shared/motion'
 
 const GRADIENTS = {
   indigo: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 40%, #f8fafc 100%)',
@@ -23,6 +25,7 @@ interface PublicShellProps {
 /**
  * Shell halaman publik: topbar blur + konten ter-center vertikal + footer tipis.
  * Halaman portal memakai ini supaya konsisten dengan landing page.
+ * Konten utama entrance fade-up sekali saat mount (bukan saat state berubah).
  */
 export function PublicShell({ tint = 'indigo', footerLabel, hideFooterLinks = false, children }: PublicShellProps) {
   const { pathname } = useLocation()
@@ -68,7 +71,15 @@ export function PublicShell({ tint = 'indigo', footerLabel, hideFooterLinks = fa
       </header>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ width: '100%', maxWidth: 880, margin: '0 auto', padding: '36px 20px 48px' }}>{children}</div>
+        <motion.div
+          variants={shellVariants}
+          initial="initial"
+          animate="animate"
+          transition={shellTransition}
+          style={{ width: '100%', maxWidth: 880, margin: '0 auto', padding: '36px 20px 48px' }}
+        >
+          {children}
+        </motion.div>
       </main>
 
       <footer

@@ -1,14 +1,15 @@
-// Klien AI untuk Asisten AI topbar — Gemini via REST tanpa SDK.
-// Butuh VITE_GEMINI_API_KEY di .env.local; tanpa key, asisten memberi pesan ramah.
+// Klien AI untuk Asisten AI topbar & modul AI — Groq (OpenAI-compatible) tanpa SDK.
+// Butuh VITE_GROQ_API_KEY di .env.local; tanpa key, fitur AI memberi pesan ramah.
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
-const MODEL = 'gemini-2.0-flash'
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+// Model free-tier Groq (aktif Nov 2026): 30 RPM, 1K RPD, 8K TPM, 200K TPD.
+const MODEL = 'openai/gpt-oss-120b'
 
 const APP_CONTEXT = `
 IDENTITAS:
 - Platform: Laporanmu (sistem informasi manajemen pondok/sekolah santri).
 - Fitur: data santri & guru, poin santri (pelanggaran & prestasi), asrama, kesehatan,
-  bimbingan konseling, izin pulang, skorsing, gerbang santri, presensi & jadwal KBM,
+  bimbingan konseling, izin keluar, skorsing, laporan gerbang, presensi & jadwal KBM,
   halaqah, rapor bulanan & semester, tahun akademik, audit log.
 
 FAKTA PENTING (FAQ):
@@ -31,51 +32,64 @@ export interface AiChatMessage {
   content: string
 }
 
-/** Pemanggilan Gemini generik — dipakai askAi dan modul AI Insights. */
-export async function callGemini(options: {
+/** Pemanggilan Groq generik — dipakai askAi dan modul AI (CBT, konseling, health, insights). */
+export async function callAi(options: {
   system: string
   prompt: string
   history?: AiChatMessage[]
   maxOutputTokens?: number
 }): Promise<string> {
-  const apiKey = (import.meta.env as Record<string, string | undefined>).VITE_GEMINI_API_KEY
+  const apiKey = (import.meta.env as Record<string, string | undefined>).VITE_GROQ_API_KEY
   if (!apiKey) {
-    return 'API Key AI belum diatur. Tambahkan **VITE_GEMINI_API_KEY** di file .env.local lalu muat ulang aplikasi.'
+    return 'API Key AI belum diatur. Tambahkan **VITE_GROQ_API_KEY** di file .env.local lalu muat ulang aplikasi.'
   }
 
-  const contents = [
+  // Format OpenAI chat: system dulu, lalu history, lalu prompt baru.
+  const messages = [
+    { role: 'system', content: options.system },
     ...(options.history ?? []).map((message) => ({
-      role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: message.content }],
+      role: message.role,
+      content: message.content,
     })),
-    { role: 'user', parts: [{ text: options.prompt }] },
+    { role: 'user', content: options.prompt },
   ]
 
   try {
-    const response = await fetch(
-      `${GEMINI_API_URL}/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          systemInstruction: { parts: [{ text: options.system }] },
-          generationConfig: { temperature: 0.4, maxOutputTokens: options.maxOutputTokens ?? 512 },
-        }),
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
       },
-    )
+      body: JSON.stringify({
+        model: MODEL,
+        messages,
+        temperature: 0.4,
+        max_tokens: options.maxOutputTokens ?? 512,
+      }),
+    })
     if (!response.ok) {
-      return `Maaf, terjadi kesalahan saat menghubungi layanan AI (kode ${response.status}).`
+      let detail = ''
+      try {
+        const err = await response.json()
+        detail = err?.error?.message ? ` — ${err.error.message}` : ''
+      } catch {
+        /* body bukan JSON */
+      }
+      if (response.status === 429) {
+        return 'Layanan AI sedang membatasi permintaan (kuota free tier). Coba lagi beberapa menit.'
+      }
+      return `Maaf, terjadi kesalahan saat menghubungi layanan AI (kode ${response.status})${detail}`
     }
     const data = await response.json()
-    const text: string = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
+    const text: string = data?.choices?.[0]?.message?.content ?? ''
     return text || 'Maaf, saya belum menemukan jawabannya. Coba tanyakan dengan kalimat lain.'
   } catch {
     return 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
   }
 }
 
-/** Kirim prompt ke Gemini dan balas teks jawaban (atau pesan kesalahan yang ramah). */
+/** Kirim prompt ke Groq dan balas teks jawaban (atau pesan kesalahan yang ramah). */
 export async function askAi(prompt: string, history: AiChatMessage[] = []): Promise<string> {
-  return callGemini({ system: SYSTEM_PROMPT, prompt, history })
+  return callAi({ system: SYSTEM_PROMPT, prompt, history })
 }

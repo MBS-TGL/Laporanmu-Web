@@ -29,3 +29,44 @@ export interface AcademicYearFilters {
   page: number
   pageSize: number
 }
+
+/** Baris time_slots (0031) — slot jam KBM per tahun ajaran */
+export interface TimeSlot {
+  id: string
+  academic_year_id: string
+  name: string
+  start_time: string
+  end_time: string
+  sort_order: number
+  is_break: boolean
+  deleted_at: string | null
+  created_at?: string
+}
+
+export interface SlotFormValues {
+  name: string
+  start_time: string
+  end_time: string
+  sort_order: number
+  is_break: boolean
+}
+
+/** Baris rooms (0036) — master ruangan KBM */
+export interface Room {
+  id: string
+  name: string
+  code: string | null
+  capacity: number | null
+  notes: string | null
+  is_active: boolean
+  deleted_at: string | null
+  created_at?: string
+}
+
+export interface RoomFormValues {
+  name: string
+  code?: string
+  capacity?: number
+  notes?: string
+  is_active: boolean
+}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Alert,
   App,
@@ -14,6 +14,7 @@ import {
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -22,7 +23,7 @@ import {
   type TableColumnsType,
   type TableProps,
 } from 'antd'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import {
   CameraOutlined,
   CheckSquareOutlined,
@@ -36,7 +37,6 @@ import {
   FileExcelOutlined,
   HistoryOutlined,
   IdcardOutlined,
-  KeyOutlined,
   ManOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -49,17 +49,24 @@ import {
   ThunderboltOutlined,
   WhatsAppOutlined,
   WomanOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
-import { BulkActionBar } from '../../shared/components/BulkActionBar'
+import { ActionBar } from '../../shared/components/ActionBar'
 import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
-import { TableSortIcon } from '../../shared/components/TableSortIcon'
+import { SortIcon } from '../../shared/components/SortIcon'
 import { columnSortOrder, sortByFromTableChange } from '../../shared/utils/tableSort'
-import { Kbd, ShortcutsModal } from '../../shared/components/ShortcutsModal'
+import { photoThumb } from '../../shared/utils/photoThumb'
+import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
+import { actionMenuLabel } from '../../shared/components/ActionMenu'
+import { ShellItem, ShellStagger } from '../../shared/components/ShellMotion'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../shared/hooks/useDebounce'
-import { usePermissions } from '../../shared/hooks/useProfile'
+import { usePermissions, useProfile } from '../../shared/hooks/useProfile'
+import { WaliTab } from './tabs/WaliTab'
+import { formatDisplayName } from '../../shared/utils/displayName'
+import { useDorms } from '../dorms/hooks'
 import {
   useBulkDeleteStudents,
   useBulkRestoreStudents,
@@ -89,6 +96,11 @@ import { RISK_THRESHOLD } from './api'
 import { isIncomplete } from './completeness'
 import { waLink } from './wa'
 import { STUDENT_STATUS_META, GENDER_LABEL } from './status'
+import { ArchivePage } from './ArchivePage'
+import { AlumniPage } from './AlumniPage'
+import { PromoteModal } from './PromotePage'
+import { useUrlTab } from '../../shared/hooks/useUrlTab'
+import { TabActionsContext, useTabActions } from '../../shared/components/ActionsSlot'
 import type {
   Gender,
   MissingField,
@@ -99,10 +111,10 @@ import type {
   StudentStatus,
 } from './types'
 
+// Alumni (graduated) tidak termasuk — dikelola di AlumniPage; "Semua" = aktif + pindah + keluar
 const STATUS_OPTIONS = [
   { label: 'Semua', value: '' },
   { label: 'Aktif', value: 'active' },
-  { label: 'Lulus', value: 'graduated' },
   { label: 'Pindah', value: 'transferred' },
   { label: 'Keluar', value: 'left' },
 ]
@@ -151,18 +163,28 @@ function initials(name: string): string {
   return name.charAt(0).toUpperCase()
 }
 
-export function StudentsPage() {
-  const { message, modal } = App.useApp()
+function StudentsActiveTab({
+  active,
+  onNavigateTab,
+  onOpenPromote,
+}: {
+  /** true saat tab ini aktif — wajib untuk gate portal aksi tab bar */
+  active: boolean
+  onNavigateTab: (tab: string) => void
+  onOpenPromote: () => void
+}) {
+  const { message } = App.useApp()
   const { token } = theme.useToken()
   const { canWrite, canDelete } = usePermissions()
-  const navigate = useNavigate()
-  // Deep-link dari halaman lain (mis. ClassDrawer "Kelola santri") — dibaca sekali saat mount
+  // Deep-link dari halaman lain (mis. ClassDrawer "Kelola santri", DetailDrawer asrama), dibaca sekali saat mount
   const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 350)
   const [classId, setClassId] = useState<string | undefined>(() => searchParams.get('classId') ?? undefined)
+  const [dormId, setDormId] = useState<string | undefined>(() => searchParams.get('dormId') ?? undefined)
   const [gender, setGender] = useState<Gender | undefined>()
-  const [status, setStatus] = useState<StudentStatus | ''>('')
+  // Default hanya aktif — lulus/pindah/keluar tetap bisa dilihat lewat tab "Semua"
+  const [status, setStatus] = useState<StudentStatus | ''>('active')
   const [sortBy, setSortBy] = useState<SortOption | undefined>()
   const [missing, setMissing] = useState<MissingField | undefined>()
   const [pointMode, setPointMode] = useState<PointMode | undefined>()
@@ -191,6 +213,7 @@ export function StudentsPage() {
   const searchInputRef = useRef<InputRef>(null)
 
   const classesQuery = useClassesBrief()
+  const dormsQuery = useDorms()
   const statsQuery = useStudentStats()
   const stats = statsQuery.data
 
@@ -217,10 +240,13 @@ export function StudentsPage() {
     () => allStudents.filter((s) => selectedIdSet.has(s.id)),
     [allStudents, selectedIdSet],
   )
+  const alreadyPinned = selectedStudents.filter((s) => s.pin).length
 
   const rows = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
     const data = allStudents.filter((s) => {
+      // Alumni selalu dikecualikan dari daftar — pintu utamanya halaman Alumni
+      if (s.status === 'graduated') return false
       if (
         q &&
         !`${s.name} ${s.registration_code} ${s.nisn ?? ''} ${s.nis ?? ''} ${s.classes?.name ?? ''} ${s.dorms?.name ?? ''} ${s.guardian_name ?? ''} ${s.phone ?? ''}`
@@ -229,6 +255,7 @@ export function StudentsPage() {
       )
         return false
       if (classId && s.class_id !== classId) return false
+      if (dormId && s.dorm_id !== dormId) return false
       if (gender && s.gender !== gender) return false
       if (status && s.status !== status) return false
       if (missing === 'photo' && s.photo_url) return false
@@ -273,7 +300,7 @@ export function StudentsPage() {
       year_asc: (a, b) => (a.graduation_year ?? 0) - (b.graduation_year ?? 0) || cmpName(a, b),
     }
     return [...data].sort(comparators[sortBy ?? 'name_asc'])
-  }, [allStudents, debouncedSearch, classId, gender, status, missing, pointMode, sortBy])
+  }, [allStudents, debouncedSearch, classId, dormId, gender, status, missing, pointMode, sortBy])
 
   // Pagination client-side — slice dari hasil filter+sort di memori
   const paginatedRows = useMemo(
@@ -286,8 +313,9 @@ export function StudentsPage() {
   const clearAllFilters = () => {
     setSearch('')
     setClassId(undefined)
+    setDormId(undefined)
     setGender(undefined)
-    setStatus('')
+    setStatus('active')
     setSortBy(undefined)
     setMissing(undefined)
     setPointMode(undefined)
@@ -296,7 +324,7 @@ export function StudentsPage() {
   }
 
   // Jumlah filter lanjutan aktif — badge di tombol "Lainnya"
-  const advFilterCount = [classId, sortBy, missing, pointMode].filter(Boolean).length
+  const advFilterCount = [classId, dormId, sortBy, missing, pointMode].filter(Boolean).length
 
   // Chip filter aktif — bisa dihapus satu per satu
   const filterChips = useMemo<FilterChip[]>(() => {
@@ -317,6 +345,17 @@ export function StudentsPage() {
         label: `Kelas: ${name ?? classId}`,
         onClear: () => {
           setClassId(undefined)
+          resetPage()
+        },
+      })
+    }
+    if (dormId) {
+      const name = dormsQuery.data?.find((d) => d.id === dormId)?.name
+      chips.push({
+        key: 'dorm',
+        label: `Asrama: ${name ?? dormId}`,
+        onClear: () => {
+          setDormId(undefined)
           resetPage()
         },
       })
@@ -351,7 +390,7 @@ export function StudentsPage() {
         },
       })
     return chips
-  }, [debouncedSearch, classId, sortBy, missing, pointMode, classesQuery.data])
+  }, [debouncedSearch, classId, dormId, sortBy, missing, pointMode, classesQuery.data, dormsQuery.data])
 
   const toggleSelectAll = () => {
     // Memilih semua baris HASIL FILTER (lintas halaman) — bukan hanya halaman aktif
@@ -494,55 +533,49 @@ export function StudentsPage() {
     setExportOpen(true)
   }
 
-  const confirmBulkArchive = () => {
-    const ids = selectedIds
+  const bulkArchive = (ids: string[]) => {
     const count = ids.length
-    modal.confirm({
-      title: `Arsipkan ${count} siswa terpilih?`,
-      content: 'Data akan ditandai terhapus (soft delete) dan bisa dipulihkan lewat menu Arsip Siswa.',
-      okText: 'Arsipkan',
-      okButtonProps: { danger: true },
-      cancelText: 'Batal',
-      onOk: () =>
-        bulkDeleteMutation
-          .mutateAsync(ids)
-          .then(() => {
-            setSelectedIds([])
-            showUndoToast(ids, count)
-          })
-          .catch((err: Error) => message.error(err.message || 'Gagal mengarsipkan siswa')),
-    })
+    bulkDeleteMutation
+      .mutateAsync(ids)
+      .then(() => {
+        setSelectedIds([])
+        showUndoToast(ids, count)
+      })
+      .catch((err: Error) => message.error(err.message || 'Gagal mengarsipkan siswa'))
   }
 
   /** Generate PIN portal wali massal untuk siswa terpilih (RPC 0021) */
-  const confirmBulkGeneratePins = () => {
-    const ids = [...selectedIdSet]
-    const count = ids.length
-    if (count === 0) return
-    const alreadyPinned = selectedStudents.filter((s) => s.pin).length
-    modal.confirm({
-      title: `Buat PIN untuk ${count} siswa terpilih?`,
-      content:
-        alreadyPinned > 0
-          ? `PIN 6 digit akan dibuat otomatis. ${alreadyPinned} siswa yang sudah punya PIN akan diganti — kartu yang sudah tercetak harus dicetak ulang.`
-          : 'PIN 6 digit akan dibuat otomatis untuk masuk portal wali.',
-      okText: 'Buat PIN',
-      cancelText: 'Batal',
-      onOk: () =>
-        generatePinsMutation
-          .mutateAsync(ids)
-          .then((results) => {
-            message.success(
-              results.length === 1 ? '1 PIN berhasil dibuat' : `${results.length} PIN berhasil dibuat`,
-            )
-          })
-          .catch((err: Error) => message.error(err.message || 'Gagal membuat PIN')),
-    })
+  const bulkGeneratePins = (ids: string[]) => {
+    generatePinsMutation
+      .mutateAsync(ids)
+      .then((results) => {
+        message.success(
+          results.length === 1 ? '1 PIN berhasil dibuat' : `${results.length} PIN berhasil dibuat`,
+        )
+      })
+      .catch((err: Error) => message.error(err.message || 'Gagal membuat PIN'))
   }
 
   // -------------------------------------------------------------------------
   // Menu "Lainnya" di header
   // -------------------------------------------------------------------------
+
+  // Item menu aksi halaman — gaya seragam dua baris (judul + deskripsi) via helper shared.
+  const menuItem = (
+    key: string,
+    icon: ReactNode,
+    title: string,
+    desc: string,
+    shortcut?: string[],
+    extra?: { danger?: boolean; disabled?: boolean; onClick?: () => void },
+  ) => ({
+    key,
+    icon,
+    danger: extra?.danger,
+    disabled: extra?.disabled,
+    onClick: extra?.onClick,
+    label: actionMenuLabel(title, desc, shortcut),
+  })
 
   const headerMenu = {
     items: [
@@ -551,62 +584,10 @@ export function StudentsPage() {
         type: 'group' as const,
         label: 'Data',
         children: [
-          {
-            key: 'import',
-            icon: <FileExcelOutlined />,
-            label: (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span><div style={{ fontWeight: 600 }}>Import Data</div><div style={{ fontSize: 12, opacity: 0.65 }}>Unggah dari Excel atau Google Sheets</div></span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                  <Kbd>I</Kbd>
-                </span>
-              </div>
-            ),
-            disabled: !canWrite,
-            onClick: () => setImportOpen(true),
-          },
-          {
-            key: 'export',
-            icon: <ExportOutlined />,
-            label: (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span><div style={{ fontWeight: 600 }}>Export Data</div><div style={{ fontSize: 12, opacity: 0.65 }}>Cadangkan seluruh database</div></span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                  <Kbd>Ctrl</Kbd>
-                  <Kbd>E</Kbd>
-                </span>
-              </div>
-            ),
-            onClick: () => openExport('filtered'),
-          },
-          {
-            key: 'bulk-photo',
-            icon: <CameraOutlined />,
-            label: (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span><div style={{ fontWeight: 600 }}>Bulk Foto</div><div style={{ fontSize: 12, opacity: 0.65 }}>Update foto siswa secara masal via NISN</div></span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                  <Kbd>B</Kbd>
-                </span>
-              </div>
-            ),
-            disabled: !canWrite,
-            onClick: () => setBulkPhotoOpen(true),
-          },
-          {
-            key: 'wa-settings',
-            icon: <WhatsAppOutlined />,
-            label: (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span><div style={{ fontWeight: 600 }}>Pengaturan WA</div><div style={{ fontSize: 12, opacity: 0.65 }}>Token Fonnte untuk broadcast wali santri</div></span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                  <Kbd>W</Kbd>
-                </span>
-              </div>
-            ),
-            disabled: !canWrite,
-            onClick: () => setWaSettingsOpen(true),
-          },
+          menuItem('import', <FileExcelOutlined />, 'Import Data', 'Unggah dari Excel atau Google Sheets', ['I'], { disabled: !canWrite, onClick: () => setImportOpen(true) }),
+          menuItem('export', <ExportOutlined />, 'Export Data', 'Cadangkan seluruh database', ['Ctrl', 'E'], { onClick: () => openExport('filtered') }),
+          menuItem('bulk-photo', <CameraOutlined />, 'Bulk Foto', 'Update foto siswa secara masal via NISN', ['B'], { disabled: !canWrite, onClick: () => setBulkPhotoOpen(true) }),
+          menuItem('wa-settings', <WhatsAppOutlined />, 'Pengaturan WA', 'Token Fonnte untuk broadcast wali santri', ['W'], { disabled: !canWrite, onClick: () => setWaSettingsOpen(true) }),
         ],
       },
       {
@@ -614,40 +595,9 @@ export function StudentsPage() {
         type: 'group' as const,
         label: 'Manajemen',
         children: [
-          {
-            key: 'bulk-card',
-            icon: <IdcardOutlined />,
-            label: (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span><div style={{ fontWeight: 600 }}>Cetak Kartu Massal</div><div style={{ fontSize: 12, opacity: 0.65 }}>Per kelas, semua aktif, atau sesuai filter</div></span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                  <Kbd>C</Kbd>
-                </span>
-              </div>
-            ),
-            onClick: () => setBulkCardOpen(true),
-          },
-          {
-            key: 'archive',
-            icon: <HistoryOutlined />,
-            label: (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span><div style={{ fontWeight: 600 }}>Arsip Siswa</div><div style={{ fontSize: 12, opacity: 0.65 }}>Lihat &amp; pulihkan data siswa tidak aktif</div></span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-                  <Kbd>A</Kbd>
-                </span>
-              </div>
-            ),
-            onClick: () => navigate('/master/students/archive'),
-          },
-          {
-            key: 'reset-points',
-            icon: <SyncOutlined />,
-            label: <div><div style={{ fontWeight: 600 }}>Reset Poin</div><div style={{ fontSize: 12, opacity: 0.65 }}>Bersihkan semua poin untuk semester baru</div></div>,
-            danger: true,
-            disabled: !canWrite,
-            onClick: () => setResetOpen(true),
-          },
+          menuItem('bulk-card', <IdcardOutlined />, 'Cetak Kartu Massal', 'Per kelas, semua aktif, atau sesuai filter', ['C'], { onClick: () => setBulkCardOpen(true) }),
+          menuItem('promote', <RiseOutlined />, 'Kenaikan Kelas', 'Wizard promosi massal & kelulusan tahun ajaran', undefined, { disabled: !canWrite, onClick: onOpenPromote }),
+          menuItem('reset-points', <SyncOutlined />, 'Reset Poin', 'Bersihkan semua poin untuk semester baru', undefined, { danger: true, disabled: !canWrite, onClick: () => setResetOpen(true) }),
         ],
       },
     ],
@@ -751,7 +701,7 @@ export function StudentsPage() {
       label: 'Buka arsip siswa',
       group: 'Aksi',
       icon: <HistoryOutlined />,
-      run: () => navigate('/master/students/archive'),
+      run: () => onNavigateTab('arsip'),
     },
     {
       keys: ['P'],
@@ -782,11 +732,11 @@ export function StudentsPage() {
   // Kolom tabel
   // -------------------------------------------------------------------------
 
-  // Ikon sorter gaya Esceha.id — template di shared/components/TableSortIcon.
+  // Ikon sorter gaya Esceha.id — template di shared/components/SortIcon.
   // Dibungkus fungsi: antd memanggil sortIcon sebagai fungsi biasa, jadi komponen
   // harus dirender sebagai elemen agar hooks-nya legal.
   const sortIcon = ({ sortOrder }: { sortOrder?: 'ascend' | 'descend' | null }) => (
-    <TableSortIcon sortOrder={sortOrder} />
+    <SortIcon sortOrder={sortOrder} />
   )
 
   // Urutan kolom sinkron dengan state sortBy (dipakai juga dropdown "Urutkan")
@@ -812,7 +762,7 @@ export function StudentsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Avatar
             size={32}
-            src={privacy ? undefined : row.photo_url || undefined}
+            src={privacy ? undefined : photoThumb(row.photo_url)}
             style={{ background: token.colorPrimaryBg, color: token.colorPrimaryTextActive, fontWeight: 700, flexShrink: 0 }}
           >
             {privacy ? '*' : initials(row.name)}
@@ -823,7 +773,7 @@ export function StudentsPage() {
               style={{ padding: 0, height: 'auto', fontWeight: 600, fontSize: 14 }}
               onClick={() => setDetail(row)}
             >
-              {row.name}
+              {formatDisplayName(row.name)}
             </Button>
             <div style={{ fontSize: 12, color: token.colorTextTertiary, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>
@@ -875,9 +825,18 @@ export function StudentsPage() {
             '-'
           )}
           {row.dorms?.name && (
-            <Typography.Text type="secondary" style={{ fontSize: 11.5 }}>
+            <Tag
+              style={{
+                marginInlineStart: 4,
+                borderRadius: 6,
+                fontWeight: 500,
+                background: token.colorFillTertiary,
+                color: token.colorTextSecondary,
+                border: 'none',
+              }}
+            >
               {row.dorms.name}
-            </Typography.Text>
+            </Tag>
           )}
         </div>
       ),
@@ -937,15 +896,16 @@ export function StudentsPage() {
           <Tooltip title="Kartu portal (kode & PIN)">
             <Button type="text" icon={<IdcardOutlined />} onClick={() => setCardStudents([row])} />
           </Tooltip>
-          {row.phone && (
-            <Tooltip title="Chat WhatsApp">
+          <Tooltip title={row.phone ? 'Chat WhatsApp' : 'Nomor HP belum tersedia'}>
+            <span>
               <Button
                 type="text"
-                icon={<WhatsAppOutlined style={{ color: token.colorSuccess }} />}
-                onClick={() => window.open(waLink(row.phone!), '_blank', 'noopener')}
+                disabled={!row.phone}
+                icon={<WhatsAppOutlined style={{ color: row.phone ? token.colorSuccess : undefined }} />}
+                onClick={() => row.phone && window.open(waLink(row.phone), '_blank', 'noopener')}
               />
-            </Tooltip>
-          )}
+            </span>
+          </Tooltip>
           {canWrite && (
             <Tooltip title="Edit">
               <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(row)} />
@@ -956,7 +916,7 @@ export function StudentsPage() {
               title="Hapus siswa ini?"
               description="Data akan ditandai terhapus (soft delete)."
               onConfirm={() => handleDelete(row.id)}
-              okText="Hapus"
+              okText="Ya, Hapus"
               cancelText="Batal"
             >
               <Tooltip title="Hapus">
@@ -972,55 +932,52 @@ export function StudentsPage() {
   // Sinkron dengan toggleSelectAll & dropdown pilihan tabel: semua baris hasil filter
   const allFilteredSelected = rows.length > 0 && rows.every((r) => selectedIdSet.has(r.id))
 
+  // Aksi halaman di ujung kanan tab bar (judul & subtitle ada di shell, di atas tab bar)
+  const tabActions = useTabActions(
+    active,
+    <Space wrap>
+      <Tooltip title="Muat ulang (R)">
+        <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={handleRefresh} />
+      </Tooltip>
+      <Dropdown
+        menu={headerMenu}
+        trigger={['click']}
+        placement="bottomRight"
+        overlayStyle={{ minWidth: 300 }}
+      >
+        <Tooltip title="Menu lainnya">
+          <Button icon={<MoreOutlined />} />
+        </Tooltip>
+      </Dropdown>
+      <Tooltip title="Shortcut keyboard (?)">
+        <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+      </Tooltip>
+      <Tooltip title="Mode privasi (P)">
+        <Button
+          icon={privacy ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+          onClick={togglePrivacy}
+          style={
+            privacy
+              ? {
+                  background: token.colorWarningBg,
+                  borderColor: token.colorWarningBorder,
+                  color: token.colorWarningTextActive,
+                }
+              : undefined
+          }
+        />
+      </Tooltip>
+      {canWrite && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          Tambah Siswa
+        </Button>
+      )}
+    </Space>,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Data Siswa"
-        subtitle={`Kelola ${stats ? stats.total : '…'} data siswa aktif dalam sistem laporan.`}
-        extra={
-          <Space wrap>
-            <Tooltip title="Muat ulang (R)">
-              <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={handleRefresh} />
-            </Tooltip>
-            <Dropdown
-              menu={headerMenu}
-              trigger={['click']}
-              placement="bottomRight"
-              overlayStyle={{ minWidth: 300 }}
-            >
-              <Tooltip title="Menu lainnya">
-                <Button icon={<MoreOutlined />} />
-              </Tooltip>
-            </Dropdown>
-            <Tooltip title="Shortcut keyboard (?)">
-              <Button icon={<KeyOutlined />} onClick={shortcuts.open} />
-            </Tooltip>
-            <Tooltip title="Mode privasi (P)">
-              <Button
-                icon={privacy ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                onClick={togglePrivacy}
-                style={
-                  privacy
-                    ? {
-                        background: token.colorWarningBg,
-                        borderColor: token.colorWarningBorder,
-                        color: token.colorWarningTextActive,
-                      }
-                    : undefined
-                }
-              >
-                Privasi
-              </Button>
-            </Tooltip>
-            {canWrite && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-                Tambah Siswa
-              </Button>
-            )}
-          </Space>
-        }
-      />
-
+      {tabActions}
       <StatsRow
         stats={stats}
         loading={statsQuery.isPending}
@@ -1046,7 +1003,7 @@ export function StudentsPage() {
           style={{
             display: 'flex',
             flexWrap: 'wrap',
-            gap: 16,
+            gap: 12,
             marginBottom: 14,
             paddingBottom: 14,
             borderBottom: `1px dashed ${token.colorBorderSecondary}`,
@@ -1078,7 +1035,7 @@ export function StudentsPage() {
               setSearch(e.target.value)
               resetPage()
             }}
-            style={{ flex: '1 1 240px', minWidth: 220 }}
+            style={{ flex: '1 1 160px', minWidth: 150 }}
           />
           <Tooltip title="Pilih semua hasil filter / batal (Ctrl+A)">
             <Button
@@ -1217,39 +1174,47 @@ export function StudentsPage() {
       </Card>
 
       {/* Bar aksi massal — muncul saat ada siswa yang dipilih */}
-      <BulkActionBar count={selectedIds.length} onClear={() => setSelectedIds([])}>
-        <Button size="small" icon={<ExportOutlined />} onClick={() => openExport('selected')}>
-          Ekspor
-        </Button>
-        <Button size="small" icon={<IdcardOutlined />} onClick={() => setCardStudents(selectedStudents)}>
-          Kartu
-        </Button>
-        {canWrite && (
-          <Button size="small" icon={<KeyOutlined />} onClick={confirmBulkGeneratePins}>
-            Buat PIN
-          </Button>
-        )}
-        {canWrite && (
-          <Button size="small" icon={<SwapOutlined />} onClick={() => setMoveOpen(true)}>
-            Kelas
-          </Button>
-        )}
-        {canWrite && (
-          <Button size="small" icon={<SafetyCertificateOutlined style={{ color: token.colorPrimary }} />} onClick={() => setGraduateOpen(true)}>
-            Luluskan
-          </Button>
-        )}
-        {canWrite && (
-          <Button size="small" icon={<WhatsAppOutlined style={{ color: token.colorSuccess }} />} onClick={() => setWaOpen(true)}>
-            WA
-          </Button>
-        )}
-        {canWrite && (
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={confirmBulkArchive}>
-            Arsipkan
-          </Button>
-        )}
-      </BulkActionBar>
+      <ActionBar
+        count={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        actions={[
+          { key: 'export', label: 'Ekspor', icon: <ExportOutlined />, onClick: () => openExport('selected') },
+          { key: 'card', label: 'Kartu', icon: <IdcardOutlined />, onClick: () => setCardStudents(selectedStudents) },
+          {
+            key: 'pin',
+            label: 'Buat PIN',
+            icon: <QuestionCircleOutlined />,
+            hidden: !canWrite,
+            loading: generatePinsMutation.isPending,
+            confirm: {
+              title: `Buat PIN untuk ${selectedIds.length} siswa terpilih?`,
+              description:
+                alreadyPinned > 0
+                  ? `PIN 6 digit akan dibuat otomatis. ${alreadyPinned} siswa yang sudah punya PIN akan diganti, kartu yang sudah tercetak harus dicetak ulang.`
+                  : 'PIN 6 digit akan dibuat otomatis untuk masuk portal wali.',
+              okText: 'Ya, Buat PIN',
+            },
+            onClick: () => bulkGeneratePins([...selectedIdSet]),
+          },
+          { key: 'move', label: 'Kelas', icon: <SwapOutlined />, hidden: !canWrite, onClick: () => setMoveOpen(true) },
+          { key: 'graduate', label: 'Luluskan', icon: <SafetyCertificateOutlined />, hidden: !canWrite, onClick: () => setGraduateOpen(true) },
+          { key: 'wa', label: 'WA', icon: <WhatsAppOutlined />, hidden: !canWrite, onClick: () => setWaOpen(true) },
+          {
+            key: 'archive',
+            label: 'Arsipkan',
+            icon: <DeleteOutlined />,
+            variant: 'danger',
+            hidden: !canWrite,
+            loading: bulkDeleteMutation.isPending,
+            confirm: {
+              title: `Arsipkan ${selectedIds.length} siswa terpilih?`,
+              description: 'Data akan ditandai terhapus (soft delete) dan bisa dipulihkan lewat tab Arsip.',
+              okText: 'Ya, Arsipkan',
+            },
+            onClick: () => bulkArchive(selectedIds),
+          },
+        ]}
+      />
 
       <StudentForm
         open={formOpen}
@@ -1332,5 +1297,85 @@ export function StudentsPage() {
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>
+  )
+}
+
+// ─── Shell: satu halaman Siswa bertab (pola ?tab= — SKILLS.md §Skill 2) ─────
+const STUDENT_TAB_ITEMS = [
+  { key: 'aktif', label: 'Santri Aktif' },
+  { key: 'arsip', label: 'Arsip' },
+  { key: 'alumni', label: 'Alumni' },
+  { key: 'wali', label: 'Hub Wali' },
+]
+
+/** Judul & subtitle per tab — dirender shell di ATAS tab bar (pola AttendancePage). */
+const STUDENT_TAB_META: Record<string, { title: string; subtitle: (total?: number) => string }> = {
+  aktif: {
+    title: 'Data Siswa',
+    subtitle: (total) => `Kelola ${total ?? '…'} data siswa aktif dalam sistem laporan.`,
+  },
+  arsip: {
+    title: 'Arsip Siswa',
+    subtitle: () => 'Lihat & pulihkan data siswa yang sudah dihapus',
+  },
+  alumni: {
+    title: 'Alumni',
+    subtitle: () => 'Jejak siswa yang telah lulus, riwayat poin, raport, dan log tetap tersimpan',
+  },
+  wali: {
+    title: 'Hub Wali',
+    subtitle: () => 'Rekap ayah/ibu/wali per keluarga, dikelompokkan per nomor HP',
+  },
+}
+
+/** Halaman Siswa: aktif / arsip / alumni dalam satu route (?tab=), aksi kenaikan kelas = modal. */
+export function StudentsPage() {
+  const { tab, setTab } = useUrlTab('aktif', { keys: STUDENT_TAB_ITEMS.map((t) => t.key) })
+  const { role } = useProfile()
+  // RLS student_guardians: hanya developer/admin/manager yang bisa baca
+  const canViewWali = Boolean(role && ['developer', 'admin', 'manager'].includes(role))
+  const [promoteOpen, setPromoteOpen] = useState(false)
+  // Cache dibagi dengan useStudentStats di tab aktif — tanpa fetch ganda
+  const statsQuery = useStudentStats()
+  const meta = STUDENT_TAB_META[tab] ?? STUDENT_TAB_META.aktif
+  // Host aksi di ujung kanan tab bar — diisi tiap tab via useTabActions (ActionsSlot)
+  const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
+
+  return (
+    <TabActionsContext.Provider value={actionsHost}>
+      <ShellStagger>
+        <ShellItem>
+          <PageHeader
+            title={meta.title}
+            subtitle={meta.subtitle(statsQuery.data?.total)}
+            extra={<div ref={setActionsHost} style={{ display: 'flex', alignItems: 'center' }} />}
+          />
+        </ShellItem>
+        <ShellItem>
+          <Tabs
+            activeKey={tab}
+            onChange={setTab}
+        items={STUDENT_TAB_ITEMS.filter((t) => t.key !== 'wali' || canViewWali).map((t) => ({
+          ...t,
+          children:
+            t.key === 'aktif' ? (
+              <StudentsActiveTab
+                active={tab === 'aktif'}
+                onNavigateTab={setTab}
+                onOpenPromote={() => setPromoteOpen(true)}
+              />
+            ) : t.key === 'arsip' ? (
+              <ArchivePage active={tab === 'arsip'} />
+            ) : t.key === 'wali' ? (
+              <WaliTab active={tab === 'wali'} />
+            ) : (
+              <AlumniPage active={tab === 'alumni'} />
+            ),
+        }))}
+        />
+        </ShellItem>
+      </ShellStagger>
+      <PromoteModal open={promoteOpen} onClose={() => setPromoteOpen(false)} />
+    </TabActionsContext.Provider>
   )
 }

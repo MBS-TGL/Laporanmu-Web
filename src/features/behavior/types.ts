@@ -36,7 +36,7 @@ export interface BehaviorReport {
   notes: string | null
   reported_at: string
   created_at?: string
-  student?: { name: string; registration_code: string } | null
+  student?: { id: string; name: string; registration_code: string } | null
   rule?: { name: string; category: string | null } | null
   reporter?: { name: string } | null
 }

@@ -1,468 +1,634 @@
 import { useMemo, useState } from 'react'
 import {
+  Alert,
   App,
   Button,
   Card,
-  Col,
-  DatePicker,
   Empty,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Segmented,
-  Select,
   Space,
-  Statistic,
   Table,
-  Typography,
-  type TableColumnsType,
+  Tooltip,
 } from 'antd'
-import { PlusOutlined, PrinterOutlined } from '@ant-design/icons'
-import type { Dayjs } from 'dayjs'
-import dayjs from 'dayjs'
-import { PageHeader } from '../../shared/components/PageHeader'
-import { StatusTag } from '../../shared/components/StatusTag'
-import { usePermissions } from '../../shared/hooks/useProfile'
-import { logAudit } from '../../shared/utils/auditLogger'
-import { supabase } from '../../lib/supabase'
-import { useDebounce } from '../../shared/hooks/useDebounce'
 import {
+  BarChartOutlined,
+  ExportOutlined,
+  ImportOutlined,
+  PrinterOutlined,
+  PlusOutlined,
+  QrcodeOutlined,
+  QuestionCircleOutlined,
+  SearchOutlined,
+  StopOutlined,
+  CheckCircleOutlined,
+  WhatsAppOutlined,
+  TeamOutlined,
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { PageHeader } from '../../shared/components/PageHeader'
+import { ActionBar } from '../../shared/components/ActionBar'
+import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
+import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
+import { usePermissions } from '../../shared/hooks/useProfile'
+import { waLink } from '../students/wa'
+import { supabase } from '../../lib/supabase'
+import { formatDisplayName } from '../../shared/utils/displayName'
+import {
+  useConfirmDeparture,
+  useConfirmReturn,
   useCreatePermit,
-  usePermitStudents,
+  useDeletePermit,
   usePermits,
+  useUpdatePermit,
   useUpdatePermitStatus,
 } from './hooks'
-import type { LeavePermit, PermitFormValues, PermitStatus } from './types'
-
-const STATUS_META: Record<PermitStatus, { label: string; color: string }> = {
-  issued: { label: 'Diterbitkan', color: 'blue' },
-  departed: { label: 'Berangkat', color: 'orange' },
-  returned: { label: 'Kembali', color: 'green' },
-  overdue: { label: 'Terlambat', color: 'red' },
-  cancelled: { label: 'Dibatalkan', color: 'default' },
-}
-
-const PURPOSE_PRESETS = [
-  'Pulang ke rumah',
-  'Belanja kebutuhan',
-  'Kontrol kesehatan',
-  'Keperluan keluarga',
-  'Mengurus administrasi',
-  'Lainnya',
-]
+import { effectiveStatus, filterPermits, permitWaText } from './permitUtils'
+import { usePermitFilters } from './usePermitFilters'
+import { buildPermitColumns } from './components/PermitColumns'
+import { StatsRow } from './components/StatsRow'
+import { FilterBar } from './components/FilterBar'
+import { FormModal } from './components/FormModal'
+import { PermitBatchPrint, PrintModal, PermitRecapPrint } from './components/PrintModal'
+import { DetailDrawer } from './components/DetailDrawer'
+import { ScanModal } from './components/ScanModal'
+import { IssueModal } from './components/IssueModal'
+import { ImportModal } from './components/ImportModal'
+import { ExportModal } from './components/ExportModal'
+import { WaReminder } from './components/WaReminder'
+import { PermitInsights } from './components/PermitInsights'
+import type { LeavePermit, PermitFormValues, PermitStudentBrief } from './types'
 
 export function PermitPage() {
-  const { message } = App.useApp()
-  const { canWrite } = usePermissions()
-  const [statusFilter, setStatusFilter] = useState<PermitStatus | ''>('')
-  const [formOpen, setFormOpen] = useState(false)
-  const [printPermit, setPrintPermit] = useState<LeavePermit | null>(null)
+  const { message, modal } = App.useApp()
+  const { canWrite, canDelete } = usePermissions()
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  const permitsQuery = usePermits(statusFilter || undefined)
+  // ------------------------------------------------------------
+  // Filter state — dipindah ke usePermitFilters (search, tanggal,
+  // kelas, status tersinkron URL, chips, hasil filter in-memory)
+  // ------------------------------------------------------------
+  const permitsQuery = usePermits()
   const permits = useMemo(() => permitsQuery.data ?? [], [permitsQuery.data])
-  const createMutation = useCreatePermit()
-  const statusMutation = useUpdatePermitStatus()
+  const {
+    search,
+    setSearch,
+    searchInputRef,
+    dateRange,
+    setDateRange,
+    classId,
+    setClassId,
+    statusFilter,
+    changeStatus,
+    classesQuery,
+    chips,
+    filtered,
+  } = usePermitFilters(permits)
 
-  const today = new Date().toISOString().slice(0, 10)
-  const issuedToday = permits.filter((p) => p.leave_date === today && p.status !== 'cancelled').length
-  const active = permits.filter((p) => p.status === 'departed').length
-  const overdue = permits.filter((p) => p.status === 'departed' && new Date(p.return_deadline) < new Date()).length
+  // ------------------------------------------------------------
+  // Modal / drawer state (disimpan id → selalu data terbaru dari query)
+  // ------------------------------------------------------------
+  // Preset santri dari halaman lain (Mode Gerbang di halaman Gerbang mengirim
+  // via location.state — form langsung terbuka dengan santri terisi)
+  // ------------------------------------------------------------
+  const navState = (location.state ?? {}) as { presetStudent?: PermitStudentBrief } | null
+
+  const [formOpen, setFormOpen] = useState(() => Boolean(navState?.presetStudent))
+  const [editId, setEditId] = useState<string | null>(null)
+  const [duplicateId, setDuplicateId] = useState<string | null>(null)
+  const [presetStudent, setPresetStudent] = useState<PermitStudentBrief | null>(
+    navState?.presetStudent ?? null,
+  )
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [printId, setPrintId] = useState<string | null>(null)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [scanMode, setScanMode] = useState<'gate' | 'issue'>('gate')
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exportScope, setExportScope] = useState<'filtered' | 'selected'>('filtered')
+  const [recapPrinting, setRecapPrinting] = useState(false)
+  const [batchPrinting, setBatchPrinting] = useState(false)
+  const [insightsOpen, setInsightsOpen] = useState(false)
+  const [waReminder, setWaReminder] = useState<{ open: boolean; permits: LeavePermit[] }>({
+    open: false,
+    permits: [],
+  })
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  // ------------------------------------------------------------
+  // Data
+  // ------------------------------------------------------------
+  const createMutation = useCreatePermit()
+  const updateMutation = useUpdatePermit()
+  const statusMutation = useUpdatePermitStatus()
+  const deleteMutation = useDeletePermit()
+  const departureMutation = useConfirmDeparture()
+  const returnMutation = useConfirmReturn()
+
+  const editPermit = useMemo(() => permits.find((p) => p.id === editId) ?? null, [permits, editId])
+  const duplicatePermit = useMemo(() => permits.find((p) => p.id === duplicateId) ?? null, [permits, duplicateId])
+  const detailPermit = useMemo(() => permits.find((p) => p.id === detailId) ?? null, [permits, detailId])
+  const printPermit = useMemo(() => permits.find((p) => p.id === printId) ?? null, [permits, printId])
+  const selectedPermits = useMemo(
+    () => selectedIds.map((id) => permits.find((p) => p.id === id)).filter((p): p is LeavePermit => !!p),
+    [selectedIds, permits],
+  )
+  const overduePermits = useMemo(() => permits.filter((p) => effectiveStatus(p) === 'overdue'), [permits])
+
+  // Mode Gerbang kini milik halaman Gerbang (deep-link /gate?gate=1)
+
+  // ------------------------------------------------------------
+  // Statistik klikabel
+  // ------------------------------------------------------------
+  const today = dayjs().format('YYYY-MM-DD')
+  const monthStart = dayjs().startOf('month').format('YYYY-MM-DD')
+  const stats = useMemo(() => {
+    let issuedToday = 0
+    let out = 0
+    let overdue = 0
+    let thisMonth = 0
+    for (const p of permits) {
+      if (p.status === 'cancelled') continue
+      if (p.leave_date === today) issuedToday++
+      if (p.leave_date >= monthStart) thisMonth++
+      if (p.status === 'departed') out++
+      if (effectiveStatus(p) === 'overdue') overdue++
+    }
+    return { issuedToday, out, overdue, thisMonth }
+  }, [permits, today, monthStart])
+
+  // ------------------------------------------------------------
+  // Aksi
+  // ------------------------------------------------------------
+  const isBlocked =
+    formOpen ||
+    scanOpen ||
+    bulkOpen ||
+    importOpen ||
+    exportOpen ||
+    waReminder.open ||
+    !!detailId ||
+    !!printId ||
+    recapPrinting ||
+    batchPrinting
+
+  const openCreate = () => {
+    setEditId(null)
+    setDuplicateId(null)
+    setPresetStudent(null)
+    setFormOpen(true)
+  }
+
+  const openEdit = (p: LeavePermit) => {
+    setDetailId(null)
+    setEditId(p.id)
+    setDuplicateId(null)
+    setPresetStudent(null)
+    setFormOpen(true)
+  }
+
+  const openDuplicate = (p: LeavePermit) => {
+    setDetailId(null)
+    setEditId(null)
+    setDuplicateId(p.id)
+    setPresetStudent(null)
+    setFormOpen(true)
+  }
 
   const handleCreate = async (values: PermitFormValues) => {
-    const { data: userData } = await supabase.auth.getUser()
-    createMutation.mutate(
-      { values, issuedBy: userData.user?.id ?? null },
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      const permit = await createMutation.mutateAsync({ values, issuedBy: userData.user?.id ?? null })
+      message.success('Surat izin diterbitkan')
+      closeForm()
+      setPrintId(permit.id)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal menerbitkan izin')
+    }
+  }
+
+  const handleUpdate = async (values: PermitFormValues) => {
+    if (!editPermit) return
+    try {
+      await updateMutation.mutateAsync({ id: editPermit.id, values })
+      message.success('Surat izin diperbarui')
+      closeForm()
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal memperbarui izin')
+    }
+  }
+
+  const handleDepart = async (p: LeavePermit) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      await departureMutation.mutateAsync({ permit: p, recordedBy: userData.user?.id ?? null })
+      message.success(`${formatDisplayName(p.student?.name ?? 'Santri')} tercatat berangkat`)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal memproses keberangkatan')
+    }
+  }
+
+  const handleReturn = async (p: LeavePermit) => {
+    try {
+      await returnMutation.mutateAsync(p)
+      message.success(`${formatDisplayName(p.student?.name ?? 'Santri')} tercatat kembali`)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal memproses kepulangan')
+    }
+  }
+
+  const handleGateAction = async (permit: LeavePermit, action: 'depart' | 'return') => {
+    if (action === 'depart') await handleDepart(permit)
+    else await handleReturn(permit)
+  }
+
+  const handleCancelStatus = (p: LeavePermit) => {
+    statusMutation.mutate(
+      { id: p.id, status: 'cancelled' },
       {
-        onSuccess: (permit) => {
-          message.success('Surat izin diterbitkan')
-          setFormOpen(false)
-          void logAudit({
-            action: 'INSERT',
-            source: 'OPERATIONAL',
-            tableName: 'leave_permits',
-            recordId: permit.id,
-            newData: { student: permit.student?.name, destination: values.destination },
-          })
-          setPrintPermit(permit)
-        },
-        onError: (err: Error) => message.error(err.message || 'Gagal menerbitkan izin'),
+        onSuccess: () => message.success('Izin dibatalkan'),
+        onError: (err: Error) => message.error(err.message || 'Gagal membatalkan'),
       },
     )
   }
 
-  const columns: TableColumnsType<LeavePermit> = [
-    {
-      title: 'Santri',
-      key: 'student',
-      render: (_, p) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{p.student?.name ?? '—'}</div>
-          <span style={{ fontSize: 12, color: '#888' }}>{p.student?.registration_code}</span>
-        </div>
-      ),
-    },
-    { title: 'Tujuan', dataIndex: 'destination', key: 'destination', ellipsis: true },
-    { title: 'Keperluan', dataIndex: 'purpose', key: 'purpose', ellipsis: true, responsive: ['lg'] },
-    {
-      title: 'Keluar',
-      dataIndex: 'leave_date',
-      key: 'leave_date',
-      width: 110,
-      render: (v: string) => new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-      responsive: ['md'],
-    },
-    {
-      title: 'Batas Kembali',
-      dataIndex: 'return_deadline',
-      key: 'return_deadline',
-      width: 150,
-      render: (v: string) => (
-        <Typography.Text style={{ fontSize: 12.5 }}>
-          {new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}{' '}
-          {new Date(v).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-        </Typography.Text>
-      ),
-      responsive: ['md'],
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (v: PermitStatus, p) => {
-        const effective: PermitStatus =
-          v === 'departed' && new Date(p.return_deadline) < new Date() ? 'overdue' : v
-        return <StatusTag color={STATUS_META[effective].color}>{STATUS_META[effective].label}</StatusTag>
+  const handleDelete = (p: LeavePermit) => {
+    deleteMutation.mutate(p.id, {
+      onSuccess: () => {
+        message.success('Izin dihapus permanen')
+        setDetailId(null)
       },
-    },
-    {
-      title: 'Aksi',
-      key: 'actions',
-      width: 130,
-      render: (_, p) => (
-        <Space size="small">
-          <Button type="text" icon={<PrinterOutlined />} onClick={() => setPrintPermit(p)} />
-          {canWrite && ['issued', 'departed', 'overdue'].includes(p.status) && (
-            <Button
-              size="small"
-              danger
-              onClick={() =>
-                statusMutation.mutate(
-                  { id: p.id, status: 'cancelled' },
-                  {
-                    onSuccess: () => message.success('Izin dibatalkan'),
-                    onError: (err: Error) => message.error(err.message || 'Gagal membatalkan'),
-                  },
-                )
-              }
-            >
-              Batalkan
-            </Button>
-          )}
-        </Space>
-      ),
-    },
+      onError: (err: Error) => message.error(err.message || 'Gagal menghapus izin'),
+    })
+  }
+
+  const handleBulkCancel = async () => {
+    let ok = 0
+    for (const id of selectedIds) {
+      try {
+        await statusMutation.mutateAsync({ id, status: 'cancelled' })
+        ok++
+      } catch {
+        // lanjut ke baris berikutnya
+      }
+    }
+    message.success(`${ok} izin dibatalkan`)
+    setSelectedIds([])
+  }
+
+  const handleWa = (p: LeavePermit) => {
+    const phone = p.phone ?? p.student?.phone ?? null
+    if (!phone) {
+      message.warning('Nomor telepon tidak tersedia untuk santri ini')
+      return
+    }
+    window.open(waLink(phone, permitWaText(p)), '_blank', 'noopener')
+  }
+
+  /** Hapus location.state preset (dari Mode Gerbang) agar tidak terbuka ulang saat refresh */
+  const clearNavState = () => {
+    if (location.state) navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null })
+  }
+
+  const closeForm = () => {
+    setFormOpen(false)
+    setEditId(null)
+    setDuplicateId(null)
+    setPresetStudent(null)
+    clearNavState()
+  }
+
+  const handleScanIssue = (student: PermitStudentBrief) => {
+    setScanOpen(false)
+    setEditId(null)
+    setDuplicateId(null)
+    setPresetStudent(student)
+    setFormOpen(true)
+  }
+
+  const printRecap = () => {
+    setRecapPrinting(true)
+  }
+
+  /** Proses kembali untuk banyak izin sekaligus (hari eksodus) */
+  const handleBulkReturn = async () => {
+    const returnable = selectedPermits.filter((p) => ['departed', 'overdue'].includes(p.status))
+    if (returnable.length === 0) {
+      message.warning('Tidak ada izin terpilih yang sedang berangkat')
+      return
+    }
+    let ok = 0
+    for (const p of returnable) {
+      try {
+        await returnMutation.mutateAsync(p)
+        ok++
+      } catch {
+        // lanjut ke baris berikutnya
+      }
+    }
+    message.success(`${ok} santri tercatat kembali`)
+    setSelectedIds([])
+  }
+
+  // ------------------------------------------------------------
+  // Shortcut keyboard
+  // ------------------------------------------------------------
+  const shortcutItems: ShortcutItem[] = [
+    { keys: ['N'], label: 'Terbitkan Izin', group: 'Aksi', icon: <PlusOutlined />, run: openCreate, when: canWrite },
+    { keys: ['S'], label: 'Scan Kartu / Surat', group: 'Aksi', icon: <QrcodeOutlined />, run: () => setScanOpen(true) },
+    { keys: ['P'], label: 'Pulang Massal', group: 'Aksi', icon: <TeamOutlined />, run: () => setBulkOpen(true), when: canWrite },
+    { keys: ['E'], label: 'Ekspor Data', group: 'Aksi', icon: <ExportOutlined />, run: () => { setExportScope('filtered'); setExportOpen(true) } },
+    { keys: ['I'], label: 'Impor Izin', group: 'Aksi', icon: <ImportOutlined />, run: () => setImportOpen(true), when: canWrite },
+    { keys: ['R'], label: 'Cetak Rekap', group: 'Aksi', icon: <PrinterOutlined />, run: printRecap },
+    { keys: ['/'], label: 'Fokus Pencarian', group: 'Navigasi', icon: <SearchOutlined />, run: () => searchInputRef.current?.focus() },
+    { keys: ['?'], label: 'Bantuan Shortcut', group: 'Bantuan', icon: <QuestionCircleOutlined />, run: () => shortcuts.toggle() },
   ]
+  const shortcuts = useShortcuts({ items: shortcutItems, isBlocked })
+
+  // ------------------------------------------------------------
+  // Kolom tabel (builder di components/PermitColumns.tsx)
+  // ------------------------------------------------------------
+  const columns = useMemo(
+    () =>
+      buildPermitColumns(
+        {
+          canWrite,
+          canDelete,
+          onDetail: (p) => setDetailId(p.id),
+          onPrint: (p) => setPrintId(p.id),
+          onWa: handleWa,
+          onDepart: (p) => void handleDepart(p),
+          onReturn: (p) => void handleReturn(p),
+          onEdit: openEdit,
+          onReissue: openDuplicate,
+          onCancel: handleCancelStatus,
+          onDelete: handleDelete,
+        },
+        modal,
+      ),
+    // Handler halaman stabil (useCallback-free tapi definisi baru tak masalah — tabel dirender ulang bersama halaman)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canWrite, canDelete, modal],
+  )
 
   return (
     <div>
       <PageHeader
         title="Izin Keluar Pondok"
-        subtitle="Terbitkan surat izin pulang dan pantau statusnya"
+        subtitle="Terbitkan surat izin keluar, proses gerbang, dan pantau statusnya"
         extra={
-          canWrite ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-              Terbitkan Izin
-            </Button>
-          ) : undefined
+          <Space wrap size={6}>
+            <Tooltip title="Bantuan shortcut (?)">
+              <Button icon={<QuestionCircleOutlined />} onClick={() => shortcuts.open()} />
+            </Tooltip>
+            <Tooltip title="Scan kartu / surat izin (S)">
+              <Button icon={<QrcodeOutlined />} onClick={() => setScanOpen(true)} />
+            </Tooltip>
+            {canWrite && (
+              <Tooltip title="Pulang massal (P)">
+                <Button icon={<TeamOutlined />} onClick={() => setBulkOpen(true)} />
+              </Tooltip>
+            )}
+            {canWrite && (
+              <Tooltip title="Impor izin dari Excel/CSV (I)">
+                <Button icon={<ImportOutlined />} onClick={() => setImportOpen(true)} />
+              </Tooltip>
+            )}
+            <Tooltip title="Ekspor data (E)">
+              <Button icon={<ExportOutlined />} onClick={() => { setExportScope('filtered'); setExportOpen(true) }} />
+            </Tooltip>
+            <Tooltip title="Cetak rekap harian (R)">
+              <Button icon={<PrinterOutlined />} onClick={printRecap} />
+            </Tooltip>
+            <Tooltip title="Insight bulan ini">
+              <Button
+                icon={<BarChartOutlined />}
+                onClick={() => setInsightsOpen((v) => !v)}
+                type={insightsOpen ? 'primary' : 'default'}
+              />
+            </Tooltip>
+            {canWrite && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                Terbitkan Izin
+              </Button>
+            )}
+          </Space>
         }
       />
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={12} sm={8} xl={6}>
-          <Card><Statistic title="Diterbitkan Hari Ini" value={issuedToday} /></Card>
-        </Col>
-        <Col xs={12} sm={8} xl={6}>
-          <Card>
-            <Statistic
-              title="Sedang Keluar"
-              value={active}
-              valueStyle={{ color: active > 0 ? '#d97706' : undefined }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} xl={6}>
-          <Card>
-            <Statistic
-              title="Terlambat"
-              value={overdue}
-              valueStyle={{ color: overdue > 0 ? '#dc2626' : undefined }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {/* Statistik klikabel = filter cepat */}
+      <StatsRow
+        stats={stats}
+        loading={permitsQuery.isLoading}
+        statusFilter={statusFilter}
+        onToggleStatus={(s) => changeStatus(statusFilter === s ? '' : s)}
+        onToggleMonth={() => setDateRange(dateRange ? null : [dayjs().startOf('month'), dayjs()])}
+      />
 
-      <Card style={{ marginBottom: 16 }}>
-        <Segmented
-          value={statusFilter}
-          onChange={(v) => setStatusFilter(v as PermitStatus | '')}
-          options={[
-            { label: 'Semua', value: '' },
-            { label: 'Diterbitkan', value: 'issued' },
-            { label: 'Berangkat', value: 'departed' },
-            { label: 'Kembali', value: 'returned' },
-            { label: 'Dibatalkan', value: 'cancelled' },
-          ]}
+      {insightsOpen && <PermitInsights permits={permits} />}
+
+      {stats.overdue > 0 && statusFilter !== 'overdue' && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`${stats.overdue} santri belum kembali melewati batas waktu`}
+          action={
+            <Space size={6}>
+              {overduePermits.some((p) => p.phone ?? p.student?.phone) && (
+                <Tooltip title="Kirim pengingat WA ke wali">
+                  <Button size="small" icon={<WhatsAppOutlined />} onClick={() => setWaReminder({ open: true, permits: overduePermits })}>
+                    WA
+                  </Button>
+                </Tooltip>
+              )}
+              <Button size="small" danger onClick={() => changeStatus('overdue')}>
+                Lihat
+              </Button>
+            </Space>
+          }
         />
-      </Card>
+      )}
+
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        searchInputRef={searchInputRef}
+        dateRange={dateRange}
+        onDateRange={setDateRange}
+        classId={classId}
+        onClassId={setClassId}
+        statusFilter={statusFilter}
+        onStatusChange={changeStatus}
+        classes={classesQuery.data ?? []}
+        classesLoading={classesQuery.isLoading}
+        chips={chips}
+      />
 
       <Card>
         <Table<LeavePermit>
           rowKey="id"
           columns={columns}
-          dataSource={permits}
+          dataSource={filtered}
           loading={permitsQuery.isLoading}
           locale={{
-            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada izin keluar" />,
+            emptyText: (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada izin keluar">
+                {canWrite && (
+                  <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                    Terbitkan Izin Pertama
+                  </Button>
+                )}
+              </Empty>
+            ),
           }}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
+          rowSelection={{
+            selectedRowKeys: selectedIds,
+            onChange: (keys) => setSelectedIds(keys as string[]),
+            preserveSelectedRowKeys: true,
+          }}
+          rowClassName={(p) => (effectiveStatus(p) === 'overdue' ? 'permit-row-overdue' : '')}
+          pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50] }}
           scroll={{ x: true }}
         />
       </Card>
 
-      <PermitFormModal
-        open={formOpen}
-        submitting={createMutation.isPending}
-        onCancel={() => setFormOpen(false)}
-        onSubmit={(values) => void handleCreate(values)}
+      <ActionBar
+        count={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        actions={[
+          {
+            key: 'return',
+            label: 'Tandai Kembali',
+            icon: <CheckCircleOutlined />,
+            hidden: !canWrite,
+            loading: returnMutation.isPending,
+            confirm: {
+              title: `Tandai ${selectedPermits.filter((p) => ['departed', 'overdue'].includes(p.status)).length} santri kembali?`,
+              description: 'Semua izin terpilih yang sedang berangkat akan diproses kembali.',
+              okText: 'Ya, Proses Kembali',
+            },
+            onClick: handleBulkReturn,
+          },
+          { key: 'print', label: 'Cetak Surat', icon: <PrinterOutlined />, onClick: () => setBatchPrinting(true) },
+          {
+            key: 'wa',
+            label: 'WA',
+            icon: <WhatsAppOutlined />,
+            tooltip: 'Kirim pengingat ke wali santri terpilih',
+            onClick: () => setWaReminder({ open: true, permits: selectedPermits }),
+          },
+          {
+            key: 'cancel',
+            label: 'Batalkan',
+            icon: <StopOutlined />,
+            variant: 'danger',
+            hidden: !canWrite,
+            loading: statusMutation.isPending,
+            confirm: {
+              title: `Batalkan ${selectedIds.length} izin terpilih?`,
+              description: 'Semua izin terpilih akan berstatus dibatalkan.',
+              okText: 'Ya, Batalkan Izin',
+            },
+            onClick: handleBulkCancel,
+          },
+          {
+            key: 'export',
+            label: 'Ekspor',
+            icon: <ExportOutlined />,
+            onClick: () => {
+              setExportScope('selected')
+              setExportOpen(true)
+            },
+          },
+        ]}
       />
 
-      <PermitPrintModal permit={printPermit} onClose={() => setPrintPermit(null)} />
+      {/* Modal & drawer */}
+      <FormModal
+        open={formOpen}
+        submitting={createMutation.isPending || updateMutation.isPending}
+        editPermit={editPermit}
+        duplicatePermit={duplicatePermit}
+        presetStudent={presetStudent}
+        onScanClick={() => {
+          setFormOpen(false)
+          setScanMode('issue')
+          setScanOpen(true)
+        }}
+        onCancel={closeForm}
+        onSubmit={(values) => (editPermit ? void handleUpdate(values) : void handleCreate(values))}
+      />
+
+      <PrintModal permit={printPermit} onClose={() => setPrintId(null)} />
+
+      <DetailDrawer
+        permit={detailPermit}
+        onClose={() => setDetailId(null)}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        busy={
+          departureMutation.isPending ||
+          returnMutation.isPending ||
+          statusMutation.isPending ||
+          deleteMutation.isPending
+        }
+        onDepart={(p) => void handleDepart(p)}
+        onReturn={(p) => void handleReturn(p)}
+        onCancel={handleCancelStatus}
+        onDelete={handleDelete}
+        onEdit={openEdit}
+        onPrint={(p) => setPrintId(p.id)}
+        onReissue={openDuplicate}
+      />
+
+      <ScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        mode={scanMode}
+        onModeChange={setScanMode}
+        permits={permits}
+        onIssueForStudent={handleScanIssue}
+        onGateAction={handleGateAction}
+      />
+
+      <IssueModal open={bulkOpen} onClose={() => setBulkOpen(false)} existingPermits={permits} />
+
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} />
+
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        filteredRows={filtered}
+        selectedIds={selectedIds}
+        defaultScope={exportScope}
+      />
+
+      <PermitRecapPrint
+        printing={recapPrinting}
+        dateRange={{
+          from: dateRange?.[0]?.format('YYYY-MM-DD') ?? today,
+          to: dateRange?.[1]?.format('YYYY-MM-DD') ?? today,
+        }}
+        permits={filterPermits(permits, {
+          from: dateRange?.[0]?.format('YYYY-MM-DD') ?? today,
+          to: dateRange?.[1]?.format('YYYY-MM-DD') ?? today,
+        }).filter((p) => p.status !== 'cancelled')}
+        onDone={() => setRecapPrinting(false)}
+      />
+
+      {/* Cetak massal surat terpilih */}
+      <PermitBatchPrint permits={selectedPermits} printing={batchPrinting} onDone={() => setBatchPrinting(false)} />
+
+      {/* Pengingat WA ke wali */}
+      <WaReminder
+        open={waReminder.open}
+        permits={waReminder.permits}
+        onClose={() => setWaReminder({ open: false, permits: [] })}
+      />
+
+      <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>
   )
 }
-
-// ------------------------------------------------------------
-// Form penerbitan
-// ------------------------------------------------------------
-function PermitFormModal({
-  open,
-  submitting,
-  onCancel,
-  onSubmit,
-}: {
-  open: boolean
-  submitting: boolean
-  onCancel: () => void
-  onSubmit: (values: PermitFormValues) => void
-}) {
-  const [form] = Form.useForm()
-  const [studentSearch, setStudentSearch] = useState('')
-  const debouncedSearch = useDebounce(studentSearch)
-  const studentsQuery = usePermitStudents(debouncedSearch)
-
-  const selectedId = Form.useWatch('student_id', form)
-  const selectedStudent = (studentsQuery.data ?? []).find((s) => s.id === selectedId)
-
-  const handleFinish = (values: {
-    student_id: string
-    phone?: string
-    destination: string
-    purpose: string
-    leave_date: Dayjs
-    return_date: Dayjs
-    return_time: Dayjs
-  }) => {
-    onSubmit({
-      student_id: values.student_id,
-      phone: values.phone,
-      destination: values.destination,
-      purpose: values.purpose,
-      leave_date: values.leave_date.format('YYYY-MM-DD'),
-      return_date: values.return_date.format('YYYY-MM-DD'),
-      return_time: values.return_time.format('HH:mm'),
-    })
-  }
-
-  return (
-    <Modal
-      title="Terbitkan Surat Izin Keluar"
-      open={open}
-      onCancel={onCancel}
-      onOk={() => form.submit()}
-      confirmLoading={submitting}
-      width={560}
-      destroyOnHidden
-    >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleFinish}
-        disabled={submitting}
-        initialValues={{ leave_date: dayjs(), return_date: dayjs(), return_time: dayjs().add(3, 'hour') }}
-      >
-        <Form.Item name="student_id" label="Cari Santri" rules={[{ required: true, message: 'Santri wajib dipilih' }]}>
-          <Select
-            showSearch
-            placeholder="Ketik nama santri"
-            filterOption={false}
-            onSearch={setStudentSearch}
-            loading={studentsQuery.isPending}
-            notFoundContent={studentsQuery.isPending ? 'Mencari…' : 'Tidak ditemukan'}
-            options={(studentsQuery.data ?? []).map((s) => ({
-              value: s.id,
-              label: `${s.name} (${s.registration_code})`,
-            }))}
-          />
-        </Form.Item>
-
-        {selectedStudent && (
-          <Form.Item name="phone" label="No. Telepon" initialValue={selectedStudent.phone ?? undefined}>
-            <Input maxLength={20} placeholder="08xxxxxxxxxx" />
-          </Form.Item>
-        )}
-
-        <Form.Item name="destination" label="Tujuan" rules={[{ required: true, message: 'Tujuan wajib diisi' }]}>
-          <Input maxLength={120} placeholder="Rumah orang tua, rumah sakit…" />
-        </Form.Item>
-
-        <Form.Item
-          name="purpose"
-          label="Keperluan"
-          rules={[{ required: true, message: 'Keperluan wajib diisi' }]}
-          extra={
-            <Space wrap size={4} style={{ marginTop: 6 }}>
-              {PURPOSE_PRESETS.map((preset) => (
-                <Button key={preset} size="small" type="dashed" onClick={() => form.setFieldValue('purpose', preset)}>
-                  {preset}
-                </Button>
-              ))}
-            </Space>
-          }
-        >
-          <Input maxLength={150} />
-        </Form.Item>
-
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item
-              name="leave_date"
-              label="Tanggal Keluar"
-              rules={[{ required: true, message: 'Tanggal keluar wajib diisi' }]}
-            >
-              <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="return_date"
-              label="Tanggal Kembali"
-              dependencies={['leave_date']}
-              rules={[
-                { required: true, message: 'Tanggal kembali wajib diisi' },
-                ({ getFieldValue }) => ({
-                  validator(_, value: Dayjs) {
-                    const leave = getFieldValue('leave_date') as Dayjs | undefined
-                    if (!value || !leave || !value.isBefore(leave, 'day')) return Promise.resolve()
-                    return Promise.reject(new Error('Tanggal kembali tidak boleh lebih awal dari tanggal keluar'))
-                  },
-                }),
-              ]}
-            >
-              <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Form.Item
-          name="return_time"
-          label="Jam Kembali"
-          rules={[{ required: true, message: 'Jam kembali wajib diisi' }]}
-        >
-          <DatePicker.TimePicker style={{ width: '100%' }} format="HH:mm" minuteStep={5} />
-        </Form.Item>
-      </Form>
-    </Modal>
-  )
-}
-
-// ------------------------------------------------------------
-// Cetak surat izin (print khusus: hanya .permit-print-root)
-// ------------------------------------------------------------
-function PermitPrintModal({ permit, onClose }: { permit: LeavePermit | null; onClose: () => void }) {
-  if (!permit) return null
-  const fmtDate = (v: string) =>
-    new Date(v).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-
-  return (
-    <Modal
-      title="Cetak Surat Izin Keluar"
-      open={!!permit}
-      onCancel={onClose}
-      width={560}
-      footer={
-        <Space>
-          <Button onClick={onClose}>Tutup</Button>
-          <Button type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>
-            Cetak
-          </Button>
-        </Space>
-      }
-    >
-      <div className="permit-print-root">
-        <div className="permit-letter">
-          <div className="permit-letter-head">
-            <img src="/logo-icon.png" alt="Logo Laporanmu" width={44} height={44} />
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 13, color: '#1a5c35' }}>PENGASUHAN SANTRI</div>
-              <div style={{ fontSize: 11, color: '#475569' }}>Laporanmu Boarding School — Jember</div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'center', margin: '12px 0 4px', fontWeight: 800, fontSize: 15, textDecoration: 'underline' }}>
-            IZIN KELUAR PONDOK
-          </div>
-          <div style={{ textAlign: 'center', fontSize: 10.5, color: '#64748b', marginBottom: 10 }}>
-            No: {permit.id.slice(0, 8).toUpperCase()} · {fmtDate(permit.leave_date)}
-          </div>
-          <table className="permit-letter-table">
-            <tbody>
-              <tr><td>Nama</td><td>{permit.student?.name ?? '—'}</td></tr>
-              <tr><td>Kelas</td><td>{permit.student?.registration_code ?? '—'}</td></tr>
-              <tr><td>No. Telepon</td><td>{permit.phone ?? '—'}</td></tr>
-              <tr><td>Tujuan</td><td>{permit.destination}</td></tr>
-              <tr><td>Keperluan</td><td>{permit.purpose}</td></tr>
-              <tr><td>Hari / Tanggal Keluar</td><td>{fmtDate(permit.leave_date)}</td></tr>
-              <tr>
-                <td>Batas Kembali</td>
-                <td>
-                  {new Date(permit.return_deadline).toLocaleString('id-ID', {
-                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit',
-                  })}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <table className="permit-letter-sign">
-            <tbody>
-              <tr>
-                <td>
-                  <div>Staf Pengasuhan Santri</div>
-                  <div className="permit-sign-space" />
-                  <div style={{ fontWeight: 700 }}>( .............................. )</div>
-                </td>
-                <td>
-                  <div>Wali Santri</div>
-                  <div className="permit-sign-space" />
-                  <div style={{ fontWeight: 700 }}>( .............................. )</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-

@@ -49,6 +49,10 @@ export interface Student {
   graduation_year: number | null
   /** snapshot kelas terakhir sebelum kelulusan (class_id dikosongkan) */
   last_class_id: string | null
+  /** jejak kenaikan kelas untuk undo (0030) */
+  previous_class_id?: string | null
+  promoted_at?: string | null
+  promotion_batch_id?: string | null
   deleted_at: string | null
   created_at?: string
   updated_at?: string
@@ -191,4 +195,22 @@ export interface StudentStats {
   trend7d: number | null
   topPerformer: StudentTopPerformer | null
   worstClass: StudentWorstClass | null
+}
+
+// ------------------------------------------------------------
+// Kenaikan kelas & kelulusan massal (RPC 0018 / 0030)
+// ------------------------------------------------------------
+export interface PromotionClassBrief {
+  id: string
+  name: string
+  grade: string | null
+  major: string | null
+  academic_year_id: string | null
+  academic_year_name: string | null
+}
+
+/** Satu langkah naik kelas — dikirim ke RPC promote_students */
+export interface PromotionMove {
+  studentId: string
+  classId: string
 }
