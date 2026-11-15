@@ -38,11 +38,11 @@ export const MODULE_REGISTRY: RbacModuleMeta[] = [
   { key: 'dorms', label: 'Asrama', actions: CRUD },
   { key: 'health', label: 'Kesehatan', actions: CRUD },
   { key: 'counseling', label: 'Bimbingan Konseling', actions: CRUD },
-  { key: 'disiplin', label: 'Poin & Disiplin', actions: CRUD },
+  { key: 'discipline', label: 'Poin & Disiplin', actions: CRUD },
   // Akademik
   { key: 'grades', label: 'Penilaian', actions: CRUD },
   { key: 'cbt', label: 'CBT', actions: CRUD },
-  { key: 'evaluasi', label: 'Pusat Evaluasi', actions: CRUD },
+  { key: 'evaluation', label: 'Pusat Evaluasi', actions: CRUD },
   { key: 'schedules', label: 'Jadwal KBM', actions: CRUD },
   { key: 'teaching_load', label: 'Beban Mengajar', actions: [{ key: 'read', label: 'Lihat' }] },
   { key: 'report_cards', label: 'Raport', actions: CRUD },
@@ -52,7 +52,7 @@ export const MODULE_REGISTRY: RbacModuleMeta[] = [
   { key: 'halaqah', label: 'Halaqah', actions: CRUD },
   { key: 'ekskul', label: 'Ekstrakurikuler', actions: CRUD },
   // Keuangan & Aset
-  { key: 'keuangan', label: 'Keuangan SPP', actions: CRUD },
+  { key: 'finance', label: 'Keuangan SPP', actions: CRUD },
   { key: 'savings', label: 'Tabungan', actions: CRUD },
   { key: 'inventory', label: 'Inventaris', actions: CRUD },
   // Master Data
@@ -110,7 +110,7 @@ function operationalPermissions(): string[] {
  * modul lain hanya lihat. Sinkron dengan matrix di MEMORY.md.
  */
 const TEACHING_MODULES = ['attendance', 'grades', 'cbt', 'tahfidz', 'halaqah', 'report_cards']
-const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'disiplin', 'leave_permit', 'gate', 'library', 'ekskul', 'keuangan', 'savings', 'inventory', 'academic_years', 'announcements', 'evaluasi']
+const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'discipline', 'leave_permit', 'gate', 'library', 'ekskul', 'finance', 'savings', 'inventory', 'academic_years', 'announcements', 'evaluation']
 
 function teacherPermissions(): string[] {
   const perms: string[] = []

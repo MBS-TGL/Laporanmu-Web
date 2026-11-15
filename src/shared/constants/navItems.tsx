@@ -77,13 +77,13 @@ const BOARDING_ITEMS: NavItem[] = [
   { to: '/dorms', label: 'Asrama', icon: ApartmentOutlined, desc: 'Kamar dan plotting santri asrama', flag: 'module.dorms', perm: 'dorms:read' },
   { to: '/health', label: 'Kesehatan', icon: MedicineBoxOutlined, desc: 'Rekam medis, observasi, stok obat', flag: 'module.health', perm: 'health:read' },
   { to: '/counseling', label: 'Bimbingan Konseling', icon: CommentOutlined, desc: 'Sesi BK dan pembinaan santri', flag: 'module.counseling', perm: 'counseling:read' },
-  { to: '/disiplin', label: 'Poin & Disiplin', icon: AuditOutlined, desc: 'Catatan poin, aturan pelanggaran-prestasi, dan skorsing santri', perm: 'disiplin:read' },
+  { to: '/discipline', label: 'Poin & Disiplin', icon: AuditOutlined, desc: 'Catatan poin, aturan pelanggaran-prestasi, dan skorsing santri', perm: 'discipline:read' },
 ]
 
 // ─── Akademik: KBM dan penilaian ────────────────────────────────────────────
 const ACADEMIC_ITEMS: NavItem[] = [
   { to: '/grades', label: 'Penilaian', icon: FileDoneOutlined, desc: 'Nilai formatif, sumatif, PTS, PAS, dan leger', flag: 'module.grades', perm: 'grades:read' },
-  { to: '/instruments', label: 'Pusat Evaluasi', icon: FundProjectionScreenOutlined, desc: 'Angket AKPD, Sosiometri, MBTI, EDOM, dan kuesioner kustom', flag: 'module.evaluasi', perm: 'evaluasi:read' },
+  { to: '/instruments', label: 'Pusat Evaluasi', icon: FundProjectionScreenOutlined, desc: 'Angket AKPD, Sosiometri, MBTI, EDOM, dan kuesioner kustom', flag: 'module.evaluation', perm: 'evaluation:read' },
   { to: '/cbt', label: 'CBT', icon: FileProtectOutlined, desc: 'Bank soal, ujian ber-token, dan pemantauan ujian', flag: 'module.cbt', perm: 'cbt:read' },
   { to: '/schedules', label: 'Jadwal KBM', icon: ScheduleOutlined, desc: 'Jadwal mengajar per kelas, mapel, dan guru', flag: 'module.schedules', perm: 'schedules:read' },
   { to: '/teaching-load', label: 'Beban Mengajar', icon: FieldTimeOutlined, desc: 'Distribusi jam mengajar guru dan cakupan kelas', perm: 'teaching_load:read' },
@@ -99,7 +99,7 @@ const ACTIVITY_ITEMS: NavItem[] = [
 
 // ─── Keuangan & Aset ────────────────────────────────────────────────────────
 const FINANCE_ITEMS: NavItem[] = [
-  { to: '/finance', label: 'Keuangan SPP', icon: AccountBookOutlined, desc: 'Kewajiban biaya, pembayaran, dan tunggakan per santri', flag: 'module.keuangan_spp', perm: 'keuangan:read' },
+  { to: '/finance', label: 'Keuangan SPP', icon: AccountBookOutlined, desc: 'Kewajiban biaya, pembayaran, dan tunggakan per santri', flag: 'module.finance_spp', perm: 'finance:read' },
   { to: '/savings', label: 'Tabungan', icon: MoneyCollectOutlined, desc: 'Rekening tabungan, setor-tarik, dan buku tabungan', flag: 'module.savings', perm: 'savings:read' },
   { to: '/inventory', label: 'Inventaris', icon: InboxOutlined, desc: 'Aset dan barang beserta kondisinya', flag: 'module.inventory', perm: 'inventory:read' },
 ]

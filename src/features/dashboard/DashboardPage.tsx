@@ -398,7 +398,7 @@ export function DashboardPage() {
             icon={<FileDoneOutlined />}
             bg="#ffe4e6"
             color="#e11d48"
-            onClick={() => navigate('/disiplin?tab=catatan')}
+            onClick={() => navigate('/discipline?tab=notes')}
           />
         </Col>
       </Row>
