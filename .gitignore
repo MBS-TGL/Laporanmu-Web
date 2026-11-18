@@ -26,6 +26,9 @@ dist-ssr
 # ZCode session files
 .zcode/
 
-# Dokumen lokal di public/ (tidak boleh ikut ter-commit/ter-serve)
-public/*.doc
-public/*.docx
+# Dokumen lokal (tidak boleh ikut ter-commit/ter-serve)
+*.doc
+*.docx
+
+# Supabase CLI link state
+supabase/.temp/
