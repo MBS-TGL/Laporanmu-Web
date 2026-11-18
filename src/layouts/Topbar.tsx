@@ -30,6 +30,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { EntitySwitcher } from './EntitySwitcher'
 import {
   DASHBOARD_ITEM,
   NAV_GROUPS,
@@ -631,8 +632,9 @@ export function Topbar({
           )}
         </div>
 
-        {/* ── Kanan: asisten AI, notifikasi, profil ── */}
+        {/* ── Kanan: entity, asisten AI, notifikasi, profil ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <EntitySwitcher isMobile={isMobile} />
           <Button
             icon={<RobotOutlined style={{ fontSize: 14 }} />}
             onClick={() => setChatOpen(true)}

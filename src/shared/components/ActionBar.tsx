@@ -108,6 +108,7 @@ export function ActionBar({ count, onClear, actions }: ActionBarProps) {
           <Button
             size="small"
             type="text"
+            aria-label="Bersihkan pilihan"
             style={{ color: token.colorTextQuaternary }}
             icon={<CloseOutlined />}
             onClick={onClear}

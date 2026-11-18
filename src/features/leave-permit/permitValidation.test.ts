@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FIELDS,
+  SAMPLE_COLUMNS,
+  TEMPLATE_COLUMNS,
+  autoMatch,
   checkPermitDuplicate,
   extractPermitRef,
   extractScannedCode,
@@ -143,5 +147,57 @@ describe('checkPermitDuplicate', () => {
 
   it('lolos untuk santri & tanggal baru', () => {
     expect(checkPermitDuplicate({ student_id: 's2', leave_date: '2026-03-06' }, activeKeys, new Set()).isDuplicate).toBe(false)
+  })
+})
+
+describe('autoMatch', () => {
+  it('mengenali header template & alias umum', () => {
+    const headers = ['kode_santri', 'nama_santri', 'tujuan', 'keperluan', 'tanggal_keluar', 'tanggal_kembali', 'jam_kembali', 'no_telepon']
+    const m = autoMatch(headers)
+    expect(m).toEqual({
+      kode_santri: 0,
+      nama_santri: 1,
+      tujuan: 2,
+      keperluan: 3,
+      tanggal_keluar: 4,
+      tanggal_kembali: 5,
+      jam_kembali: 6,
+      no_telepon: 7,
+    })
+  })
+
+  it('fallback fuzzy: header mengandung kata kunci alias', () => {
+    const m = autoMatch(['kode_siswa', 'nama_lengkap', 'tujuan_perjalanan', 'alasan', 'tanggal keluar', 'return_date', 'jam_kembali'])
+    expect(m.kode_santri).toBe(0)
+    expect(m.nama_santri).toBe(1)
+    expect(m.tujuan).toBe(2)
+    expect(m.keperluan).toBe(3)
+    expect(m.tanggal_keluar).toBe(4)
+    expect(m.tanggal_kembali).toBe(5)
+    expect(m.jam_kembali).toBe(6)
+  })
+})
+
+describe('SAMPLE_COLUMNS', () => {
+  it('memuat semua kolom wajib', () => {
+    const requiredKeys = FIELDS.filter((f) => 'required' in f && f.required).map((f) => f.key)
+    expect(requiredKeys.length).toBeGreaterThan(0)
+    for (const key of requiredKeys) {
+      expect(SAMPLE_COLUMNS.some((c) => c.key === key)).toBe(true)
+    }
+  })
+
+  it('label = judul kolom template, key ikut TEMPLATE_COLUMNS, maksimal 7 kolom', () => {
+    expect(SAMPLE_COLUMNS.length).toBeLessThanOrEqual(7)
+    for (const col of SAMPLE_COLUMNS) {
+      expect(TEMPLATE_COLUMNS).toContain(col.key)
+      expect(FIELDS.find((f) => f.key === col.key)?.label).toBe(col.label)
+    }
+  })
+
+  it('baris contoh ke-2 tidak kosong untuk kolom yang ditampilkan', () => {
+    for (const col of SAMPLE_COLUMNS) {
+      expect(col.values[1]).not.toBe('')
+    }
   })
 })

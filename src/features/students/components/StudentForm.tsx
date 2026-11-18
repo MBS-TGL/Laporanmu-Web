@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { Col, Collapse, DatePicker, Form, Input, InputNumber, Row, Select } from 'antd'
-import { UserOutlined } from '@ant-design/icons'
+import { Button, Col, Collapse, DatePicker, Form, Input, InputNumber, Row, Select } from 'antd'
+import { ReloadOutlined, UserOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import { SectionDivider } from '../../../shared/components/SectionDivider'
-import { useClassesBrief, useDormsBrief, useStudentGuardians } from '../hooks'
-import { registrationCodeExists } from '../api'
+import { useClassesBrief, useDormsBrief, useExistingStudentCodes, useStudentGuardians } from '../hooks'
+import { generateRegistrationCode } from '../api'
 import {
   EDUCATION_OPTIONS,
   GUARDIAN_RELATION_OPTIONS,
@@ -88,8 +88,14 @@ export function StudentForm({ open, student, submitting, onCancel, onSubmit }: S
   const dormsQuery = useDormsBrief()
   // Data ayah/ibu/wali ada di tabel terpisah (0020) — diambil saat edit
   const guardiansQuery = useStudentGuardians(student?.id, open && !!student)
+  // Daftar kode existing (cached) — sumber validasi duplikat & generator kode
+  const existingCodesQuery = useExistingStudentCodes(open)
   // Alumni (status lulus) tidak punya class_id — kelas hanya wajib untuk siswa aktif
   const statusValue = Form.useWatch('status', form)
+
+  const handleRegenerateCode = () => {
+    form.setFieldsValue({ registration_code: generateRegistrationCode(existingCodesQuery.data ?? []) })
+  }
 
   useEffect(() => {
     if (!open) return
@@ -128,6 +134,15 @@ export function StudentForm({ open, student, submitting, onCancel, onSubmit }: S
       form.setFieldsValue({ status: 'active', tags: [] })
     }
   }, [open, student, form])
+
+  // Mode tambah: kode REG-XXXX-XXXX terisi otomatis begitu daftar kode termuat
+  // (hanya bila field masih kosong — tidak menimpa hasil editan user).
+  useEffect(() => {
+    if (!open || student || !existingCodesQuery.data?.length) return
+    if (!form.getFieldValue('registration_code')) {
+      form.setFieldsValue({ registration_code: generateRegistrationCode(existingCodesQuery.data) })
+    }
+  }, [open, student, existingCodesQuery.data, form])
 
   // Prefill blok ayah/ibu/wali begitu data guardians termuat
   useEffect(() => {
@@ -242,15 +257,34 @@ export function StudentForm({ open, student, submitting, onCancel, onSubmit }: S
               rules={[
                 { required: true, message: 'Kode pendaftaran wajib diisi' },
                 {
-                  validator: async (_, value: string) => {
-                    if (!value) return
-                    const exists = await registrationCodeExists(value, student?.id)
-                    if (exists) throw new Error('Kode sudah digunakan siswa lain')
+                  // Validasi lokal terhadap daftar cached — tanpa query DB per ketikan.
+                  // Batas akhir tetap constraint unique di DB (students_registration_code_active_unique).
+                  validator: (_, value: string) => {
+                    if (!value) return Promise.resolve()
+                    const codes = existingCodesQuery.data ?? []
+                    const isOwn = student ? value === student.registration_code : false
+                    if (!isOwn && codes.includes(value)) {
+                      return Promise.reject(new Error('Kode sudah digunakan siswa lain'))
+                    }
+                    return Promise.resolve()
                   },
                 },
               ]}
             >
-              <Input placeholder="Contoh: SPR-2026-001" maxLength={40} />
+              <Input
+                placeholder="Contoh: REG-A2B9-K7XM (terisi otomatis)"
+                maxLength={40}
+                addonAfter={
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<ReloadOutlined />}
+                    onClick={handleRegenerateCode}
+                  >
+                    Acak
+                  </Button>
+                }
+              />
             </Form.Item>
           </Col>
 

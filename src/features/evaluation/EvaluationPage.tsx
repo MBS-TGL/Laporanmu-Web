@@ -8,13 +8,13 @@ import { ManageTab } from './tabs/ManageTab'
 import { ResultsTab } from './tabs/ResultsTab'
 
 const TAB_META: Record<string, { subtitle: string }> = {
-  kelola: { subtitle: 'Buat angket dari template, terbitkan token, dan kelola pertanyaan' },
-  hasil: { subtitle: 'Analisis respons: dimensi, MBTI, dan sosiogram' },
+  manage: { subtitle: 'Buat angket dari template, terbitkan token, dan kelola pertanyaan' },
+  results: { subtitle: 'Analisis respons: dimensi, MBTI, dan sosiogram' },
 }
 
 /** Halaman Pusat Evaluasi — 1 route bertab `?tab=`. */
 export function EvaluationPage() {
-  const { tab, setTab } = useUrlTab('manage')
+  const { tab, setTab } = useUrlTab('manage', { keys: ['manage', 'results'] })
   const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
 
   return (
@@ -23,7 +23,7 @@ export function EvaluationPage() {
         <ShellItem>
           <PageHeader
             title="Pusat Evaluasi"
-            subtitle={TAB_META[tab]?.subtitle ?? TAB_META.kelola.subtitle}
+            subtitle={TAB_META[tab]?.subtitle ?? TAB_META.manage.subtitle}
             extra={<div ref={setActionsHost} style={{ display: 'flex', alignItems: 'center' }} />}
           />
         </ShellItem>

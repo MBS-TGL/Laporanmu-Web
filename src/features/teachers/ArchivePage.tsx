@@ -6,6 +6,7 @@ import { hardDeleteErrorMessage } from '../../shared/api/crud'
 import { ActionBar } from '../../shared/components/ActionBar'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import {
   useArchivedTeachers,
   useBulkRestoreTeachers,
@@ -22,6 +23,11 @@ export function ArchivePage() {
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const archivedQuery = useArchivedTeachers(search)
+  const pg = useTablePagination(archivedQuery.data?.length ?? 0, {
+    defaultPageSize: 10,
+    showSizeChanger: false,
+    hideOnSinglePage: true,
+  })
   const restoreMutation = useRestoreTeacher()
   const bulkRestoreMutation = useBulkRestoreTeachers()
   const hardDeleteMutation = useHardDeleteTeacher()
@@ -76,7 +82,7 @@ export function ArchivePage() {
           loading={archivedQuery.isPending}
           dataSource={archivedQuery.data ?? []}
           locale={{ emptyText: 'Tidak ada guru di arsip' }}
-          pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+          pagination={pg.pagination}
           rowSelection={
             canWrite
               ? {

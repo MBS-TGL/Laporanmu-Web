@@ -6,6 +6,7 @@ import { ShellItem } from '../../../shared/components/ShellMotion'
 import { StatChip } from '../../../shared/components/StatChip'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useDeleteSppPayment, useSppWithPayments } from '../hooks'
 import { formatRupiah, periodLabel } from '../sppUtil'
 import { METHOD_LABEL, type SppPayment } from '../types'
@@ -23,6 +24,7 @@ export function PaymentsTab({ active }: { active: boolean }) {
   const [exportOpen, setExportOpen] = useState(false)
 
   const total = useMemo(() => payments.reduce((s, p) => s + p.amount, 0), [payments])
+  const pg = useTablePagination(payments.length, { label: 'pembayaran', showSizeChanger: false, defaultPageSize: 15 })
 
   const columns: ColumnsType<SppPayment> = [
     { title: 'Tanggal', width: 110, render: (_, p) => p.paid_at },
@@ -108,7 +110,7 @@ export function PaymentsTab({ active }: { active: boolean }) {
         loading={loading}
         columns={columns}
         dataSource={payments}
-        pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (t) => `${t} pembayaran` }}
+        pagination={pg.pagination}
         scroll={{ x: 'max-content' }}
         locale={
           isError

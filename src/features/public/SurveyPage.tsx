@@ -13,7 +13,7 @@ type Phase = 'entry' | 'isi' | 'done'
  * NIS/kode registrasi. Isian sekali per angket; deadline oleh token.
  */
 export function SurveyPage() {
-  const { token = '' } = useParams()
+  const { token: urlToken = '' } = useParams()
   const { message } = App.useApp()
   const { token: themeToken } = theme.useToken()
 
@@ -21,6 +21,7 @@ export function SurveyPage() {
   const [booting, setBooting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [session, setSession] = useState<{ token: string; code: string } | null>(null)
+  // Token bisa dari URL (/survey/:token dari guru) ATAU diketik di form (halaman /survey)
   const [survey, setSurvey] = useState<SurveyStartResult | null>(null)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -31,12 +32,12 @@ export function SurveyPage() {
     return Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null && v !== ''
   }).length
 
-  const start = async (code: string) => {
+  const start = async (activeToken: string, code: string) => {
     setBooting(true)
     setError(null)
     try {
-      const res = (await rpcEvalStart(token, code)) as SurveyStartResult
-      setSession({ token, code })
+      const res = (await rpcEvalStart(activeToken, code)) as SurveyStartResult
+      setSession({ token: activeToken, code })
       if (res.status === 'submitted') {
         setPhase('done')
       } else {
@@ -82,13 +83,22 @@ export function SurveyPage() {
             ]}
             footnote="Butuh bantuan? Tanyakan pada guru pengawas."
           >
-            <Form layout="vertical" onFinish={(v) => start(String(v.code ?? '').trim())}>
+            <Form layout="vertical" onFinish={(v) => start(urlToken || String(v.token ?? '').trim(), String(v.code ?? '').trim())}>
+              {urlToken ? null : (
+                <Form.Item
+                  name="token"
+                  label="Token Angket"
+                  rules={[{ required: true, message: 'Token wajib diisi' }]}
+                >
+                  <Input size="large" placeholder="Token dari guru" autoFocus />
+                </Form.Item>
+              )}
               <Form.Item
                 name="code"
                 label="NIS / NISN / Kode Registrasi"
                 rules={[{ required: true, message: 'Identitas santri wajib diisi' }]}
               >
-                <Input size="large" placeholder="Contoh: 2026-0001 atau kode registrasi" autoFocus />
+                <Input size="large" placeholder="Contoh: 2026-0001 atau kode registrasi" />
               </Form.Item>
               <Button type="primary" htmlType="submit" size="large" block loading={booting} icon={<SendOutlined />}>
                 Mulai Mengisi

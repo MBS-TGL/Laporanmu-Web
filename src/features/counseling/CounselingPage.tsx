@@ -38,6 +38,7 @@ import { logAudit } from '../../shared/utils/auditLogger'
 import { formatDisplayName } from '../../shared/utils/displayName'
 import { supabase } from '../../lib/supabase'
 import { useDebounce } from '../../shared/hooks/useDebounce'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { useStudentDetail } from '../students/useStudentDetail'
 import {
   useCounselingLogs,
@@ -83,8 +84,8 @@ function CounselingSessions() {
   const [urgency, setUrgency] = useState<CounselingUrgency | undefined>()
   const [status, setStatus] = useState<CounselingStatus | undefined>()
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  // Tabel server-paginated: total asli dari logsQuery, di-override di prop Table.
+  const pg = useTablePagination(0, { label: 'sesi' })
 
   // Fitur halaman
   const [formOpen, setFormOpen] = useState(false)
@@ -106,10 +107,10 @@ function CounselingSessions() {
       status,
       from: dateRange?.[0]?.format('YYYY-MM-DD'),
       to: dateRange?.[1]?.format('YYYY-MM-DD'),
-      page,
-      pageSize,
+      page: pg.page,
+      pageSize: pg.pageSize,
     }),
-    [debouncedSearch, category, urgency, status, dateRange, page, pageSize],
+    [debouncedSearch, category, urgency, status, dateRange, pg.page, pg.pageSize],
   )
 
   const logsQuery = useCounselingLogs(filters)
@@ -459,7 +460,7 @@ function CounselingSessions() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ width: 260 }}
           />
@@ -470,7 +471,7 @@ function CounselingSessions() {
             value={category}
             onChange={(v) => {
               setCategory(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={CATEGORY_OPTIONS}
           />
@@ -481,7 +482,7 @@ function CounselingSessions() {
             value={urgency}
             onChange={(v) => {
               setUrgency(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={URGENCY_OPTIONS}
           />
@@ -492,7 +493,7 @@ function CounselingSessions() {
             value={status}
             onChange={(v) => {
               setStatus(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={STATUS_OPTIONS}
           />
@@ -506,7 +507,7 @@ function CounselingSessions() {
             ]}
             onChange={(v) => {
               setDateRange(v as [Dayjs, Dayjs] | null)
-              setPage(1)
+              pg.setPage(1)
             }}
           />
         </Space>
@@ -537,17 +538,7 @@ function CounselingSessions() {
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada sesi BK tercatat" />
             ),
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: logsQuery.data?.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} sesi`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={{ ...pg.pagination, total: logsQuery.data?.total ?? 0 }}
           scroll={{ x: true }}
         />
       </Card>

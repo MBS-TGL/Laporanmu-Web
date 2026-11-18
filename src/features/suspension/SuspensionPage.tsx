@@ -24,6 +24,7 @@ import { PageHeader } from '../../shared/components/PageHeader'
 import { AppModal } from '../../shared/components/AppModal'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { useDebounce } from '../../shared/hooks/useDebounce'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { supabase } from '../../lib/supabase'
@@ -48,6 +49,7 @@ export function SuspensionPage() {
   const { canWrite } = usePermissions()
   const suspensionsQuery = useSuspensions()
   const suspensions = useMemo(() => suspensionsQuery.data ?? [], [suspensionsQuery.data])
+  const pg = useTablePagination(suspensions.length, { defaultPageSize: 10, showSizeChanger: false })
   const createMutation = useCreateSuspension()
 
   const [formOpen, setFormOpen] = useState(false)
@@ -196,7 +198,7 @@ export function SuspensionPage() {
               />
             ),
           }}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
+          pagination={pg.pagination}
         />
       </Card>
 

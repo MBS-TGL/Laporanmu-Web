@@ -12,3 +12,10 @@ createRoot(document.getElementById('root')!).render(
     </AppProviders>
   </StrictMode>,
 )
+
+// PWA service worker — hanya di production (dev: HMR tidak boleh di-cache)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {
+    // Gagal registrasi SW tidak boleh mematikan aplikasi
+  })
+}

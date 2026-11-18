@@ -149,46 +149,172 @@ export function parseQtyValue(raw: string): { qty: number } | { error: string } 
 }
 
 // ------------------------------------------------------------
-// parseLogTable — impor rekam medis
+// Definisi kolom impor rekam medis (pola students/importParse.ts)
 // ------------------------------------------------------------
 
-interface LogColumnMap {
-  kode: number
-  nama: number
-  tanggal: number
-  jam: number
-  keluhan: number
-  diagnosis: number
-  penanganan: number
-  obat: number
-  jumlah: number
-  status: number
+export const FIELDS = [
+  { key: 'kode', label: 'Kode', aliases: ['kode registrasi', 'kode reg', 'registrasi', 'registration', 'nisn', 'code'] },
+  { key: 'nama', label: 'Nama', aliases: ['nama santri', 'nama siswa', 'santri', 'siswa', 'pasien', 'name'] },
+  { key: 'tanggal', label: 'Tanggal', aliases: ['tgl', 'date', 'tanggal kunjungan'] },
+  { key: 'jam', label: 'Jam', aliases: ['waktu', 'time', 'jam kunjungan'] },
+  { key: 'keluhan', label: 'Keluhan', required: true, aliases: ['complaint', 'keluhan pasien'] },
+  { key: 'diagnosis', label: 'Diagnosis', aliases: ['diag', 'diagnosa'] },
+  { key: 'penanganan', label: 'Penanganan', aliases: ['tindakan', 'treatment'] },
+  { key: 'obat', label: 'Obat', aliases: ['medicine', 'obat diberikan'] },
+  { key: 'jumlah', label: 'Jumlah', aliases: ['qty', 'jml', 'jumlah obat'] },
+  { key: 'status', label: 'Status', aliases: ['observasi', 'status akhir'] },
+] as const satisfies readonly {
+  key: string
+  label: string
+  required?: boolean
+  aliases: readonly string[]
+}[]
+
+export type FieldKey = (typeof FIELDS)[number]['key']
+export type Mapping = Partial<Record<FieldKey, number>>
+
+// Keterangan per kolom untuk sheet "Petunjuk" di template Excel
+const FIELD_NOTES: Partial<Record<FieldKey, string>> = {
+  kode: 'Kode registrasi santri — dicocokkan ke Data Santri. Isi salah satu Kode atau Nama.',
+  nama: 'Nama santri — dipakai bila kolom Kode kosong; harus unik di Data Santri.',
+  tanggal: 'YYYY-MM-DD atau DD/MM/YYYY. Kosong = hari ini. Tidak boleh tanggal masa depan.',
+  jam: 'HH:mm (kosong = 08:00).',
+  keluhan: 'Wajib diisi.',
+  diagnosis: 'Opsional.',
+  penanganan: 'Opsional.',
+  obat: 'Nama obat sesuai stok (kosong = tanpa obat). Stok terpotong otomatis saat impor.',
+  jumlah: 'Angka bulat ≥ 0 (kosong = 1 bila kolom obat terisi).',
+  status: 'UKS, asrama, atau kembali (kosong = kembali KBM).',
 }
 
-function mapLogColumns(headers: string[]): LogColumnMap {
-  const norm = headers.map(normalizeHeader)
-  const find = (...preds: ((h: string) => boolean)[]) => {
-    for (const pred of preds) {
-      const i = norm.findIndex(pred)
-      if (i >= 0) return i
+export const TEMPLATE_COLUMNS = FIELDS.map((f) => f.key)
+
+const TEMPLATE_ROWS: Record<FieldKey, string>[] = [
+  {
+    kode: 'LPM-0001-001',
+    nama: 'Ahmad Fulan',
+    tanggal: '2026-11-17',
+    jam: '08:30',
+    keluhan: 'Demam tinggi sejak pagi',
+    diagnosis: 'Demam biasa',
+    penanganan: 'Kompres + istirahat',
+    obat: 'Paracetamol 500mg',
+    jumlah: '2',
+    status: 'UKS',
+  },
+  {
+    kode: 'LPM-0001-002',
+    nama: 'Siti Aminah',
+    tanggal: '2026-11-17',
+    jam: '09:00',
+    keluhan: 'Sakit perut',
+    diagnosis: '',
+    penanganan: 'Istirahat di asrama',
+    obat: 'Paracetamol 500mg',
+    jumlah: '1',
+    status: 'asrama',
+  },
+]
+
+const byNaturalOrder = (a: string, b: string) => a.localeCompare(b, 'id', { numeric: true })
+
+export function downloadTemplate(refs?: { medicines?: string[] }) {
+  // xlsx (bukan CSV) supaya sheet "Petunjuk" ikut terbawa; sheet pertama =
+  // data, karena readSheet membaca SheetNames[0]
+  void import('xlsx').then((XLSX) => {
+    const header: string[] = FIELDS.map((f) => f.label)
+    const data = TEMPLATE_ROWS.map((row) => TEMPLATE_COLUMNS.map((col) => row[col]))
+    const ws = XLSX.utils.aoa_to_sheet([header, ...data])
+    const textCols = new Set(['kode', 'tanggal', 'jam', 'jumlah'])
+    for (let c = 0; c < header.length; c++) {
+      if (!textCols.has(TEMPLATE_COLUMNS[c])) continue
+      for (let r = 1; r < 500; r++) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        if (!ws[addr]) ws[addr] = { t: 's', v: '' }
+        ws[addr].z = '@'
+      }
     }
-    return -1
-  }
-  const is = (...names: string[]) => (h: string) => names.includes(h)
-  const has = (...names: string[]) => (h: string) => names.some((n) => h.includes(n))
-  return {
-    kode: find(is('kode', 'koderegistrasi', 'registrationcode'), has('kode'), has('registrasi'), has('registration')),
-    nama: find(is('nama', 'name', 'santri', 'siswa', 'pasien'), has('nama'), has('name')),
-    tanggal: find(is('tanggal', 'tgl', 'date'), has('tanggal'), has('tgl')),
-    jam: find(is('jam', 'waktu', 'time'), has('jam'), has('waktu'), h => h === 'time'),
-    keluhan: find(is('keluhan', 'complaint'), has('keluhan'), has('complaint')),
-    diagnosis: find(is('diagnosis', 'diag'), has('diagnos')),
-    penanganan: find(is('penanganan', 'tindakan', 'treatment'), has('penanganan'), has('tindakan'), has('treatment')),
-    obat: find(is('obat', 'medicine'), has('obat'), has('medicine')),
-    jumlah: find(is('jumlah', 'qty', 'jml'), has('jumlah'), has('qty')),
-    status: find(is('status', 'observasi'), has('status'), has('observasi')),
-  }
+    ws['!cols'] = header.map((h, c) => ({
+      wch: Math.min(34, Math.max(h.length + 2, ...data.map((row) => row[c].length + 2))),
+    }))
+
+    // Sheet kedua: petunjuk. JANGAN dipindah ke depan — readSheet membaca sheet pertama.
+    const medicines = [...(refs?.medicines ?? [])].sort(byNaturalOrder)
+    const guide: string[][] = [
+      ['PENTING: hapus 2 baris contoh (Ahmad Fulan & Siti Aminah) di sheet "Log" sebelum mengisi data Anda.'],
+      [],
+      ['Kolom', 'Wajib', 'Keterangan'],
+      ...FIELDS.map((f) => [
+        f.label as string,
+        'required' in f && f.required ? 'Wajib' : 'Opsional',
+        FIELD_NOTES[f.key] ?? '',
+      ]),
+    ]
+    if (medicines.length > 0) {
+      guide.push([], ['Obat valid'])
+      for (const m of medicines) guide.push([m])
+    }
+    const wsGuide = XLSX.utils.aoa_to_sheet(guide)
+    wsGuide['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 80 }]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Log')
+    XLSX.utils.book_append_sheet(wb, wsGuide, 'Petunjuk')
+    XLSX.writeFile(wb, 'Template-Impor-RekamMedis.xlsx')
+  })
 }
+
+// ------------------------------------------------------------
+// Pemetaan kolom otomatis
+// ------------------------------------------------------------
+
+export function normHeader(value: string) {
+  return value
+    .replace(/^\ufeff/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+export function autoMatch(headers: string[]): Mapping {
+  const normalized = headers.map(normHeader)
+  const used = new Set<number>()
+  const mapping: Mapping = {}
+  for (const field of FIELDS) {
+    const names = new Set([field.key, field.label, ...field.aliases].map(normHeader))
+    const index = normalized.findIndex((h, i) => !used.has(i) && names.has(h))
+    if (index >= 0) {
+      mapping[field.key] = index
+      used.add(index)
+    }
+  }
+  return mapping
+}
+
+export function columnLetter(index: number) {
+  let n = index
+  let letters = ''
+  do {
+    letters = String.fromCharCode(65 + (n % 26)) + letters
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return letters
+}
+
+export function sampleValues(rows: string[][], index?: number) {
+  if (index === undefined) return []
+  const values: string[] = []
+  for (const row of rows) {
+    const v = row[index]?.trim()
+    if (v) values.push(v)
+    if (values.length === 2) break
+  }
+  return values
+}
+
+// ------------------------------------------------------------
+// parseLogTable — impor rekam medis
+// ------------------------------------------------------------
 
 interface RosterIndex {
   byCode: Map<string, RosterEntry>
@@ -205,16 +331,28 @@ function buildRosterIndex(roster: RosterEntry[]): RosterIndex {
   return { byCode, byName }
 }
 
-export function parseLogTable(table: string[][], ctx: ParseContext): { rows: ParsedLogRow[]; skippedRows: number } {
+/**
+ * Parse tabel rekam medis (baris pertama = header, hasil autoMatch pemetaan user).
+ * Aturan error dipertahankan persis: identitas → keluhan → tanggal → jam →
+ * duplikat → obat → jumlah → status.
+ */
+export function parseLogTable(
+  table: string[][],
+  mapping: Mapping,
+  ctx: ParseContext,
+): { rows: ParsedLogRow[]; skippedRows: number } {
   if (table.length < 1) throw new Error('File kosong')
 
-  const headers = table[0]
-  const cols = mapLogColumns(headers)
-  if (cols.kode === -1 && cols.nama === -1) {
+  if (mapping.kode === undefined && mapping.nama === undefined) {
     throw new Error('Kolom identifikasi (kode registrasi / nama santri) tidak ditemukan. Unduh template untuk contoh.')
   }
-  if (cols.keluhan === -1) {
+  if (mapping.keluhan === undefined) {
     throw new Error('Kolom "keluhan" tidak ditemukan. Unduh template untuk contoh.')
+  }
+
+  const get = (cells: string[], field: FieldKey): string => {
+    const idx = mapping[field]
+    return idx === undefined ? '' : (cells[idx] ?? '').trim()
   }
 
   const index = buildRosterIndex(ctx.roster)
@@ -222,8 +360,6 @@ export function parseLogTable(table: string[][], ctx: ParseContext): { rows: Par
   const batchSeen = new Set<string>()
   const rows: ParsedLogRow[] = []
   let skippedRows = 0
-
-  const identifierCols = [cols.kode, cols.nama].filter((i) => i >= 0)
 
   for (let i = 1; i < table.length; i++) {
     const cells = table[i]
@@ -233,9 +369,11 @@ export function parseLogTable(table: string[][], ctx: ParseContext): { rows: Par
       continue
     }
 
+    const kode = get(cells, 'kode')
+    const nama = get(cells, 'nama')
     const base: ParsedLogRow = {
       row: i,
-      identifier: identifierCols.map((c) => cells[c] ?? '').filter(Boolean).join(' · ') || '(tanpa identitas)',
+      identifier: [kode, nama].filter(Boolean).join(' · ') || '(tanpa identitas)',
       studentId: null,
       studentName: null,
       className: null,
@@ -253,8 +391,6 @@ export function parseLogTable(table: string[][], ctx: ParseContext): { rows: Par
     }
 
     // --- identitas santri: kode → nama ---
-    const kode = cols.kode >= 0 ? (cells[cols.kode] ?? '').trim() : ''
-    const nama = cols.nama >= 0 ? (cells[cols.nama] ?? '').trim() : ''
     let match: RosterEntry | undefined
     let matchBy: 'kode' | 'nama' | null = null
     if (kode) {
@@ -284,19 +420,19 @@ export function parseLogTable(table: string[][], ctx: ParseContext): { rows: Par
     }
 
     // --- keluhan wajib ---
-    const complaint = (cols.keluhan >= 0 ? cells[cols.keluhan] ?? '' : '').trim()
+    const complaint = get(cells, 'keluhan')
     if (!complaint) {
       rows.push({ ...matched, rowStatus: 'error', error: 'Keluhan wajib diisi' })
       continue
     }
     matched.complaint = complaint
-    matched.diagnosis = cols.diagnosis >= 0 ? (cells[cols.diagnosis] ?? '').trim() : ''
-    matched.treatment = cols.penanganan >= 0 ? (cells[cols.penanganan] ?? '').trim() : ''
+    matched.diagnosis = get(cells, 'diagnosis')
+    matched.treatment = get(cells, 'penanganan')
 
     // --- tanggal & jam ---
     // Tanggal kosong → default hari ini (impor cepat kunjungan harian).
-    const dateRaw = cols.tanggal >= 0 ? cells[cols.tanggal] ?? '' : ''
-    if (!dateRaw.trim()) {
+    const dateRaw = get(cells, 'tanggal')
+    if (!dateRaw) {
       matched.date = ctx.today
     } else {
       const parsedDate = parseDateValue(dateRaw, ctx.today)
@@ -307,7 +443,7 @@ export function parseLogTable(table: string[][], ctx: ParseContext): { rows: Par
       matched.date = parsedDate.date
     }
 
-    const parsedTime = parseTimeValue(cols.jam >= 0 ? cells[cols.jam] ?? '' : '')
+    const parsedTime = parseTimeValue(get(cells, 'jam'))
     if ('error' in parsedTime) {
       rows.push({ ...matched, rowStatus: 'error', error: parsedTime.error })
       continue
@@ -323,14 +459,14 @@ export function parseLogTable(table: string[][], ctx: ParseContext): { rows: Par
     batchSeen.add(dupKey)
 
     // --- obat opsional: cocokkan nama → id; jumlah default 1 ---
-    const obatRaw = cols.obat >= 0 ? (cells[cols.obat] ?? '').trim() : ''
+    const obatRaw = get(cells, 'obat')
     if (obatRaw) {
       const med = medicineByName.get(normName(obatRaw))
       if (!med) {
         rows.push({ ...matched, rowStatus: 'error', error: `Obat "${obatRaw}" tidak ada di stok — kosongkan kolom obat jika tanpa obat` })
         continue
       }
-      const parsedQty = parseQtyValue(cols.jumlah >= 0 ? cells[cols.jumlah] ?? '' : '')
+      const parsedQty = parseQtyValue(get(cells, 'jumlah'))
       if ('error' in parsedQty) {
         rows.push({ ...matched, rowStatus: 'error', error: parsedQty.error })
         continue
@@ -342,9 +478,10 @@ export function parseLogTable(table: string[][], ctx: ParseContext): { rows: Par
     }
 
     // --- status opsional: default Returned ---
-    const statusNorm = normalizeStatusInput(cols.status >= 0 ? cells[cols.status] ?? '' : '')
+    const statusRaw = get(cells, 'status')
+    const statusNorm = normalizeStatusInput(statusRaw)
     if (statusNorm === null) {
-      rows.push({ ...matched, rowStatus: 'error', error: `Status tidak dikenal: "${cells[cols.status]}"` })
+      rows.push({ ...matched, rowStatus: 'error', error: `Status tidak dikenal: "${statusRaw}"` })
       continue
     }
     if (statusNorm !== '') matched.status = statusNorm
@@ -477,3 +614,22 @@ export function parseMedicineTable(table: string[][], existing: { id: string; na
 
   return { rows, skippedRows }
 }
+
+// ------------------------------------------------------------
+// Ilustrasi struktur kolom (langkah Upload, impor rekam medis)
+// ------------------------------------------------------------
+
+// Kolom inti yang ditampilkan di contoh modal. Semua kolom wajib HARUS ada di sini
+// (dijaga oleh test importParse).
+const SAMPLE_KEYS: FieldKey[] = ['kode', 'nama', 'tanggal', 'jam', 'keluhan', 'obat', 'status']
+const REQUIRED_KEYS = new Set<string>(
+  FIELDS.filter((f) => 'required' in f && f.required).map((f) => f.key),
+)
+
+// Diturunkan dari FIELDS + TEMPLATE_ROWS supaya selalu sama dengan template
+export const SAMPLE_COLUMNS = SAMPLE_KEYS.map((key) => ({
+  key,
+  label: FIELDS.find((f) => f.key === key)?.label ?? (key as string), // sama persis dengan header template
+  required: REQUIRED_KEYS.has(key),
+  values: TEMPLATE_ROWS.map((row) => row[key]),
+}))

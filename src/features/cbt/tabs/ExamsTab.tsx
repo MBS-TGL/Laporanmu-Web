@@ -15,6 +15,7 @@ import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { StatChip } from '../../../shared/components/StatChip'
 import { usePermissions } from '../../../shared/hooks/useProfile'
 import { useProfile } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useCbtExams, useCreateCbtExam, useDeleteCbtExam, useUpdateCbtExam } from '../hooks'
 import type { CbtExam, ExamFormValues } from '../types'
 import { ExamModal } from '../components/ExamModal'
@@ -38,6 +39,7 @@ export function ExamsTab({ active }: { active: boolean }) {
   const [detailId, setDetailId] = useState<string | null>(null)
 
   const rows = examsQuery.data ?? []
+  const pg = useTablePagination(rows.length, { label: 'ujian', defaultPageSize: 10, showSizeChanger: false })
   const detailExam = rows.find((e) => e.id === detailId) ?? null
   const publishedCount = rows.filter((e) => e.is_published).length
 
@@ -154,7 +156,7 @@ export function ExamsTab({ active }: { active: boolean }) {
         loading={examsQuery.isPending}
         columns={columns}
         dataSource={rows}
-        pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} ujian` }}
+        pagination={pg.pagination}
         scroll={{ x: 'max-content' }}
         locale={{ emptyText: 'Belum ada sesi ujian. Buat ujian, lalu terbitkan token untuk santri.' }}
       />

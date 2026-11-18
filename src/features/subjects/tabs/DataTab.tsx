@@ -1,0 +1,562 @@
+import { useMemo, useRef, useState } from 'react'
+import {
+  App,
+  Button,
+  Card,
+  Empty,
+  Input,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  type InputRef,
+  type TableColumnsType,
+} from 'antd'
+import {
+  BookOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  PlusOutlined,
+  QuestionCircleOutlined,
+  SearchOutlined,
+  StopOutlined,
+  SyncOutlined,
+  UndoOutlined,
+} from '@ant-design/icons'
+import dayjs from 'dayjs'
+import Papa from 'papaparse'
+import { useTabActions } from '../../../shared/components/ActionsSlot'
+import { ShortcutsModal } from '../../../shared/components/ShortcutsModal'
+import { StatChip } from '../../../shared/components/StatChip'
+import { useDebounce } from '../../../shared/hooks/useDebounce'
+import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
+import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
+import {
+  useCreateSubject,
+  useDeleteSubject,
+  useSubjects,
+  useUpdateSubject,
+} from '../hooks'
+import { SubjectForm } from '../components/SubjectForm'
+import { PHASE_OPTIONS, type Subject, type SubjectFormValues } from '../types'
+
+type ActiveFilter = '' | 'active' | 'inactive'
+
+interface DataTabProps {
+  /** true saat tab ini aktif — wajib untuk gate portal aksi & shortcut keyboard */
+  active: boolean
+}
+
+/** Tab "Data Mapel" — daftar mapel, kelompok, dan beban JP. */
+export function DataTab({ active }: DataTabProps) {
+  const { message } = App.useApp()
+  const { canWrite, canDelete } = usePermissions()
+
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
+  const [category, setCategory] = useState<string | undefined>(undefined)
+  const [curriculumGroup, setCurriculumGroup] = useState<string | undefined>(undefined)
+  const [phase, setPhase] = useState<string | undefined>(undefined)
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('')
+
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<Subject | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const searchRef = useRef<InputRef>(null)
+
+  const subjectsQuery = useSubjects()
+  const createMutation = useCreateSubject()
+  const updateMutation = useUpdateSubject()
+  const deleteMutation = useDeleteSubject()
+  const allSubjects = useMemo(() => subjectsQuery.data ?? [], [subjectsQuery.data])
+  const isRefreshing = subjectsQuery.isFetching
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const s of allSubjects) if (s.category) set.add(s.category)
+    return [...set].sort((a, b) => a.localeCompare(b)).map((c) => ({ value: c, label: c }))
+  }, [allSubjects])
+
+  // Pola fetch-sekali: mapel volumenya kecil, filter + paginate di memori
+  const rows = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase()
+    return allSubjects.filter((s) => {
+      if (q && !`${s.name} ${s.code ?? ''} ${s.category ?? ''}`.toLowerCase().includes(q)) return false
+      if (category && s.category !== category) return false
+      if (curriculumGroup && s.curriculum_group !== curriculumGroup) return false
+      if (phase && s.phase !== phase) return false
+      if (activeFilter === 'active' && !s.is_active) return false
+      if (activeFilter === 'inactive' && s.is_active) return false
+      return true
+    })
+  }, [allSubjects, debouncedSearch, category, curriculumGroup, phase, activeFilter])
+
+  const pg = useTablePagination(rows.length, { label: 'mapel' })
+
+  const paginatedRows = useMemo(
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
+  )
+
+  const resetFilters = () => {
+    setSearch('')
+    setCategory(undefined)
+    setCurriculumGroup(undefined)
+    setPhase(undefined)
+    setActiveFilter('')
+    pg.setPage(1)
+  }
+
+  const hasActiveFilters = Boolean(debouncedSearch || category || curriculumGroup || phase || activeFilter)
+
+  const openCreate = () => {
+    setEditing(null)
+    setFormOpen(true)
+  }
+
+  const openEdit = (subject: Subject) => {
+    setEditing(subject)
+    setFormOpen(true)
+  }
+
+  const handleSubmit = (values: SubjectFormValues) => {
+    const onError = (err: Error) => message.error(err.message || 'Gagal menyimpan mapel')
+    if (editing) {
+      updateMutation.mutate(
+        { id: editing.id, values },
+        {
+          onSuccess: () => {
+            message.success('Mata pelajaran diperbarui')
+            setFormOpen(false)
+          },
+          onError,
+        },
+      )
+    } else {
+      createMutation.mutate(values, {
+        onSuccess: () => {
+          message.success('Mata pelajaran ditambahkan')
+          setFormOpen(false)
+        },
+        onError,
+      })
+    }
+  }
+
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate(id, {
+      onSuccess: () => message.success('Mata pelajaran dihapus'),
+      onError: (err: Error) => message.error(err.message || 'Gagal menghapus mata pelajaran'),
+    })
+  }
+
+  const handleToggleActive = (subject: Subject) => {
+    updateMutation.mutate(
+      {
+        id: subject.id,
+        values: {
+          name: subject.name,
+          code: subject.code ?? undefined,
+          weekly_hours: subject.weekly_hours,
+          category: subject.category ?? undefined,
+          description: subject.description ?? undefined,
+          is_active: !subject.is_active,
+          kkm: subject.kkm ?? undefined,
+          phase: subject.phase ?? undefined,
+          curriculum_group: subject.curriculum_group ?? undefined,
+          sort_order: subject.sort_order ?? 0,
+        },
+      },
+      {
+        onSuccess: () =>
+          message.success(subject.is_active ? 'Mapel dinonaktifkan' : 'Mapel diaktifkan'),
+        onError: (err: Error) => message.error(err.message || 'Gagal mengubah status mapel'),
+      },
+    )
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const csv = Papa.unparse({
+        fields: ['Nama Mapel', 'Kode', 'Kategori', 'Kelompok KurMer', 'Fase', 'KKM', 'JP/Minggu', 'Urutan', 'Status'],
+        data: rows.map((s) => [
+          s.name,
+          s.code ?? '',
+          s.category ?? '',
+          s.curriculum_group ?? '',
+          s.phase ?? '',
+          s.kkm ?? '',
+          s.weekly_hours,
+          s.sort_order,
+          s.is_active ? 'Aktif' : 'Nonaktif',
+        ]),
+      })
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `mata-pelajaran-${dayjs().format('YYYY-MM-DD')}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+      message.success(`${rows.length} mapel diekspor`)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal mengekspor CSV')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const stats = useMemo(
+    () => ({
+      total: allSubjects.length,
+      active: allSubjects.filter((s) => s.is_active).length,
+      inactive: allSubjects.filter((s) => !s.is_active).length,
+      hours: allSubjects
+        .filter((s) => s.is_active)
+        .reduce((sum, s) => sum + (s.weekly_hours || 0), 0),
+    }),
+    [allSubjects],
+  )
+
+  // Gate isBlocked: modal terbuka ATAU tab tidak aktif (pane tetap mounted di antd)
+  const isBlocked = formOpen || !active
+
+  const shortcutItems: ShortcutItem[] = [
+    {
+      keys: ['N'],
+      label: 'Tambah Mapel',
+      group: 'Aksi',
+      icon: <PlusOutlined />,
+      run: openCreate,
+      when: canWrite,
+    },
+    {
+      keys: ['Ctrl', 'K'],
+      label: 'Fokus pencarian',
+      group: 'Navigasi',
+      icon: <SearchOutlined />,
+      run: () => searchRef.current?.focus(),
+    },
+    {
+      keys: ['Esc'],
+      label: 'Reset semua filter',
+      group: 'Navigasi',
+      icon: <UndoOutlined />,
+      run: resetFilters,
+      when: hasActiveFilters,
+    },
+    {
+      keys: ['R'],
+      label: 'Muat ulang data',
+      group: 'Tampilan',
+      icon: <SyncOutlined />,
+      run: () => void subjectsQuery.refetch(),
+    },
+    {
+      keys: ['?'],
+      label: 'Palet shortcut',
+      group: 'Bantuan',
+      icon: <QuestionCircleOutlined />,
+      run: () => shortcuts.toggle(),
+    },
+  ]
+
+  const shortcuts = useShortcuts({
+    items: shortcutItems,
+    isBlocked,
+  })
+
+  const columns: TableColumnsType<Subject> = [
+    {
+      title: 'Mata Pelajaran',
+      dataIndex: 'name',
+      key: 'name',
+      render: (_, row) => (
+        <div>
+          <span style={{ fontWeight: 500 }}>{row.name}</span>
+          {row.code && (
+            <Tag style={{ marginLeft: 8, borderRadius: 6, fontSize: 11 }}>{row.code}</Tag>
+          )}
+          {row.description && (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{row.description}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Kelompok',
+      dataIndex: 'category',
+      key: 'category',
+      width: 140,
+      render: (v: string | null) => (v ? <Tag>{v}</Tag> : '-'),
+      responsive: ['md'],
+    },
+    {
+      title: 'Fase',
+      dataIndex: 'phase',
+      key: 'phase',
+      width: 80,
+      align: 'center',
+      render: (v: string | null) => (v ? <Tag color="purple">{v}</Tag> : '-'),
+      responsive: ['lg'],
+    },
+    {
+      title: 'KurMer',
+      key: 'curriculum_group',
+      width: 90,
+      align: 'center',
+      render: (_, row) => {
+        if (!row.curriculum_group) return '-'
+        return (
+          <Tag color={row.curriculum_group === 'A' ? 'blue' : 'cyan'}>
+            {row.curriculum_group}
+          </Tag>
+        )
+      },
+      responsive: ['lg'],
+    },
+    {
+      title: 'KKM',
+      dataIndex: 'kkm',
+      key: 'kkm',
+      width: 70,
+      align: 'center',
+      render: (v: number | null) => v ?? '-',
+      responsive: ['lg'],
+    },
+    {
+      title: 'JP/Minggu',
+      dataIndex: 'weekly_hours',
+      key: 'weekly_hours',
+      width: 110,
+      align: 'center',
+      render: (v: number) => <span style={{ fontWeight: 600 }}>{v}</span>,
+      responsive: ['md'],
+    },
+    {
+      title: 'Status',
+      dataIndex: 'is_active',
+      key: 'is_active',
+      width: 120,
+      render: (v: boolean, row) =>
+        canWrite ? (
+          <Switch
+            size="small"
+            checked={v}
+            checkedChildren="Aktif"
+            unCheckedChildren="Off"
+            loading={updateMutation.isPending && updateMutation.variables?.id === row.id}
+            onChange={() => handleToggleActive(row)}
+          />
+        ) : v ? (
+          <Tag color="green">Aktif</Tag>
+        ) : (
+          <Tag>Nonaktif</Tag>
+        ),
+    },
+    {
+      title: 'Aksi',
+      key: 'actions',
+      width: 110,
+      render: (_, row) =>
+        canWrite || canDelete ? (
+          <Space size="small">
+            {canWrite && (
+              <Tooltip title="Edit">
+                <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(row)} />
+              </Tooltip>
+            )}
+            {canDelete && (
+              <Popconfirm
+                title="Hapus mapel ini?"
+                description="Jadwal KBM yang memakai mapel ini tidak ikut terhapus."
+                onConfirm={() => handleDelete(row.id)}
+                okText="Hapus"
+                cancelText="Batal"
+              >
+                <Tooltip title="Hapus">
+                  <Button type="text" danger icon={<DeleteOutlined />} />
+                </Tooltip>
+              </Popconfirm>
+            )}
+          </Space>
+        ) : (
+          <span style={{ color: '#bbb' }}>—</span>
+        ),
+    },
+  ]
+
+  // Aksi tab dirender di kanan PageHeader via portal ActionsSlot
+  const tabActions = useTabActions(
+    active,
+    <Space wrap>
+      <Tooltip title="Muat ulang (R)">
+        <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={() => void subjectsQuery.refetch()} />
+      </Tooltip>
+      <Tooltip title="Ekspor data mapel (CSV)">
+        <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport} />
+      </Tooltip>
+      <Tooltip title="Palet shortcut (?)">
+        <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+      </Tooltip>
+      {canWrite && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          Tambah Mapel
+        </Button>
+      )}
+    </Space>,
+  )
+
+  return (
+    <div>
+      {tabActions}
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+        <StatChip
+          icon={<BookOutlined />}
+          label="Total Mapel"
+          value={stats.total}
+          color="indigo"
+          loading={subjectsQuery.isPending}
+          active={activeFilter === ''}
+          onClick={() => {
+            setActiveFilter('')
+            pg.setPage(1)
+          }}
+        />
+        <StatChip
+          icon={<BookOutlined />}
+          label="Aktif"
+          value={stats.active}
+          color="emerald"
+          loading={subjectsQuery.isPending}
+          active={activeFilter === 'active'}
+          onClick={() => {
+            setActiveFilter(activeFilter === 'active' ? '' : 'active')
+            pg.setPage(1)
+          }}
+        />
+        <StatChip
+          icon={<StopOutlined />}
+          label="Nonaktif"
+          value={stats.inactive}
+          color="rose"
+          loading={subjectsQuery.isPending}
+          active={activeFilter === 'inactive'}
+          hideIfZero
+          onClick={() => {
+            setActiveFilter(activeFilter === 'inactive' ? '' : 'inactive')
+            pg.setPage(1)
+          }}
+        />
+        <StatChip
+          icon={<BookOutlined />}
+          label="Total JP Aktif"
+          value={stats.hours}
+          color="purple"
+          loading={subjectsQuery.isPending}
+        />
+      </div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <Input
+            ref={searchRef}
+            placeholder="Cari nama, kode, atau kelompok mapel"
+            prefix={<SearchOutlined />}
+            allowClear
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              pg.setPage(1)
+            }}
+            style={{ flex: '1 1 240px', minWidth: 220 }}
+          />
+          <Select
+            placeholder="Kelompok"
+            allowClear
+            options={categoryOptions}
+            value={category}
+            onChange={(v) => {
+              setCategory(v)
+              pg.setPage(1)
+            }}
+            style={{ minWidth: 150 }}
+          />
+          <Select
+            placeholder="KurMer"
+            allowClear
+            options={[
+              { value: 'A', label: 'Kelompok A (Wajib)' },
+              { value: 'B', label: 'Kelompok B (Pilihan)' },
+            ]}
+            value={curriculumGroup}
+            onChange={(v) => {
+              setCurriculumGroup(v)
+              pg.setPage(1)
+            }}
+            style={{ minWidth: 130 }}
+          />
+          <Select
+            placeholder="Fase"
+            allowClear
+            options={PHASE_OPTIONS}
+            value={phase}
+            onChange={(v) => {
+              setPhase(v)
+              pg.setPage(1)
+            }}
+            style={{ minWidth: 130 }}
+          />
+          {hasActiveFilters && (
+            <Button icon={<UndoOutlined />} onClick={resetFilters}>
+              Reset
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <Table<Subject>
+          rowKey="id"
+          columns={columns}
+          dataSource={paginatedRows}
+          loading={subjectsQuery.isPending}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={hasActiveFilters ? 'Tidak ada mapel yang cocok dengan filter' : 'Belum ada mata pelajaran'}
+              />
+            ),
+          }}
+          pagination={pg.pagination}
+          scroll={{ x: true }}
+        />
+      </Card>
+
+      <SubjectForm
+        open={formOpen}
+        subject={editing}
+        submitting={createMutation.isPending || updateMutation.isPending}
+        usedCategories={Array.from(
+          new Set(
+            (subjectsQuery.data ?? [])
+              .map((s) => s.category?.trim())
+              .filter((c): c is string => Boolean(c)),
+          ),
+        )}
+        onCancel={() => setFormOpen(false)}
+        onSubmit={handleSubmit}
+      />
+
+      <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
+    </div>
+  )
+}

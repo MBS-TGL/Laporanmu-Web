@@ -35,6 +35,7 @@ import { SortIcon } from '../../shared/components/SortIcon'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { columnSortOrder, sortByFromTableChange } from '../../shared/utils/tableSort'
 import { ArchiveExport } from './components/ArchiveExport'
 import { DetailDrawer } from './components/DetailDrawer'
@@ -96,7 +97,6 @@ export function ArchivePage({ active }: { active: boolean }) {
   const [classId, setClassId] = useState<string | undefined>(undefined)
   const [range, setRange] = useState<RangeKey>('all')
   const [sortBy, setSortBy] = useState<ArchiveSort>('date_desc')
-  const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [detail, setDetail] = useState<Student | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
@@ -155,11 +155,13 @@ export function ArchivePage({ active }: { active: boolean }) {
     [archived],
   )
 
+  const pg = useTablePagination(rows.length, { defaultPageSize: 10, showSizeChanger: false, hideOnSinglePage: true })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * 10, page * 10),
-    [rows, page],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
-  const resetPage = () => setPage(1)
+  const resetPage = pg.reset
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const allFilteredSelected = rows.length > 0 && rows.every((r) => selectedIdSet.has(r.id))
@@ -540,14 +542,7 @@ export function ArchivePage({ active }: { active: boolean }) {
           onChange={handleTableChange}
           showSorterTooltip={false}
           scroll={{ x: 'max-content' }}
-          pagination={{
-            current: page,
-            pageSize: 10,
-            total: rows.length,
-            showSizeChanger: false,
-            hideOnSinglePage: true,
-            onChange: setPage,
-          }}
+          pagination={pg.pagination}
           rowSelection={
             canWrite
               ? {

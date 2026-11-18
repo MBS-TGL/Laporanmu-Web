@@ -38,6 +38,7 @@ import { StatusTag } from '../../../shared/components/StatusTag'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import {
   useCreateTahfidz,
   useDeleteTahfidz,
@@ -89,8 +90,8 @@ export function SetoranTab({ active }: { active: boolean }) {
   const [kind, setKind] = useState<TahfidzKindFilter>('')
   const [quality, setQuality] = useState<TahfidzQuality | ''>('')
   const [range, setRange] = useState<[string | undefined, string | undefined]>([undefined, undefined])
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  // Tabel server-paginated: total asli dari recordsQuery, di-override di prop Table.
+  const pg = useTablePagination(0, { label: 'setoran' })
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<TahfidzRecord | null>(null)
@@ -105,10 +106,10 @@ export function SetoranTab({ active }: { active: boolean }) {
       from: range[0],
       to: range[1],
       studentIds: scoped ? memberStudentIds : undefined,
-      page,
-      pageSize,
+      page: pg.page,
+      pageSize: pg.pageSize,
     }),
-    [debouncedSearch, kind, quality, range, scoped, memberStudentIds, page, pageSize],
+    [debouncedSearch, kind, quality, range, scoped, memberStudentIds, pg.page, pg.pageSize],
   )
 
   const recordsQuery = useTahfidz(filters)
@@ -123,7 +124,7 @@ export function SetoranTab({ active }: { active: boolean }) {
     setKind('')
     setQuality('')
     setRange([undefined, undefined])
-    setPage(1)
+    pg.setPage(1)
   }
 
   const hasActiveFilters = Boolean(debouncedSearch || kind || quality || range[0] || range[1])
@@ -274,8 +275,8 @@ export function SetoranTab({ active }: { active: boolean }) {
   )
 
   const handleTableChange: TableProps<TahfidzRecord>['onChange'] = (pagination) => {
-    setPage(pagination.current ?? 1)
-    setPageSize(pagination.pageSize ?? 10)
+    pg.setPage(pagination.current ?? 1)
+    pg.setPageSize(pagination.pageSize ?? 10)
   }
 
   const columns: TableColumnsType<TahfidzRecord> = [
@@ -392,7 +393,7 @@ export function SetoranTab({ active }: { active: boolean }) {
           active={!kind}
           onClick={() => {
             setKind('')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -404,7 +405,7 @@ export function SetoranTab({ active }: { active: boolean }) {
           active={kind === 'ziyadah'}
           onClick={() => {
             setKind(kind === 'ziyadah' ? '' : 'ziyadah')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -416,7 +417,7 @@ export function SetoranTab({ active }: { active: boolean }) {
           active={kind === 'murojaah'}
           onClick={() => {
             setKind(kind === 'murojaah' ? '' : 'murojaah')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -434,7 +435,7 @@ export function SetoranTab({ active }: { active: boolean }) {
             value={kind}
             onChange={(v) => {
               setKind(v as TahfidzKindFilter)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={[
               { label: 'Semua', value: '' },
@@ -449,7 +450,7 @@ export function SetoranTab({ active }: { active: boolean }) {
               value={activeGroupId}
               onChange={(v) => {
                 setScopeGroupId(v)
-                setPage(1)
+                pg.setPage(1)
               }}
               options={scopedGroups.map((g) => ({
                 value: g.id,
@@ -465,7 +466,7 @@ export function SetoranTab({ active }: { active: boolean }) {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ flex: '1 1 220px', minWidth: 200 }}
           />
@@ -476,7 +477,7 @@ export function SetoranTab({ active }: { active: boolean }) {
             value={quality || undefined}
             onChange={(v) => {
               setQuality(v ?? '')
-              setPage(1)
+              pg.setPage(1)
             }}
             options={Object.entries(QUALITY_META).map(([value, meta]) => ({
               value,
@@ -490,7 +491,7 @@ export function SetoranTab({ active }: { active: boolean }) {
                 dates?.[0]?.format('YYYY-MM-DD'),
                 dates?.[1]?.format('YYYY-MM-DD'),
               ])
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ minWidth: 230 }}
           />
@@ -523,13 +524,7 @@ export function SetoranTab({ active }: { active: boolean }) {
               />
             ),
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: recordsQuery.data?.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} setoran`,
-          }}
+          pagination={{ ...pg.pagination, total: recordsQuery.data?.total ?? 0 }}
           scroll={{ x: true }}
         />
       </Card>

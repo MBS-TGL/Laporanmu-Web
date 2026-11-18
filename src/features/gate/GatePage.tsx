@@ -29,6 +29,7 @@ import { StatusTag } from '../../shared/components/StatusTag'
 import { ActionBar } from '../../shared/components/ActionBar'
 import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
 import { formatDisplayName } from '../../shared/utils/displayName'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { useStudentDetail } from '../students/useStudentDetail'
 import { supabase } from '../../lib/supabase'
 import { useConfirmDeparture, useConfirmReturn, usePermits } from '../leave-permit/hooks'
@@ -60,8 +61,8 @@ export function GatePage() {
   const [search, setSearch] = useState('')
   const [direction, setDirection] = useState<GateDirection | ''>('')
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  // Tabel server-paginated: total asli dari logsQuery, di-override di prop Table.
+  const pg = useTablePagination(0, { label: 'log' })
 
   // Mode & fitur halaman
   const [entryDirection, setEntryDirection] = useState<GateDirection>('entry')
@@ -88,10 +89,10 @@ export function GatePage() {
       direction: direction || undefined,
       from: dateRange?.[0]?.startOf('day').format(),
       to: dateRange?.[1]?.endOf('day').format(),
-      page,
-      pageSize,
+      page: pg.page,
+      pageSize: pg.pageSize,
     }),
-    [search, direction, dateRange, page, pageSize],
+    [search, direction, dateRange, pg.page, pg.pageSize],
   )
 
   const exportFilters = useMemo<Omit<GateLogFilters, 'page' | 'pageSize'>>(
@@ -346,7 +347,7 @@ export function GatePage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ width: 220 }}
           />
@@ -355,7 +356,7 @@ export function GatePage() {
             value={direction}
             onChange={(v) => {
               setDirection(v as GateDirection | '')
-              setPage(1)
+              pg.setPage(1)
             }}
           />
           <DatePicker.RangePicker
@@ -367,7 +368,7 @@ export function GatePage() {
             ]}
             onChange={(v) => {
               setDateRange(v as [Dayjs, Dayjs] | null)
-              setPage(1)
+              pg.setPage(1)
             }}
           />
         </Space>
@@ -385,17 +386,7 @@ export function GatePage() {
             onChange: (keys) => setSelectedIds(keys),
             preserveSelectedRowKeys: true,
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: logsQuery.data?.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} log`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={{ ...pg.pagination, total: logsQuery.data?.total ?? 0 }}
           scroll={{ x: true }}
         />
       </Card>

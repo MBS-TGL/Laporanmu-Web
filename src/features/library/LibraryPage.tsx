@@ -37,6 +37,7 @@ import { StatusTag } from '../../shared/components/StatusTag'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import {
   useBooks,
   useCreateBook,
@@ -73,15 +74,11 @@ export function LibraryPage() {
   const [bookSearch, setBookSearch] = useState('')
   const debouncedBookSearch = useDebounce(bookSearch, 300)
   const [category, setCategory] = useState<string | undefined>(undefined)
-  const [bookPage, setBookPage] = useState(1)
-  const [bookPageSize, setBookPageSize] = useState(10)
 
   // ---- Peminjaman ----
   const [loanSearch, setLoanSearch] = useState('')
   const debouncedLoanSearch = useDebounce(loanSearch, 300)
   const [loanView, setLoanView] = useState<LoanView>('active')
-  const [loanPage, setLoanPage] = useState(1)
-  const [loanPageSize, setLoanPageSize] = useState(10)
 
   const [tab, setTab] = useState('books')
   const [bookFormOpen, setBookFormOpen] = useState(false)
@@ -192,8 +189,8 @@ export function LibraryPage() {
     setCategory(undefined)
     setLoanSearch('')
     setLoanView('active')
-    setBookPage(1)
-    setLoanPage(1)
+    pgBook.setPage(1)
+    pgLoan.setPage(1)
   }
 
   // ------------------------------------------------------------
@@ -261,9 +258,11 @@ export function LibraryPage() {
     })
   }, [allBooks, debouncedBookSearch, category])
 
+  const pgBook = useTablePagination(bookRows.length, { label: 'judul' })
+
   const paginatedBooks = useMemo(
-    () => bookRows.slice((bookPage - 1) * bookPageSize, bookPage * bookPageSize),
-    [bookRows, bookPage, bookPageSize],
+    () => bookRows.slice((pgBook.page - 1) * pgBook.pageSize, pgBook.page * pgBook.pageSize),
+    [bookRows, pgBook.page, pgBook.pageSize],
   )
 
   const loanRows = useMemo(() => {
@@ -283,9 +282,11 @@ export function LibraryPage() {
     })
   }, [allLoans, debouncedLoanSearch, loanView])
 
+  const pgLoan = useTablePagination(loanRows.length, { label: 'catatan' })
+
   const paginatedLoans = useMemo(
-    () => loanRows.slice((loanPage - 1) * loanPageSize, loanPage * loanPageSize),
-    [loanRows, loanPage, loanPageSize],
+    () => loanRows.slice((pgLoan.page - 1) * pgLoan.pageSize, pgLoan.page * pgLoan.pageSize),
+    [loanRows, pgLoan.page, pgLoan.pageSize],
   )
 
   const categoryOptions = useMemo(() => {
@@ -558,7 +559,7 @@ export function LibraryPage() {
                       value={bookSearch}
                       onChange={(e) => {
                         setBookSearch(e.target.value)
-                        setBookPage(1)
+                        pgBook.setPage(1)
                       }}
                       style={{ flex: '1 1 240px', minWidth: 220 }}
                     />
@@ -569,7 +570,7 @@ export function LibraryPage() {
                       value={category}
                       onChange={(v) => {
                         setCategory(v)
-                        setBookPage(1)
+                        pgBook.setPage(1)
                       }}
                       style={{ minWidth: 140 }}
                     />
@@ -592,17 +593,7 @@ export function LibraryPage() {
                         />
                       ),
                     }}
-                    pagination={{
-                      current: bookPage,
-                      pageSize: bookPageSize,
-                      total: bookRows.length,
-                      showSizeChanger: true,
-                      showTotal: (t) => `Total ${t} judul`,
-                      onChange: (p, ps) => {
-                        setBookPage(p)
-                        setBookPageSize(ps)
-                      },
-                    }}
+                    pagination={pgBook.pagination}
                     scroll={{ x: true }}
                   />
                 </>
@@ -618,7 +609,7 @@ export function LibraryPage() {
                       value={loanView}
                       onChange={(v) => {
                         setLoanView(v as LoanView)
-                        setLoanPage(1)
+                        pgLoan.setPage(1)
                       }}
                       options={[
                         { label: 'Dipinjam', value: 'active' },
@@ -634,7 +625,7 @@ export function LibraryPage() {
                       value={loanSearch}
                       onChange={(e) => {
                         setLoanSearch(e.target.value)
-                        setLoanPage(1)
+                        pgLoan.setPage(1)
                       }}
                       style={{ flex: '1 1 220px', minWidth: 200 }}
                     />
@@ -653,17 +644,7 @@ export function LibraryPage() {
                         />
                       ),
                     }}
-                    pagination={{
-                      current: loanPage,
-                      pageSize: loanPageSize,
-                      total: loanRows.length,
-                      showSizeChanger: true,
-                      showTotal: (t) => `Total ${t} catatan`,
-                      onChange: (p, ps) => {
-                        setLoanPage(p)
-                        setLoanPageSize(ps)
-                      },
-                    }}
+                    pagination={pgLoan.pagination}
                     scroll={{ x: true }}
                   />
                 </>

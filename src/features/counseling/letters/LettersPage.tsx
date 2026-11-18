@@ -24,6 +24,7 @@ import {
 import { PageHeader } from '../../../shared/components/PageHeader'
 import { StatChip } from '../../../shared/components/StatChip'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useDeleteOfficialLetter, useOfficialLetters } from './hooks'
 import { LetterModal } from './LetterModal'
 import { PrintModal } from './PrintModal'
@@ -59,6 +60,8 @@ export function LettersPage() {
       )
     })
   }, [letters, search, typeFilter])
+
+  const pg = useTablePagination(filtered.length, { label: 'surat', defaultPageSize: 15 })
 
   const counts = useMemo(() => {
     return {
@@ -231,7 +234,7 @@ export function LettersPage() {
           columns={columns}
           dataSource={filtered}
           loading={lettersQuery.isPending}
-          pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} surat` }}
+          pagination={pg.pagination}
           locale={{
             emptyText: (
               <Empty

@@ -15,6 +15,7 @@ import { StatChip } from '../../../shared/components/StatChip'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useAcademicYearsBrief } from '../../classes/hooks'
 import {
   useCreateSppComponent,
@@ -75,6 +76,8 @@ export function ObligationsTab({ active }: { active: boolean }) {
     }
     return list
   }, [obligations, debouncedSearch, statusFilter])
+
+  const pg = useTablePagination(rows.length, { label: 'kewajiban', showSizeChanger: false, defaultPageSize: 15 })
 
   const summary = useMemo(() => {
     const total = obligations.reduce((s, o) => s + o.amount, 0)
@@ -294,7 +297,7 @@ export function ObligationsTab({ active }: { active: boolean }) {
         loading={loading}
         columns={obligationColumns}
         dataSource={rows}
-        pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (t) => `${t} kewajiban` }}
+        pagination={pg.pagination}
         scroll={{ x: 'max-content' }}
         locale={
           isError

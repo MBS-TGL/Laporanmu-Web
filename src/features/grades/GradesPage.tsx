@@ -26,6 +26,7 @@ import { ShellItem, ShellStagger } from '../../shared/components/ShellMotion'
 import { StatChip } from '../../shared/components/StatChip'
 import { useAcademicYearsBrief } from '../classes/hooks'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { useClassSubjectsBrief, useGradeConfig } from './hooks'
 import { ConfigModal } from './components/ConfigModal'
 import { DEFAULT_WEIGHT, type ClassSubjectInfo } from './types'
@@ -74,6 +75,8 @@ function GradesTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }) 
       return text.includes(q)
     })
   }, [allRows, search, gradeFilter])
+
+  const pg = useTablePagination(filtered.length, { label: 'mapel kelas', defaultPageSize: 15 })
 
   const counts = useMemo(() => {
     return {
@@ -263,7 +266,7 @@ function GradesTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }) 
           columns={columns}
           dataSource={filtered}
           loading={csQuery.isPending}
-          pagination={{ pageSize: 15, showTotal: (t) => `Total ${t} mapel kelas` }}
+          pagination={pg.pagination}
           locale={{
             emptyText: (
               <Empty

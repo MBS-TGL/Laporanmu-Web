@@ -47,6 +47,7 @@ import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import {
   useBulkDeleteActivity,
   useCreateActivity,
@@ -85,8 +86,6 @@ export function ActivityTab({ active }: { active: boolean }) {
   // Default undefined: fetch sudah urut nama, dan highlight kolom ter-sort antd
   // tidak boleh menyala permanen di kolom Kegiatan
   const [sortBy, setSortBy] = useState<SortOption | undefined>()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
 
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -133,16 +132,18 @@ export function ActivityTab({ active }: { active: boolean }) {
     return [...filtered].sort(comparators[sortBy ?? 'name_asc'])
   }, [allActivity, debouncedSearch, coachFilter, coachId, sortBy])
 
+  const pg = useTablePagination(rows.length, { label: 'kegiatan' })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
   const resetFilters = () => {
     setSearch('')
     setCoachFilter(undefined)
     setCoachId(undefined)
-    setPage(1)
+    pg.setPage(1)
   }
 
   const hasActiveFilters = Boolean(debouncedSearch || coachFilter || coachId)
@@ -156,7 +157,7 @@ export function ActivityTab({ active }: { active: boolean }) {
         label: `Cari: "${debouncedSearch.trim()}"`,
         onClear: () => {
           setSearch('')
-          setPage(1)
+          pg.setPage(1)
         },
       })
     if (coachFilter)
@@ -165,7 +166,7 @@ export function ActivityTab({ active }: { active: boolean }) {
         label: coachFilter === 'coached' ? 'Ada pembina' : 'Tanpa pembina',
         onClear: () => {
           setCoachFilter(undefined)
-          setPage(1)
+          pg.setPage(1)
         },
       })
     if (coachId) {
@@ -175,7 +176,7 @@ export function ActivityTab({ active }: { active: boolean }) {
         label: `Pembina: ${name ?? coachId}`,
         onClear: () => {
           setCoachId(undefined)
-          setPage(1)
+          pg.setPage(1)
         },
       })
     }
@@ -356,7 +357,7 @@ export function ActivityTab({ active }: { active: boolean }) {
     if (extra.action !== 'sort') return
     const s = Array.isArray(sorter) ? sorter[0] : sorter
     setSortBy(sortByFromTableChange(s, SORT_PAIRS) ?? 'name_asc')
-    setPage(1)
+    pg.setPage(1)
   }
 
   const columns: TableColumnsType<Activity> = [
@@ -519,7 +520,7 @@ export function ActivityTab({ active }: { active: boolean }) {
             active={coachFilter === undefined}
             onClick={() => {
               setCoachFilter(undefined)
-              setPage(1)
+              pg.setPage(1)
             }}
           />
           <StatChip
@@ -531,7 +532,7 @@ export function ActivityTab({ active }: { active: boolean }) {
             active={coachFilter === 'coached'}
             onClick={() => {
               setCoachFilter(coachFilter === 'coached' ? undefined : 'coached')
-              setPage(1)
+              pg.setPage(1)
             }}
           />
           <StatChip
@@ -544,7 +545,7 @@ export function ActivityTab({ active }: { active: boolean }) {
             hideIfZero
             onClick={() => {
               setCoachFilter(coachFilter === 'uncoached' ? undefined : 'uncoached')
-              setPage(1)
+              pg.setPage(1)
             }}
           />
           <StatChip
@@ -600,7 +601,7 @@ export function ActivityTab({ active }: { active: boolean }) {
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
-                setPage(1)
+                pg.setPage(1)
               }}
               style={{ flex: '1 1 240px', minWidth: 220 }}
             />
@@ -612,7 +613,7 @@ export function ActivityTab({ active }: { active: boolean }) {
               value={coachId}
               onChange={(v) => {
                 setCoachId(v)
-                setPage(1)
+                pg.setPage(1)
               }}
               loading={teachersQuery.isPending}
               options={(teachersQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
@@ -667,17 +668,7 @@ export function ActivityTab({ active }: { active: boolean }) {
                 />
               ),
             }}
-            pagination={{
-              current: page,
-              pageSize,
-              total: rows.length,
-              showSizeChanger: true,
-              showTotal: (t) => `Total ${t} kegiatan`,
-              onChange: (p, ps) => {
-                setPage(p)
-                setPageSize(ps)
-              },
-            }}
+            pagination={pg.pagination}
             scroll={{ x: true }}
           />
         </Card>

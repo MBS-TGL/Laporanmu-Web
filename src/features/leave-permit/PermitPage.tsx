@@ -30,6 +30,7 @@ import { ActionBar } from '../../shared/components/ActionBar'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { waLink } from '../students/wa'
 import { supabase } from '../../lib/supabase'
 import { formatDisplayName } from '../../shared/utils/displayName'
@@ -84,6 +85,8 @@ export function PermitPage() {
     chips,
     filtered,
   } = usePermitFilters(permits)
+
+  const pg = useTablePagination(filtered.length, { pageSizeOptions: [10, 20, 50] })
 
   // ------------------------------------------------------------
   // Modal / drawer state (disimpan id → selalu data terbaru dari query)
@@ -489,7 +492,7 @@ export function PermitPage() {
             preserveSelectedRowKeys: true,
           }}
           rowClassName={(p) => (effectiveStatus(p) === 'overdue' ? 'permit-row-overdue' : '')}
-          pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50] }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

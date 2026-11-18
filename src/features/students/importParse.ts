@@ -57,6 +57,29 @@ export const FIELDS = [
 export type FieldKey = (typeof FIELDS)[number]['key']
 export type Mapping = Partial<Record<FieldKey, number>>
 
+// Keterangan per kolom untuk sheet "Petunjuk" di template Excel
+const FIELD_NOTES: Partial<Record<FieldKey, string>> = {
+  name: 'Nama lengkap siswa.',
+  registration_code: 'Harus unik. Tidak boleh sama dengan kode siswa lain yang sudah terdaftar.',
+  class_name:
+    'Harus sama persis dengan daftar kelas valid (lihat bawah). Boleh kosong jika memilih kelas default saat impor.',
+  dorm_name: 'Nama asrama yang terdaftar (lihat bawah). Boleh kosong.',
+  nisn: 'Hanya angka. Kolom berformat Teks agar angka 0 di depan tidak hilang.',
+  nis: 'Hanya angka.',
+  nik: 'Hanya angka. Kolom berformat Teks agar tidak berubah menjadi notasi ilmiah.',
+  gender: 'L atau P.',
+  status: `Salah satu dari: ${VALID_STATUSES.join(', ')}.`,
+  phone: 'Nomor HP/WA, contoh 081234567890.',
+  photo_url: 'Tautan foto, diawali http:// atau https://.',
+  tags: 'Pisahkan dengan titik koma, contoh Beasiswa;Yatim.',
+  guardian_name: 'Nama orang tua / wali siswa.',
+  guardian_relation: 'Contoh: Ayah, Ibu, Wali.',
+  birth_place: 'Kota atau kabupaten tempat lahir.',
+  religion: 'Contoh: Islam.',
+  address: 'Alamat lengkap.',
+  birth_date: 'YYYY-MM-DD atau DD/MM/YYYY.',
+}
+
 export interface ParsedRow {
   key: number
   name?: string
@@ -123,15 +146,15 @@ const TEMPLATE_ROWS: Record<FieldKey, string>[] = [
     registration_code: '2026002',
     class_name: '9C Reguler Putra',
     dorm_name: '',
-    nisn: '',
+    nisn: '0023456789',
     nis: '',
     nik: '',
     gender: 'P',
     status: 'active',
-    phone: '',
+    phone: '085678901234',
     photo_url: '',
     tags: '',
-    guardian_name: '',
+    guardian_name: 'Aminah',
     guardian_relation: '',
     birth_place: '',
     birth_date: '',
@@ -150,26 +173,62 @@ function downloadCsv(filename: string, csv: string) {
   URL.revokeObjectURL(url)
 }
 
-export function downloadTemplate() {
+// Jumlah baris yang dikunci format Teks di template (baris 2..500)
+const TEMPLATE_TEXT_ROWS = 500
+
+const byNaturalOrder = (a: string, b: string) => a.localeCompare(b, 'id', { numeric: true })
+
+export function downloadTemplate(refs?: { classes?: string[]; dorms?: string[] }) {
   // xlsx (bukan CSV) supaya kolom angka panjang bisa dikunci format Teks:
   // NISN/NIK/telepon tidak kehilangan angka 0 di depan atau berubah notasi ilmiah
   void import('xlsx').then((XLSX) => {
-    const header = [...TEMPLATE_COLUMNS]
+    // judul kolom di template = label (Title Case); autoMatch mengenali label maupun key
+    const header: string[] = FIELDS.map((f) => f.label)
     const data = TEMPLATE_ROWS.map((row) => TEMPLATE_COLUMNS.map((col) => row[col]))
     const ws = XLSX.utils.aoa_to_sheet([header, ...data])
     const textCols = new Set(['registration_code', 'nisn', 'nis', 'nik', 'phone'])
+    // Kunci format Teks sampai baris TEMPLATE_TEXT_ROWS (bukan hanya baris contoh), supaya
+    // nomor yang diketik pengguna di baris baru juga tidak kehilangan angka 0 di depan
     for (let c = 0; c < header.length; c++) {
-      if (!textCols.has(header[c])) continue
-      for (let r = 1; r <= data.length; r++) {
+      if (!textCols.has(TEMPLATE_COLUMNS[c])) continue
+      for (let r = 1; r < TEMPLATE_TEXT_ROWS; r++) {
         const addr = XLSX.utils.encode_cell({ r, c })
-        if (ws[addr]) ws[addr].z = '@'
+        if (!ws[addr]) ws[addr] = { t: 's', v: '' }
+        ws[addr].z = '@'
       }
     }
+    ws['!ref'] = XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: TEMPLATE_TEXT_ROWS - 1, c: header.length - 1 },
+    })
     ws['!cols'] = header.map((h, c) => ({
       wch: Math.min(34, Math.max(h.length + 2, ...data.map((row) => row[c].length + 2))),
     }))
+
+    // Sheet kedua: petunjuk. JANGAN dipindah ke depan, readFileToTable membaca sheet pertama.
+    const classes = [...(refs?.classes ?? [])].sort(byNaturalOrder)
+    const dorms = [...(refs?.dorms ?? [])].sort(byNaturalOrder)
+    const guide: string[][] = [
+      ['PENTING: hapus 2 baris contoh (Ahmad Fulan & Siti Fulanah) di sheet "Siswa" sebelum mengisi data Anda.'],
+      [],
+      ['Kolom', 'Wajib', 'Keterangan'],
+      ...FIELDS.map((f) => [
+        f.label as string,
+        'required' in f && f.required ? 'Wajib' : 'Opsional',
+        FIELD_NOTES[f.key] ?? '',
+      ]),
+    ]
+    const refCount = Math.max(classes.length, dorms.length)
+    if (refCount > 0) {
+      guide.push([], ['Kelas valid', 'Asrama valid'])
+      for (let i = 0; i < refCount; i++) guide.push([classes[i] ?? '', dorms[i] ?? ''])
+    }
+    const wsGuide = XLSX.utils.aoa_to_sheet(guide)
+    wsGuide['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 80 }]
+
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Siswa')
+    XLSX.utils.book_append_sheet(wb, wsGuide, 'Petunjuk')
     XLSX.writeFile(wb, 'Template-Impor-Siswa.xlsx')
   })
 }
@@ -180,7 +239,7 @@ export function downloadInvalidRows(rows: ParsedRow[]) {
   downloadCsv(
     'baris-bermasalah.csv',
     Papa.unparse({
-      fields: [...TEMPLATE_COLUMNS, 'error'],
+      fields: [...FIELDS.map((f) => f.label), 'Error'],
       data: bad.map((r) => [
         ...TEMPLATE_COLUMNS.map((col) => {
           const v = r[col]
@@ -249,7 +308,7 @@ export function autoMatch(headers: string[]): Mapping {
   const used = new Set<number>()
   const mapping: Mapping = {}
   for (const field of FIELDS) {
-    const names = new Set([field.key, ...field.aliases].map(normHeader))
+    const names = new Set([field.key, field.label, ...field.aliases].map(normHeader))
     const index = normalized.findIndex((h, i) => !used.has(i) && names.has(h))
     if (index >= 0) {
       mapping[field.key] = index
@@ -433,11 +492,17 @@ export function validateRows(
 // Ilustrasi struktur kolom (langkah Upload)
 // ---------------------------------------------------------------------------
 
-export const SAMPLE_COLUMNS = [
-  { letter: 'A', label: 'NAME', values: ['Budi Santoso', 'Siti Maryam'] },
-  { letter: 'B', label: 'GENDER', values: ['L', 'P'] },
-  { letter: 'C', label: 'CLASS', values: ['10A Boarding Putra', '10B Boarding Putri'] },
-  { letter: 'D', label: 'WA', values: ['08123…', '08567…'] },
-  { letter: 'E', label: 'NIS', values: ['2024001', '2024002'] },
-  { letter: 'F', label: 'WALI', values: ['Ahmad', 'Aminah'] },
-]
+// Kolom inti yang ditampilkan di contoh modal. Semua kolom wajib HARUS ada di sini
+// (dijaga oleh test importParse).
+const SAMPLE_KEYS: FieldKey[] = ['name', 'registration_code', 'class_name', 'gender', 'nisn', 'phone']
+const REQUIRED_KEYS = new Set<string>(
+  FIELDS.filter((f) => 'required' in f && f.required).map((f) => f.key),
+)
+
+// Diturunkan dari FIELDS + TEMPLATE_ROWS supaya selalu sama dengan template
+export const SAMPLE_COLUMNS = SAMPLE_KEYS.map((key) => ({
+  key,
+  label: FIELDS.find((f) => f.key === key)?.label ?? (key as string), // sama persis dengan header template
+  required: REQUIRED_KEYS.has(key),
+  values: TEMPLATE_ROWS.map((row) => row[key]),
+}))

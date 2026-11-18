@@ -25,8 +25,9 @@ export interface Student {
   dorm_id: string | null
   phone: string | null
   photo_url: string | null
+  /** kolom turunan 0058: `photo_url is not null` — daftar ringan tanpa base64 */
+  has_photo?: boolean | null
   tags: string[] | null
-  is_pinned: boolean | null
   guardian_name: string | null
   guardian_relation: string | null
   birth_place: string | null
@@ -135,12 +136,14 @@ export type SortOption =
   | 'year_desc'
   | 'year_asc'
 
-export type MissingField = 'photo' | 'phone' | 'nisn' | 'any'
+export type MissingField = 'photo' | 'phone' | 'nisn' | 'pin' | 'any'
 export type PointMode = 'negative' | 'positive'
 
 export interface StudentFilters {
   search?: string
   classId?: string
+  dormId?: string
+  tag?: string
   gender?: Gender
   status?: StudentStatus
   sortBy?: SortOption

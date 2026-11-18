@@ -26,6 +26,7 @@ import type { Dayjs } from 'dayjs'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { useStudentDetail } from '../students/useStudentDetail'
 import { useCreateReport, useDeleteReport, usePointRulesBrief, useReports } from './hooks'
 import { ReportForm } from './components/ReportForm'
@@ -55,8 +56,8 @@ export function ReportsPage() {
   const [ruleId, setRuleId] = useState<string | undefined>()
   const [kind, setKind] = useState<ReportKind>('')
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  // Tabel server-paginated: total asli dari reportsQuery, di-override di prop Table.
+  const pg = useTablePagination(0, { label: 'catatan' })
   const [formOpen, setFormOpen] = useState(false)
 
   const filters: ReportFilters = useMemo(
@@ -66,10 +67,10 @@ export function ReportsPage() {
       kind,
       from: dateRange?.[0]?.startOf('day').format(),
       to: dateRange?.[1]?.endOf('day').format(),
-      page,
-      pageSize,
+      page: pg.page,
+      pageSize: pg.pageSize,
     }),
-    [search, ruleId, kind, dateRange, page, pageSize],
+    [search, ruleId, kind, dateRange, pg.page, pg.pageSize],
   )
 
   const reportsQuery = useReports(filters)
@@ -203,7 +204,7 @@ export function ReportsPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ width: 220 }}
           />
@@ -217,7 +218,7 @@ export function ReportsPage() {
             loading={rulesQuery.isPending}
             onChange={(v) => {
               setRuleId(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={(rulesQuery.data ?? []).map((r) => ({
               value: r.id,
@@ -229,14 +230,14 @@ export function ReportsPage() {
             value={kind}
             onChange={(v) => {
               setKind(v as ReportKind)
-              setPage(1)
+              pg.setPage(1)
             }}
           />
           <DatePicker.RangePicker
             value={dateRange}
             onChange={(v) => {
               setDateRange(v as [Dayjs, Dayjs] | null)
-              setPage(1)
+              pg.setPage(1)
             }}
           />
         </Space>
@@ -248,17 +249,7 @@ export function ReportsPage() {
           columns={columns}
           dataSource={reportsQuery.data?.data ?? []}
           loading={reportsQuery.isPending}
-          pagination={{
-            current: page,
-            pageSize,
-            total: reportsQuery.data?.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} catatan`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={{ ...pg.pagination, total: reportsQuery.data?.total ?? 0 }}
           scroll={{ x: true }}
         />
       </Card>

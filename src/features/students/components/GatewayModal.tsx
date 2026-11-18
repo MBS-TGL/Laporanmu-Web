@@ -25,6 +25,8 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
   const [autoSavings, setAutoSavings] = useState(false)
   const [autoSpp, setAutoSpp] = useState(false)
   const [autoCbt, setAutoCbt] = useState(false)
+  const [autoAbsenMapel, setAutoAbsenMapel] = useState(false)
+  const [autoRohani, setAutoRohani] = useState(false)
 
   // Prefill nama pengirim & toggle saat data status pertama kali terbaca
   const [prevStatusLoaded, setPrevStatusLoaded] = useState(false)
@@ -37,6 +39,8 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
     setAutoSavings(status.auto_savings_wa)
     setAutoSpp(status.auto_spp_wa)
     setAutoCbt(status.auto_cbt_wa)
+    setAutoAbsenMapel(status.auto_absen_mapel_wa)
+    setAutoRohani(status.auto_rohani_wa)
   }
 
   // Reset field token tiap kali modal dibuka — token lama tidak pernah ditampilkan
@@ -52,7 +56,7 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
       return
     }
     updateMutation.mutate(
-      { token, senderName, autoViolation, autoBk, autoSavings, autoSpp, autoCbt },
+      { token, senderName, autoViolation, autoBk, autoSavings, autoSpp, autoCbt, autoAbsenMapel, autoRohani },
       {
         onSuccess: () => {
           message.success('Pengaturan WA disimpan')
@@ -154,6 +158,20 @@ export function GatewayModal({ open, onClose }: GatewayModalProps) {
               checked={autoCbt}
               disabled={!configured || !canDelete}
               onChange={setAutoCbt}
+            />
+            <AutoWaRow
+              title="Saat santri alpa jam pelajaran"
+              description="Per jam pelajaran tanpa keterangan, maksimal 1 pesan per santri per hari."
+              checked={autoAbsenMapel}
+              disabled={!configured || !canDelete}
+              onChange={setAutoAbsenMapel}
+            />
+            <AutoWaRow
+              title="Saat butir ibadah dikuasai"
+              description="Kemahiran wudhu, sholat, hafalan hadist, dan doa (modul Ibadah)."
+              checked={autoRohani}
+              disabled={!configured || !canDelete}
+              onChange={setAutoRohani}
             />
           </Space>
         </div>

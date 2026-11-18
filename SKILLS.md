@@ -106,6 +106,19 @@ export function XPage() {
 
 Checklist selesai: route terdaftar di `core/router.tsx` (lazy + `<Suspense>` via helper `page()`), nav item di `shared/constants/navItems.tsx`, semua copy bahasa Indonesia, audit log untuk aksi tulis, role guard (`canWrite`/`canDelete` dari `usePermissions`).
 
+**Pagination — SELALU lewat `useTablePagination`** (`shared/hooks/useTablePagination.ts`), jangan tulis config `pagination={{...}}` inline:
+
+```tsx
+const pg = useTablePagination(rows.length, { label: 'siswa' })
+<Table pagination={pg.pagination} ... />
+// reset ke halaman 1 saat filter berubah: pg.reset() / pg.setPage(1)
+```
+
+- Opsi: `label` (noun untuk info "Menampilkan 1-10 dari 207 siswa"; tanpa label = tanpa info), `defaultPageSize`, `pageSizeOptions`, `hideOnSinglePage`, `showSizeChanger: false` (tabel kecil/modal).
+- Hook auto-clamp: saat total menyusut dan halaman aktif melebihi halaman terakhir, otomatis kembali ke halaman valid (guard `total > 0` untuk tabel server-paginated yang belum punya data).
+- Tabel server-paginated (total dari query): deklarasikan hook sebelum filters dengan total `0`, lalu override di Table: `pagination={{ ...pg.pagination, total: query.data?.total ?? 0 }}` (contoh: CounselingPage, GatePage).
+- Ganti ukuran halaman selalu reset ke halaman 1. Tanpa styling CSS khusus — tampilan AntD bawaan.
+
 ---
 
 ## Skill 2 — Menambah tab di page besar (pola `?tab=`)

@@ -60,6 +60,7 @@ import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import {
   useBulkDeleteTeachers,
   useBulkRestoreTeachers,
@@ -152,8 +153,6 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
   const [missingWa, setMissingWa] = useState(false)
   const [sortBy, setSortBy] = useState<TeacherSort | undefined>()
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [privacy, setPrivacy] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
@@ -262,12 +261,13 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
   }, [allTeachers, debouncedSearch, status, gender, subject, type, missingWa, sortBy])
 
   // Pagination client-side — slice dari hasil filter+sort di memori
+  const pg = useTablePagination(rows.length, { label: 'guru' })
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
-  const resetPage = () => setPage(1)
+  const resetPage = pg.reset
 
   const clearAllFilters = () => {
     setSearch('')
@@ -1101,17 +1101,7 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
               },
             ],
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} guru`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

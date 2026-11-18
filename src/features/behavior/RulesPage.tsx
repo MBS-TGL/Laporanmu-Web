@@ -37,6 +37,7 @@ import { StatusTag } from '../../shared/components/StatusTag'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { fetchPointRulesForExport } from './api'
 import {
   useCreatePointRule,
@@ -77,8 +78,8 @@ export function RulesPage() {
   const [category, setCategory] = useState<string | undefined>(undefined)
   const [kind, setKind] = useState<ReportKind>('')
   const [sort, setSort] = useState<{ key: PointRuleSort; dir: 'asc' | 'desc' } | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  // Tabel server-paginated: total asli dari rulesQuery, di-override di prop Table.
+  const pg = useTablePagination(0, { label: 'aturan' })
 
   // UI state
   const [formOpen, setFormOpen] = useState(false)
@@ -96,10 +97,10 @@ export function RulesPage() {
       kind: kind || undefined,
       sort: sort?.key,
       dir: sort?.dir,
-      page,
-      pageSize,
+      page: pg.page,
+      pageSize: pg.pageSize,
     }),
-    [debouncedSearch, category, kind, sort, page, pageSize],
+    [debouncedSearch, category, kind, sort, pg.page, pg.pageSize],
   )
 
   const rulesQuery = usePointRules(filters)
@@ -124,7 +125,7 @@ export function RulesPage() {
     setCategory(undefined)
     setKind('')
     setSort(null)
-    setPage(1)
+    pg.setPage(1)
   }
 
   const handleSubmit = (values: RuleFormValues) => {
@@ -259,8 +260,8 @@ export function RulesPage() {
   // ------------------------------------------------------------
   const handleTableChange: TableProps<PointRule>['onChange'] = (pagination, _filters, sorter, extra) => {
     if (extra.action === 'paginate') {
-      setPage(pagination.current ?? 1)
-      setPageSize(pagination.pageSize ?? 10)
+      pg.setPage(pagination.current ?? 1)
+      pg.setPageSize(pagination.pageSize ?? 10)
       return
     }
     if (extra.action === 'sort') {
@@ -270,7 +271,7 @@ export function RulesPage() {
           ? { key: s.column.key as PointRuleSort, dir: s.order === 'ascend' ? 'asc' : 'desc' }
           : null,
       )
-      setPage(1)
+      pg.setPage(1)
     }
   }
 
@@ -372,7 +373,7 @@ export function RulesPage() {
           active={!kind}
           onClick={() => {
             setKind('')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -384,7 +385,7 @@ export function RulesPage() {
           active={kind === 'negative'}
           onClick={() => {
             setKind(kind === 'negative' ? '' : 'negative')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -396,7 +397,7 @@ export function RulesPage() {
           active={kind === 'positive'}
           onClick={() => {
             setKind(kind === 'positive' ? '' : 'positive')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
       </div>
@@ -411,7 +412,7 @@ export function RulesPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ flex: '1 1 240px', minWidth: 220 }}
           />
@@ -422,7 +423,7 @@ export function RulesPage() {
             value={category}
             onChange={(v) => {
               setCategory(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ minWidth: 150 }}
           />
@@ -430,7 +431,7 @@ export function RulesPage() {
             value={kind}
             onChange={(v) => {
               setKind(v as ReportKind)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={[
               { label: 'Semua', value: '' },
@@ -465,13 +466,7 @@ export function RulesPage() {
             ),
           }}
           onChange={handleTableChange}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rulesQuery.data?.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} aturan`,
-          }}
+          pagination={{ ...pg.pagination, total: rulesQuery.data?.total ?? 0 }}
           scroll={{ x: true }}
         />
       </Card>

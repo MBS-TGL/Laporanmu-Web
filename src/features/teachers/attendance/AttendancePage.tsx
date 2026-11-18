@@ -38,6 +38,7 @@ import {
 import dayjs, { type Dayjs } from 'dayjs'
 import { StatChip } from '../../../shared/components/StatChip'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useTeachers } from '../hooks'
 import {
   useSaveTeacherAttendance,
@@ -356,6 +357,8 @@ export function AttendancePage() {
       })
   }, [allTeachers, search, statusFilter, drafts, savedMap])
 
+  const pg = useTablePagination(rows.length, { label: 'orang', defaultPageSize: 25 })
+
   const stats = useMemo(() => {
     let hadir = 0
     let sakit = 0
@@ -525,6 +528,8 @@ export function AttendancePage() {
       })
       .map((t) => ({ teacher: t, entry: recap.entries.get(t.id) }))
   }, [allTeachers, search, recap])
+
+  const pgRecap = useTablePagination(recapRows.length, { label: 'orang', defaultPageSize: 25 })
 
   // ─── Export ───
   const buildDailyExport = () =>
@@ -983,7 +988,7 @@ export function AttendancePage() {
               columns={columns}
               dataSource={rows}
               loading={teachersQuery.isPending || attendanceQuery.isPending}
-              pagination={{ pageSize: 25, showTotal: (t) => `Total ${t} orang` }}
+              pagination={pg.pagination}
               locale={{
                 emptyText: (
                   <Empty
@@ -1128,7 +1133,7 @@ export function AttendancePage() {
               columns={recapColumns}
               dataSource={recapRows}
               loading={teachersQuery.isPending || rangeQuery.isPending}
-              pagination={{ pageSize: 25, showTotal: (t) => `Total ${t} orang` }}
+              pagination={pgRecap.pagination}
               locale={{
                 emptyText: (
                   <Empty

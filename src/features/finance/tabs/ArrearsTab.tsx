@@ -6,6 +6,7 @@ import { ShellItem } from '../../../shared/components/ShellMotion'
 import { StatChip } from '../../../shared/components/StatChip'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useSppWithPayments } from '../hooks'
 import { formatRupiah, obligationStatus, outstandingOf, periodLabel } from '../sppUtil'
 import type { SppObligation } from '../types'
@@ -53,6 +54,8 @@ export function ArrearsTab({ active }: { active: boolean }) {
     }
     return list.sort((a, b) => (b.amount - (b.paid ?? 0)) - (a.amount - (a.paid ?? 0)))
   }, [outstanding, classFilter, debouncedSearch])
+
+  const pg = useTablePagination(rows.length, { label: 'kewajiban', showSizeChanger: false, defaultPageSize: 15 })
 
   const perStudent = useMemo(() => {
     const map = new Map<string, { name: string; className: string; total: number; count: number }>()
@@ -167,7 +170,7 @@ export function ArrearsTab({ active }: { active: boolean }) {
         loading={loading}
         columns={columns}
         dataSource={rows}
-        pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (t) => `${t} kewajiban` }}
+        pagination={pg.pagination}
         scroll={{ x: 'max-content' }}
         locale={
           isError

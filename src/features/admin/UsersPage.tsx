@@ -34,6 +34,7 @@ import { StatusTag } from '../../shared/components/StatusTag'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useProfile } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { logAudit } from '../../shared/utils/auditLogger'
 import {
   useProfiles,
@@ -103,6 +104,8 @@ export function UsersPage({ active }: { active: boolean }) {
       )
     })
   }, [profiles, debouncedSearch, roleFilter, linkFilter, teacherByProfileId])
+
+  const pg = useTablePagination(filtered.length, { label: 'akun', showSizeChanger: false, defaultPageSize: 15 })
 
   const canManage = myProfile?.role === 'developer' || myProfile?.role === 'admin'
   const hasFilters = Boolean(search || roleFilter || linkFilter)
@@ -513,7 +516,7 @@ export function UsersPage({ active }: { active: boolean }) {
                   />
                 ),
               }}
-              pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (total) => `${total} akun` }}
+              pagination={pg.pagination}
             />
           </Card>
         </Col>

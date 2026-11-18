@@ -1450,3 +1450,53 @@ body {
 .ref-row:hover {
   background: rgba(79, 70, 229, 0.06);
 }
+
+/* ─── P4 Pusat Dokumen: cetak dokumen berkop (modal chrome disembunyikan) ─── */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .docs-print-area,
+  .docs-print-area * {
+    visibility: visible;
+  }
+  .docs-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 16px 24px;
+    background: #fff;
+  }
+}
+
+/* ─── Scrollbar horizontal elegan untuk tabel lebar (Papan Ibadah / Presensi Grid) ─── */
+.worship-table-scroll .ant-table-body::-webkit-scrollbar,
+.worship-table-scroll .ant-table-content::-webkit-scrollbar {
+  height: 9px !important;
+  display: block !important;
+}
+
+.worship-table-scroll .ant-table-body::-webkit-scrollbar-track,
+.worship-table-scroll .ant-table-content::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 999px !important;
+}
+
+.worship-table-scroll .ant-table-body::-webkit-scrollbar-thumb,
+.worship-table-scroll .ant-table-content::-webkit-scrollbar-thumb {
+  background: #94a3b8 !important;
+  border-radius: 999px !important;
+}
+
+.worship-table-scroll .ant-table-body::-webkit-scrollbar-thumb:hover,
+.worship-table-scroll .ant-table-content::-webkit-scrollbar-thumb:hover {
+  background: #64748b !important;
+}
+
+.worship-table-scroll .ant-table-body,
+.worship-table-scroll .ant-table-content {
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 #f1f5f9 !important;
+}
+

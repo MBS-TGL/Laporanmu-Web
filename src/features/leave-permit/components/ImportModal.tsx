@@ -1,152 +1,61 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
-  Alert,
   App,
   Button,
-  Progress,
-  Radio,
+  Collapse,
+  Input,
+  Segmented,
+  Select,
   Space,
+  Spin,
   Table,
   Tag,
+  Typography,
+  Upload,
   theme,
   type TableColumnsType,
 } from 'antd'
 import {
-  CheckCircleOutlined,
+  CheckCircleFilled,
   DownloadOutlined,
+  FileAddOutlined,
   FileExcelOutlined,
+  GlobalOutlined,
   ImportOutlined,
+  LinkOutlined,
+  TableOutlined,
+  UploadOutlined,
 } from '@ant-design/icons'
 import Papa from 'papaparse'
-import { AppModal } from '../../../shared/components/AppModal'
+import { WizardModal } from '../../../shared/components/WizardModal'
+import { IconBox } from '../../../shared/components/IconBox'
 import { ModalFooter } from '../../../shared/components/ModalFooter'
+import { ModalNotice } from '../../../shared/components/ModalNotice'
+import { ModalSection } from '../../../shared/components/ModalSection'
 import { UploadDropzone } from '../../../shared/components/UploadDropzone'
 import { formatDisplayName } from '../../../shared/utils/displayName'
 import {
-  checkPermitDuplicate,
-  validatePermitImportRow,
+  FIELDS,
+  SAMPLE_COLUMNS,
+  autoMatch,
+  columnLetter,
+  downloadTemplate,
+  parsePermitTable,
+  sampleValues,
+  type PermitFieldKey,
   type PermitImportStatus,
+  type PermitMapping,
+  type ParsedPermitRow,
 } from '../permitValidation'
 import { useActivePermitKeys, useAllPermitStudents, useCreatePermitsBulk } from '../hooks'
 import type { PermitBulkRow } from '../types'
 
-interface Props {
-  open: boolean
-  onClose: () => void
-}
+const { Text } = Typography
 
-interface ParsedPermitRow {
-  key: number
-  raw_kode?: string
-  raw_nama?: string
-  raw_tujuan?: string
-  raw_keperluan?: string
-  raw_tanggal_keluar?: string
-  raw_tanggal_kembali?: string
-  raw_jam?: string
-  raw_hp?: string
-
-  status: PermitImportStatus
-  error_message?: string
-  student_id: string
-  student_name: string
-  phone?: string
-  destination: string
-  purpose: string
-  leave_date: string
-  return_date: string
-  return_time: string
-}
-
-const TEMPLATE_HEADERS = [
-  'kode_santri',
-  'nama_santri',
-  'tujuan',
-  'keperluan',
-  'tanggal_keluar',
-  'tanggal_kembali',
-  'jam_kembali',
-  'no_telepon',
-]
-
-const SAMPLE_ROWS = [
-  {
-    kode_santri: 'REG-001',
-    nama_santri: 'Ahmad Fulan',
-    tujuan: 'Rumah orang tua',
-    keperluan: 'Pulang ke rumah',
-    tanggal_keluar: '2026-03-05',
-    tanggal_kembali: '2026-03-07',
-    jam_kembali: '16:00',
-    no_telepon: '081234567890',
-  },
-  {
-    kode_santri: 'REG-002',
-    nama_santri: 'Siti Aminah',
-    tujuan: 'RSUD Jember',
-    keperluan: 'Kontrol kesehatan',
-    tanggal_keluar: '2026-03-05',
-    tanggal_kembali: '2026-03-05',
-    jam_kembali: '14:30',
-    no_telepon: '081987654321',
-  },
-]
-
-// Alias nama kolom — urutan penting (diuji berurutan)
-const COLUMN_ALIASES: Record<keyof typeof SAMPLE_ROWS[number], string[]> = {
-  kode_santri: ['kode_santri', 'kode', 'kode_registrasi', 'registrasi', 'reg', 'nis'],
-  nama_santri: ['nama_santri', 'nama', 'santri', 'siswa', 'name'],
-  tujuan: ['tujuan', 'destination', 'alamat_tujuan'],
-  keperluan: ['keperluan', 'purpose', 'alasan'],
-  tanggal_keluar: ['tanggal_keluar', 'tgl_keluar', 'keluar', 'leave_date', 'tanggal_mulai'],
-  tanggal_kembali: ['tanggal_kembali', 'tgl_kembali', 'kembali', 'return_date', 'tanggal_selesai'],
-  jam_kembali: ['jam_kembali', 'jam', 'waktu_kembali', 'time'],
-  no_telepon: ['no_telepon', 'telepon', 'hp', 'wa', 'phone', 'no_hp'],
-}
-
-function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function handleDownloadTemplateXlsx() {
-  void import('xlsx').then((XLSX) => {
-    const header = [...TEMPLATE_HEADERS]
-    const data = SAMPLE_ROWS.map((row) => TEMPLATE_HEADERS.map((h) => row[h as keyof typeof row]))
-    const ws = XLSX.utils.aoa_to_sheet([header, ...data])
-
-    // Kunci kolom teks agar 0 di depan (kode/HP) & format tanggal tidak rusak
-    const textCols = new Set(['kode_santri', 'tanggal_keluar', 'tanggal_kembali', 'jam_kembali', 'no_telepon'])
-    for (let c = 0; c < header.length; c++) {
-      if (!textCols.has(header[c])) continue
-      for (let r = 1; r <= data.length; r++) {
-        const addr = XLSX.utils.encode_cell({ r, c })
-        if (ws[addr]) ws[addr].z = '@'
-      }
-    }
-
-    ws['!cols'] = header.map((h, c) => ({
-      wch: Math.min(30, Math.max(h.length + 3, ...data.map((r) => String(r[c] ?? '').length + 3))),
-    }))
-
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Izin Keluar')
-    XLSX.writeFile(wb, 'template-impor-izin.xlsx')
-  })
-}
-
-function handleDownloadTemplateCsv() {
-  const csv = Papa.unparse({
-    fields: TEMPLATE_HEADERS,
-    data: SAMPLE_ROWS.map((row) => TEMPLATE_HEADERS.map((h) => row[h as keyof typeof row])),
-  })
-  downloadCsv('template-impor-izin.csv', csv)
-}
+// ---------------------------------------------------------------------------
+// Reader file — dipertahankan: sel Date murni (00:00) → tanggal, dengan jam →
+// kolom jam (readFileRows shared hanya memformat tanggal)
+// ---------------------------------------------------------------------------
 
 function cellToString(val: unknown): string {
   if (val === null || val === undefined) return ''
@@ -188,19 +97,58 @@ async function readFileRows(file: File): Promise<string[][]> {
   })
 }
 
-/**
- * Impor izin dari Excel/CSV — 3 langkah (template → pratinjau → selesai),
- * pola mengikuti AlumniImport. Insert massal sekali jalan.
- */
-export function ImportModal({ open, onClose }: Props) {
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+// Header CSV error dipertahankan dari versi lama
+const ERROR_CSV_HEADERS = [
+  'kode_santri',
+  'nama_santri',
+  'tujuan',
+  'keperluan',
+  'tanggal_keluar',
+  'tanggal_kembali',
+  'jam_kembali',
+  'no_telepon',
+  'alasan_error',
+]
+
+interface ImportModalProps {
+  open: boolean
+  onClose: () => void
+  /** sumber data aktif saat modal dibuka (default: upload file) */
+  initialSource?: 'file' | 'gsheets'
+}
+
+interface PermitImportResult {
+  successful: number
+}
+
+/** Impor izin — pola WizardModal students: Upload → Mapping → Review → Hasil. */
+export function ImportModal({ open, onClose, initialSource = 'file' }: ImportModalProps) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
 
-  const [step, setStep] = useState<0 | 1 | 2>(0)
-  const [parsedRows, setParsedRows] = useState<ParsedPermitRow[]>([])
-  const [fileName, setFileName] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | PermitImportStatus>('all')
-  const [importSummary, setImportSummary] = useState<{ successful: number } | null>(null)
+  const [step, setStep] = useState(0)
+  const [fileName, setFileName] = useState<string>()
+  const [reading, setReading] = useState(false)
+  const [sheetSource, setSheetSource] = useState<'file' | 'gsheets'>('file')
+  const [gsheetsUrl, setGsheetsUrl] = useState('')
+  const [fetchingSheet, setFetchingSheet] = useState(false)
+  const [headers, setHeaders] = useState<string[]>([])
+  const [fileRows, setFileRows] = useState<string[][]>([])
+  const [mapping, setMapping] = useState<PermitMapping>({})
+  const [autoKeys, setAutoKeys] = useState<Set<PermitFieldKey>>(new Set())
+  const [reviewFilter, setReviewFilter] = useState<'all' | PermitImportStatus>('all')
+  const [results, setResults] = useState<PermitImportResult | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const studentsQuery = useAllPermitStudents(open)
   const activeKeysQuery = useActivePermitKeys(open)
@@ -208,164 +156,165 @@ export function ImportModal({ open, onClose }: Props) {
 
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data])
   const activeKeys = useMemo(() => new Set(activeKeysQuery.data ?? []), [activeKeysQuery.data])
+  const refsPending = studentsQuery.isPending || activeKeysQuery.isPending
 
-  const resetState = () => {
+  // buka langsung pada sumber yang diminta — pola penyesuaian state saat render
+  const [prevOpen, setPrevOpen] = useState(false)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) setSheetSource(initialSource)
+  }
+
+  // Pemetaan kolom → parser murni (error ditangkap; langkah Review selalu
+  // sudah memenuhi kolom wajib sehingga parse tidak melempar di sana)
+  const parsed = useMemo<{ rows: ParsedPermitRow[] }>(() => {
+    if (fileRows.length === 0) return { rows: [] }
+    try {
+      return { rows: parsePermitTable([headers, ...fileRows], mapping, { students, activeKeys }) }
+    } catch {
+      return { rows: [] }
+    }
+  }, [headers, fileRows, mapping, students, activeKeys])
+
+  const rows = parsed.rows
+  const readyRows = useMemo(() => rows.filter((r) => r.status === 'baru'), [rows])
+  const counts = useMemo(() => {
+    let duplikat = 0
+    let error = 0
+    for (const r of rows) {
+      if (r.status === 'duplikat') duplikat++
+      else if (r.status === 'error') error++
+    }
+    return { total: rows.length, duplikat, error }
+  }, [rows])
+  const shownRows = useMemo(() => {
+    if (reviewFilter === 'all') return rows
+    return rows.filter((r) => r.status === reviewFilter)
+  }, [rows, reviewFilter])
+
+  const mappedCount = FIELDS.filter((f) => mapping[f.key] !== undefined).length
+  const missingRequired = [
+    mapping.kode_santri === undefined &&
+      mapping.nama_santri === undefined &&
+      'Kode / Nama Santri (salah satu)',
+    mapping.tujuan === undefined && 'Tujuan',
+    mapping.keperluan === undefined && 'Keperluan',
+    mapping.tanggal_keluar === undefined && 'Tanggal Keluar',
+    mapping.tanggal_kembali === undefined && 'Tanggal Kembali',
+    mapping.jam_kembali === undefined && 'Jam Kembali',
+  ].filter(Boolean) as string[]
+  const refsBlocked = refsPending || students.length === 0
+
+  const reset = () => {
     setStep(0)
-    setParsedRows([])
-    setFileName('')
-    setStatusFilter('all')
-    setImportSummary(null)
+    setFileName(undefined)
+    setReading(false)
+    setSheetSource('file')
+    setGsheetsUrl('')
+    setFetchingSheet(false)
+    setHeaders([])
+    setFileRows([])
+    setMapping({})
+    setAutoKeys(new Set())
+    setReviewFilter('all')
+    setResults(null)
+    setSubmitting(false)
   }
 
-  const handleModalClose = () => {
+  const handleClose = () => {
     if (bulkMutation.isPending) return
-    resetState()
     onClose()
+    // reset setelah modal tertutup agar transisi tidak terlihat
+    setTimeout(reset, 200)
   }
 
-  const handleFileSelected = async (file: File) => {
+  const applyTable = (table: string[][], name: string) => {
+    const head = (table[0] ?? []).map((h) => h.replace(/^\ufeff/, '').trim())
+    const body = table.slice(1).filter((row) => row.some((c) => c.trim() !== ''))
+    if (head.length === 0 || body.length === 0) {
+      message.error('File tidak memiliki baris data')
+      return
+    }
+    if (body.length > 2000) {
+      message.error('Maksimal 2.000 baris data per impor izin')
+      return
+    }
+    const matched = autoMatch(head)
+    setHeaders(head)
+    setFileRows(body)
+    setMapping(matched)
+    setAutoKeys(new Set(Object.keys(matched) as PermitFieldKey[]))
+    setFileName(name)
+    setStep(1)
+  }
+
+  const handleFile = async (file: File) => {
     if (file.size > 2 * 1024 * 1024) {
       message.error('Ukuran file maksimal 2 MB')
-      return false
+      return
     }
-    if (students.length === 0) {
-      message.error('Data santri belum termuat, coba lagi sebentar')
-      return false
-    }
-
+    setReading(true)
     try {
-      const tableData = await readFileRows(file)
-      if (tableData.length < 2) {
-        message.error('File tidak memiliki baris data')
-        return false
-      }
-      if (tableData.length > 2001) {
-        message.error('Maksimal 2.000 baris data per impor izin')
-        return false
-      }
-
-      const rawHeaders = tableData[0].map((h) => h.toLowerCase().replace(/[^a-z0-9_]/g, '').trim())
-
-      const findCol = (aliases: string[]) =>
-        rawHeaders.findIndex((h) => aliases.some((a) => h === a || h.includes(a)))
-
-      const colMap = Object.fromEntries(
-        Object.entries(COLUMN_ALIASES).map(([field, aliases]) => [field, findCol(aliases)]),
-      ) as Record<keyof typeof COLUMN_ALIASES, number>
-
-      const missingStudentCol = colMap.kode_santri === -1 && colMap.nama_santri === -1
-      if (missingStudentCol) {
-        message.error('Kolom kode_santri atau nama_santri wajib ada di file')
-        return false
-      }
-      const missingOther = (['tujuan', 'keperluan', 'tanggal_keluar', 'tanggal_kembali', 'jam_kembali'] as const).find(
-        (f) => colMap[f] === -1,
-      )
-      if (missingOther) {
-        message.error(`Kolom wajib tidak ditemukan: ${COLUMN_ALIASES[missingOther][0]}`)
-        return false
-      }
-
-      const batchSeen = new Set<string>()
-      const rows: ParsedPermitRow[] = []
-
-      for (let i = 1; i < tableData.length; i++) {
-        const row = tableData[i]
-        if (row.every((cell) => !cell || cell.trim() === '')) continue
-
-        const get = (field: keyof typeof COLUMN_ALIASES) => {
-          const idx = colMap[field]
-          return idx >= 0 ? (row[idx] ?? '') : ''
-        }
-
-        const input = {
-          kode_santri: get('kode_santri'),
-          nama_santri: get('nama_santri'),
-          tujuan: get('tujuan'),
-          keperluan: get('keperluan'),
-          tanggal_keluar: get('tanggal_keluar'),
-          tanggal_kembali: get('tanggal_kembali'),
-          jam_kembali: get('jam_kembali'),
-          no_telepon: get('no_telepon'),
-        }
-
-        const valRes = validatePermitImportRow(input, students)
-
-        let status: PermitImportStatus = 'baru'
-        let errorMessage = valRes.error
-
-        if (!valRes.isValid) {
-          status = 'error'
-        } else {
-          const dupRes = checkPermitDuplicate(
-            { student_id: valRes.normalized!.student_id, leave_date: valRes.normalized!.leave_date },
-            activeKeys,
-            batchSeen,
-          )
-          if (dupRes.isDuplicate) {
-            status = 'duplikat'
-            errorMessage = dupRes.reason
-          } else {
-            batchSeen.add(`${valRes.normalized!.student_id}|${valRes.normalized!.leave_date}`)
-          }
-        }
-
-        rows.push({
-          key: i,
-          raw_kode: input.kode_santri,
-          raw_nama: input.nama_santri,
-          raw_tujuan: input.tujuan,
-          raw_keperluan: input.keperluan,
-          raw_tanggal_keluar: input.tanggal_keluar,
-          raw_tanggal_kembali: input.tanggal_kembali,
-          raw_jam: input.jam_kembali,
-          raw_hp: input.no_telepon,
-          status,
-          error_message: errorMessage,
-          student_id: valRes.normalized?.student_id ?? '',
-          student_name: valRes.normalized?.student_name ?? input.nama_santri,
-          phone: valRes.normalized?.phone,
-          destination: valRes.normalized?.destination ?? input.tujuan,
-          purpose: valRes.normalized?.purpose ?? input.keperluan,
-          leave_date: valRes.normalized?.leave_date ?? '',
-          return_date: valRes.normalized?.return_date ?? '',
-          return_time: valRes.normalized?.return_time ?? '',
-        })
-      }
-
-      setFileName(file.name)
-      setParsedRows(rows)
-      setStep(1)
-      return false
+      const table = await readFileRows(file)
+      applyTable(table, file.name)
     } catch (err: unknown) {
       console.error(err)
       message.error(err instanceof Error ? err.message : 'Gagal memproses file')
-      return false
+    } finally {
+      setReading(false)
     }
   }
 
-  const counts = useMemo(() => {
-    let baru = 0
-    let duplikat = 0
-    let error = 0
-    for (const r of parsedRows) {
-      if (r.status === 'baru') baru++
-      else if (r.status === 'duplikat') duplikat++
-      else if (r.status === 'error') error++
+  const handleFetchGSheets = async () => {
+    const match = gsheetsUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)
+    if (!match) {
+      message.error('Tautan tidak valid. Gunakan tautan Google Sheets yang benar.')
+      return
     }
-    return { total: parsedRows.length, baru, duplikat, error }
-  }, [parsedRows])
+    // hormati #gid= di URL supaya tab tertentu bisa dipilih; tanpa gid = sheet pertama
+    const gid = gsheetsUrl.match(/[#&?]gid=([0-9]+)/)?.[1]
+    setFetchingSheet(true)
+    try {
+      const res = await fetch(
+        `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv${gid ? `&gid=${gid}` : ''}`,
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const text = (await res.text()).trim()
+      // respons HTML berarti sheet tidak dibagikan secara publik
+      if (text.startsWith('<')) throw new Error('bukan csv')
+      const parsedCsv = Papa.parse<string[]>(text, { skipEmptyLines: true })
+      applyTable(
+        parsedCsv.data.map((row) => row.map((c) => String(c ?? ''))),
+        'Google Sheets',
+      )
+    } catch {
+      message.error(
+        'Gagal mengambil data sheet. Pastikan sheet dibagikan sebagai "Siapa saja yang memiliki link" dapat melihat.',
+      )
+    } finally {
+      setFetchingSheet(false)
+    }
+  }
 
-  const filteredRows = useMemo(
-    () => (statusFilter === 'all' ? parsedRows : parsedRows.filter((r) => r.status === statusFilter)),
-    [parsedRows, statusFilter],
-  )
+  const changeMapping = (field: PermitFieldKey, index?: number) => {
+    setMapping((prev) => {
+      const next = { ...prev }
+      if (index === undefined) delete next[field]
+      else next[field] = index
+      return next
+    })
+    setAutoKeys((prev) => {
+      const next = new Set(prev)
+      next.delete(field)
+      return next
+    })
+  }
 
   const handleDownloadErrorCsv = () => {
-    const errorRows = parsedRows.filter((r) => r.status === 'error')
+    const errorRows = rows.filter((r) => r.status === 'error')
     if (errorRows.length === 0) return
     const csv = Papa.unparse({
-      fields: [...TEMPLATE_HEADERS, 'alasan_error'],
+      fields: ERROR_CSV_HEADERS,
       data: errorRows.map((r) => [
         r.raw_kode ?? '',
         r.raw_nama ?? '',
@@ -381,14 +330,13 @@ export function ImportModal({ open, onClose }: Props) {
     downloadCsv(`baris-error-izin-${fileName || 'impor'}.csv`, csv)
   }
 
-  const handleStartImport = async () => {
-    const toImport = parsedRows.filter((r) => r.status === 'baru')
-    if (toImport.length === 0) {
+  const handleImport = async () => {
+    if (readyRows.length === 0) {
       message.warning('Tidak ada baris berstatus Siap Impor')
       return
     }
-
-    const rows: PermitBulkRow[] = toImport.map((r) => ({
+    setSubmitting(true)
+    const payload: PermitBulkRow[] = readyRows.map((r) => ({
       student_id: r.student_id,
       phone: r.phone ?? null,
       destination: r.destination,
@@ -396,17 +344,229 @@ export function ImportModal({ open, onClose }: Props) {
       leave_date: r.leave_date,
       return_deadline: new Date(`${r.return_date}T${r.return_time}:00`).toISOString(),
     }))
-
     try {
-      const created = await bulkMutation.mutateAsync({ rows, issuedBy: null })
-      setImportSummary({ successful: created.length })
-      setStep(2)
+      const created = await bulkMutation.mutateAsync({ rows: payload, issuedBy: null })
+      setResults({ successful: created.length })
+      setStep(3)
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Gagal menyimpan izin ke server')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const columns: TableColumnsType<ParsedPermitRow> = [
+  // -------------------------------------------------------------------------
+  // Potongan UI
+  // -------------------------------------------------------------------------
+
+  const card: CSSProperties = {
+    border: `1px solid ${token.colorBorderSecondary}`,
+    borderRadius: token.borderRadiusLG,
+    background: token.colorBgContainer,
+  }
+
+  const columnStructure = (
+    <div style={{ ...card, overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          padding: '10px 16px',
+          background: token.colorFillAlter,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        }}
+      >
+        <Text strong style={{ fontSize: 12, letterSpacing: 0.4 }}>
+          <TableOutlined style={{ marginRight: 8, color: token.colorPrimary }} />
+          CONTOH ISI FILE EXCEL
+        </Text>
+        <Text style={{ fontSize: 12, color: token.colorSuccess, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <CheckCircleFilled style={{ marginRight: 6 }} />
+          Pencocokan otomatis
+        </Text>
+      </div>
+      {/* bayangan di tepi kiri/kanan muncul otomatis bila tabel bisa digeser */}
+      <div
+        style={{
+          overflowX: 'auto',
+          backgroundColor: token.colorBgContainer,
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: '32px 100%, 32px 100%, 12px 100%, 12px 100%',
+          backgroundPosition: '0 0, 100% 0, 0 0, 100% 0',
+          backgroundAttachment: 'local, local, scroll, scroll',
+          backgroundImage: `linear-gradient(to right, ${token.colorBgContainer}, transparent), linear-gradient(to left, ${token.colorBgContainer}, transparent), radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.14), transparent), radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.14), transparent)`,
+        }}
+      >
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <tbody>
+            {/* baris 1 = judul kolom, persis seperti di Excel */}
+            <tr>
+              <td
+                style={{
+                  width: 36,
+                  textAlign: 'center',
+                  fontSize: 13,
+                  color: token.colorTextTertiary,
+                  background: token.colorFillTertiary,
+                  borderBottom: `2px solid ${token.colorBorder}`,
+                }}
+              >
+                1
+              </td>
+              {SAMPLE_COLUMNS.map((col) => (
+                <td
+                  key={col.key}
+                  title={col.required ? 'Wajib diisi' : 'Opsional'}
+                  style={{
+                    padding: '9px 14px',
+                    borderLeft: `1px solid ${token.colorBorderSecondary}`,
+                    borderBottom: `2px solid ${token.colorBorder}`,
+                    background: token.colorFillTertiary,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {col.label}
+                  {col.required && <span style={{ color: token.colorError, marginLeft: 3 }}>*</span>}
+                </td>
+              ))}
+            </tr>
+            {[0, 1].map((r) => (
+              <tr key={r}>
+                <td
+                  style={{
+                    textAlign: 'center',
+                    fontSize: 13,
+                    color: token.colorTextTertiary,
+                    background: token.colorFillAlter,
+                    borderTop: r === 0 ? undefined : `1px solid ${token.colorBorderSecondary}`,
+                  }}
+                >
+                  {r + 2}
+                </td>
+                {SAMPLE_COLUMNS.map((col) => (
+                  <td
+                    key={col.key}
+                    style={{
+                      padding: '9px 14px',
+                      borderLeft: `1px solid ${token.colorBorderSecondary}`,
+                      borderTop: r === 0 ? undefined : `1px solid ${token.colorBorderSecondary}`,
+                      fontSize: 13,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {col.values[r]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          padding: '8px 16px',
+          borderTop: `1px solid ${token.colorBorderSecondary}`,
+        }}
+      >
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          <span style={{ color: token.colorError }}>*</span> Wajib diisi. Baris 1 adalah judul kolom, urutan
+          bebas.{FIELDS.length - SAMPLE_COLUMNS.length > 0 ? ` ${FIELDS.length - SAMPLE_COLUMNS.length} kolom opsional lain ada di Template Excel.` : ''}
+        </Text>
+        <Space size={4}>
+          <Tag style={{ margin: 0 }}>.xlsx</Tag>
+          <Tag style={{ margin: 0 }}>.csv</Tag>
+        </Space>
+      </div>
+    </div>
+  )
+
+  const fieldSelectStatus = (f: (typeof FIELDS)[number]) => {
+    if ('required' in f && f.required && mapping[f.key] === undefined) return 'error' as const
+    // pasangan identitas: cukup salah satu terpetakan
+    if (
+      (f.key === 'kode_santri' || f.key === 'nama_santri') &&
+      mapping.kode_santri === undefined &&
+      mapping.nama_santri === undefined
+    )
+      return 'error' as const
+    return undefined
+  }
+
+  const mappingColumns = [
+    {
+      title: 'Data Izin',
+      key: 'field',
+      width: 190,
+      render: (_: unknown, f: (typeof FIELDS)[number]) => (
+        <Space size={6} wrap>
+          <Text strong>{f.label}</Text>
+          {'required' in f && f.required ? <Tag color="red" style={{ margin: 0 }}>Wajib</Tag> : null}
+        </Space>
+      ),
+    },
+    {
+      title: 'Kolom di File',
+      key: 'column',
+      width: 250,
+      render: (_: unknown, f: (typeof FIELDS)[number]) => (
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="Tidak dipetakan"
+          style={{ width: '100%' }}
+          status={fieldSelectStatus(f)}
+          value={mapping[f.key]}
+          onChange={(v: number | undefined) => changeMapping(f.key, v)}
+          options={headers.map((h, i) => ({
+            value: i,
+            label: `${columnLetter(i)}: ${h || '(tanpa judul)'}`,
+          }))}
+        />
+      ),
+    },
+    {
+      title: 'Contoh Data',
+      key: 'sample',
+      render: (_: unknown, f: (typeof FIELDS)[number]) => {
+        const values = sampleValues(fileRows, mapping[f.key])
+        return values.length ? (
+          <Text type="secondary" ellipsis style={{ maxWidth: 200 }}>
+            {values.join(', ')}
+          </Text>
+        ) : (
+          '-'
+        )
+      },
+    },
+    {
+      title: '',
+      key: 'status',
+      width: 110,
+      render: (_: unknown, f: (typeof FIELDS)[number]) => {
+        if (mapping[f.key] === undefined) return null
+        return autoKeys.has(f.key) ? (
+          <Tag color="green" style={{ margin: 0 }}>
+            Otomatis
+          </Tag>
+        ) : (
+          <Tag color="blue" style={{ margin: 0 }}>
+            Manual
+          </Tag>
+        )
+      },
+    },
+  ]
+
+  const previewColumns: TableColumnsType<ParsedPermitRow> = [
     {
       title: 'Status',
       key: 'status',
@@ -440,154 +600,286 @@ export function ImportModal({ open, onClose }: Props) {
     { title: 'Jam', key: 'jam', width: 70, render: (_, r) => r.return_time || r.raw_jam || '-' },
   ]
 
+  const statCard = (label: string, value: number, color?: string) => (
+    <div style={{ ...card, padding: '12px 16px', flex: 1, minWidth: 120 }}>
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        {label}
+      </Text>
+      <div style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.2, color }}>{value}</div>
+    </div>
+  )
+
+  const pickFileButton = (
+    <Upload
+      accept=".csv,.xlsx,.xls"
+      showUploadList={false}
+      disabled={reading || refsBlocked}
+      beforeUpload={(file) => {
+        void handleFile(file)
+        return false
+      }}
+    >
+      <Button type="primary" icon={<UploadOutlined />} loading={reading}>
+        Pilih File
+      </Button>
+    </Upload>
+  )
+
+  const footerByStep = (s: number): ReactNode => {
+    if (s === 0) {
+      // ok-nya tombol Pilih File ber-bungkus Upload, bukan Button biasa, sehingga
+      // komposisi footer dijaga manual mengikuti bentuk ModalFooter
+      return (
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Button onClick={handleClose}>Batal</Button>
+          {pickFileButton}
+        </div>
+      )
+    }
+    if (s === 1) {
+      return (
+        <ModalFooter
+          left={<Button onClick={() => setStep(0)}>Ganti File</Button>}
+          onOk={() => setStep(2)}
+          okText="Lanjut ke Review"
+          okDisabled={missingRequired.length > 0 || refsBlocked}
+        />
+      )
+    }
+    if (s === 2) {
+      return (
+        <ModalFooter
+          left={
+            <Button onClick={() => setStep(1)} disabled={submitting}>
+              Kembali
+            </Button>
+          }
+          onOk={() => void handleImport()}
+          okText={`Impor ${readyRows.length} Izin`}
+          okLoading={submitting}
+          okDisabled={readyRows.length === 0}
+        />
+      )
+    }
+    return <ModalFooter onOk={handleClose} okText="Selesai" />
+  }
+
   return (
-    <AppModal
-      title="Impor Izin dari Excel/CSV"
-      subtitle="Unggah file izin terjadwal dengan pemetaan kolom otomatis"
+    <WizardModal
+      title="Impor Izin"
+      subtitle="Unggah izin terjadwal dari file Excel, CSV, atau Google Sheets. Santri dicocokkan otomatis, izin aktif di tanggal sama dilewati."
       icon={<ImportOutlined />}
       open={open}
-      onCancel={handleModalClose}
-      width={step === 1 ? 940 : 640}
-      footer={null}
+      onCancel={handleClose}
       destroyOnHidden
+      size="xl"
+      current={step}
+      footerByStep={footerByStep}
+      steps={[
+        { title: 'Upload', description: 'Pilih file' },
+        { title: 'Mapping', description: 'Atur kolom' },
+        { title: 'Review', description: 'Validasi' },
+        { title: 'Hasil', description: 'Selesai' },
+      ]}
     >
       {step === 0 && (
-        <div style={{ padding: '8px 0' }}>
-          <div
-            style={{
-              background: token.colorFillAlter,
-              padding: 16,
-              borderRadius: 8,
-              marginBottom: 18,
-              border: `1px solid ${token.colorBorderSecondary}`,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>1. Unduh Template File</div>
-            <div style={{ fontSize: 13, color: token.colorTextSecondary, marginBottom: 12 }}>
-              Kolom <strong>kode_santri</strong> (atau nama_santri), tujuan, tanggal &amp; jam wajib ada.
-              Kolom kode, tanggal, jam, dan telepon dikunci sebagai teks agar tidak berubah format.
-            </div>
-            <Space wrap>
-              <Button icon={<FileExcelOutlined />} onClick={handleDownloadTemplateXlsx}>
-                Unduh Template Excel (.xlsx)
-              </Button>
-              <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplateCsv}>
-                Unduh Template CSV (.csv)
-              </Button>
-            </Space>
-          </div>
-
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>2. Pilih File Izin</div>
-          <UploadDropzone
-            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-            beforeUpload={(file) => handleFileSelected(file as unknown as File)}
-            title="Klik atau tarik file CSV / Excel ke area ini"
-            hint="Maksimal 2 MB atau 2.000 baris per file. Santri yang sudah punya izin aktif di tanggal yang sama otomatis dilewati."
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Segmented
+            value={sheetSource}
+            onChange={(v) => setSheetSource(v as 'file' | 'gsheets')}
+            options={[
+              { label: 'Upload File', value: 'file', icon: <FileExcelOutlined /> },
+              { label: 'Google Sheets', value: 'gsheets', icon: <LinkOutlined /> },
+            ]}
           />
-        </div>
+
+          {sheetSource === 'file' ? (
+            <Spin spinning={reading} tip="Membaca file...">
+              <UploadDropzone
+                accept=".csv,.xlsx,.xls"
+                multiple={false}
+                disabled={reading || refsBlocked}
+                icon={<FileAddOutlined />}
+                title={refsPending ? 'Menyiapkan data santri…' : 'Klik atau seret file ke sini'}
+                hint="Mendukung .csv dan .xlsx, maks 2.000 baris / 2 MB"
+                beforeUpload={(file) => {
+                  void handleFile(file)
+                  return false
+                }}
+              />
+            </Spin>
+          ) : (
+            <div style={{ ...card, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <IconBox icon={<GlobalOutlined />} size={36} />
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>Sinkronisasi data via Google Sheets</div>
+                  <Text type="secondary" style={{ fontSize: 12.5 }}>
+                    Tempel tautan sheet publik, sistem akan mengambil baris pertama sebagai judul kolom
+                  </Text>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Input
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  value={gsheetsUrl}
+                  onChange={(e) => setGsheetsUrl(e.target.value)}
+                  onPressEnter={() => void handleFetchGSheets()}
+                  disabled={fetchingSheet}
+                />
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  loading={fetchingSheet}
+                  disabled={!gsheetsUrl.trim()}
+                  onClick={() => void handleFetchGSheets()}
+                >
+                  Ambil Data
+                </Button>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <ModalNotice tone="info" title="Sheet harus publik">
+                  {'Di Google Sheets: Bagikan → Akses umum → pilih "Siapa saja yang memiliki link" (Pelihat). Secara default sheet pertama yang dibaca; untuk tab tertentu, salin tautan saat berada di tab tersebut (URL akan menyertakan #gid=…).'}
+                </ModalNotice>
+              </div>
+            </div>
+          )}
+
+          <ModalSection
+            icon={<FileExcelOutlined />}
+            title="Data referensi"
+            desc="Kode & nama santri"
+            trailing={
+              <Button icon={<DownloadOutlined />} onClick={() => downloadTemplate()}>
+                Unduh Template Excel
+              </Button>
+            }
+          />
+
+          <Collapse
+            ghost
+            items={[
+              {
+                key: 'sample',
+                label: 'Contoh isi file Excel & tips pengisian',
+                children: (
+                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    {columnStructure}
+                    <ModalNotice tone="info" title="Tips Excel">
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Hapus 2 baris contoh di template sebelum mengisi data Anda.
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        <li>
+                          Identitas: isi Kode Santri atau Nama Santri. Nama harus unik — bila ada nama
+                          kembar, isi kolom kode.
+                        </li>
+                        <li>
+                          Wajib: Tujuan, Keperluan, Tanggal Keluar, Tanggal Kembali, dan Jam Kembali
+                          (HH:mm; kembali tidak boleh sebelum keluar). Telepon opsional.
+                        </li>
+                        <li>
+                          Santri yang sudah punya izin aktif di tanggal yang sama otomatis dilewati
+                          (duplikat).
+                        </li>
+                      </ul>
+                    </ModalNotice>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+        </Space>
       )}
 
       {step === 1 && (
-        <div style={{ padding: '4px 0' }}>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              marginBottom: 14,
-            }}
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <ModalNotice
+            tone={missingRequired.length > 0 || refsBlocked ? 'warning' : 'success'}
+            title={`File "${fileName}": ${fileRows.length} baris data, ${mappedCount} dari ${FIELDS.length} kolom terpetakan`}
           >
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>Pratinjau Data: {fileName}</div>
-              <div style={{ fontSize: 13, color: token.colorTextSecondary }}>
-                Total: <strong>{counts.total}</strong> baris ·{' '}
-                <span style={{ color: token.colorSuccessTextActive }}>{counts.baru} siap impor</span> ·{' '}
-                <span style={{ color: token.colorWarningTextActive }}>{counts.duplikat} duplikat (dilewati)</span> ·{' '}
-                <span style={{ color: token.colorErrorTextActive }}>{counts.error} error</span>
-              </div>
-            </div>
-
-            <Radio.Group
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              size="small"
-              buttonStyle="solid"
-            >
-              <Radio.Button value="all">Semua ({counts.total})</Radio.Button>
-              <Radio.Button value="baru">Siap ({counts.baru})</Radio.Button>
-              <Radio.Button value="duplikat">Duplikat ({counts.duplikat})</Radio.Button>
-              <Radio.Button value="error">Error ({counts.error})</Radio.Button>
-            </Radio.Group>
-          </div>
-
-          {counts.error > 0 && (
-            <Alert
-              type="error"
-              showIcon
-              style={{ marginBottom: 12 }}
-              message={`Terdapat ${counts.error} baris tidak valid`}
-              description={
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Baris bermasalah tidak akan dimasukkan.</span>
-                  <Button size="small" danger onClick={handleDownloadErrorCsv} icon={<DownloadOutlined />}>
-                    Unduh Baris Error (.csv)
-                  </Button>
-                </div>
-              }
-            />
-          )}
-
-          <Table<ParsedPermitRow>
-            columns={columns}
-            dataSource={filteredRows}
-            pagination={{ pageSize: 8, showSizeChanger: false, size: 'small' }}
+            {refsPending
+              ? 'Menyiapkan data santri…'
+              : students.length === 0
+                ? 'Data santri belum termuat, coba lagi sebentar'
+                : missingRequired.length > 0
+                  ? `Belum dipetakan: ${missingRequired.join(', ')}`
+                  : 'Semua kolom wajib sudah terpetakan. Periksa kolom lain jika perlu, lalu lanjut ke Review.'}
+          </ModalNotice>
+          <Table<(typeof FIELDS)[number]>
+            rowKey="key"
             size="small"
-            scroll={{ x: 850 }}
-            style={{ marginBottom: 16 }}
+            columns={mappingColumns}
+            dataSource={[...FIELDS]}
+            pagination={false}
+            scroll={{ y: 300 }}
           />
+        </Space>
+      )}
 
-          {bulkMutation.isPending && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, marginBottom: 4 }}>Menyimpan izin ke database…</div>
-              <Progress percent={70} status="active" />
-            </div>
-          )}
-
-          <div style={{ paddingTop: 8 }}>
-            <ModalFooter
-              left={
-                <Button onClick={resetState} disabled={bulkMutation.isPending}>
-                  Ganti File
-                </Button>
-              }
-              onCancel={handleModalClose}
-              cancelDisabled={bulkMutation.isPending}
-              onOk={() => void handleStartImport()}
-              okText={`Impor ${counts.baru} Izin`}
-              okIcon={<ImportOutlined />}
-              okDisabled={counts.baru === 0 || bulkMutation.isPending}
-              okLoading={bulkMutation.isPending}
-            />
+      {step === 2 && (
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {statCard('Total baris', counts.total)}
+            {statCard('Siap impor', readyRows.length, token.colorSuccess)}
+            {statCard('Duplikat (dilewati)', counts.duplikat, counts.duplikat > 0 ? token.colorWarning : undefined)}
+            {statCard('Bermasalah (dilewati)', counts.error, counts.error > 0 ? token.colorError : undefined)}
           </div>
-        </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Segmented
+              value={reviewFilter}
+              onChange={(v) => setReviewFilter(v as 'all' | PermitImportStatus)}
+              options={[
+                { label: `Semua (${counts.total})`, value: 'all' },
+                { label: `Siap (${readyRows.length})`, value: 'baru' },
+                { label: `Duplikat (${counts.duplikat})`, value: 'duplikat' },
+                { label: `Bermasalah (${counts.error})`, value: 'error' },
+              ]}
+            />
+            {counts.error > 0 && (
+              <Button size="small" icon={<DownloadOutlined />} onClick={handleDownloadErrorCsv}>
+                Unduh Baris Error (.csv)
+              </Button>
+            )}
+          </div>
+          <Table<ParsedPermitRow>
+            rowKey="key"
+            size="small"
+            columns={previewColumns}
+            dataSource={shownRows}
+            pagination={{ pageSize: 8, showSizeChanger: false }}
+            scroll={{ x: true }}
+            onRow={(row) => ({
+              style:
+                row.status === 'error'
+                  ? { background: token.colorErrorBg }
+                  : row.status === 'duplikat'
+                    ? { background: token.colorFillAlter }
+                    : undefined,
+            })}
+          />
+        </Space>
       )}
 
-      {step === 2 && importSummary && (
-        <div style={{ textAlign: 'center', padding: '24px 0' }}>
-          <CheckCircleOutlined style={{ fontSize: 56, color: token.colorSuccess, marginBottom: 16 }} />
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Impor Selesai</div>
-          <p style={{ color: token.colorTextSecondary, marginBottom: 20 }}>
-            Sebanyak <strong>{importSummary.successful}</strong> izin berhasil diterbitkan.
-            {counts.duplikat > 0 && <span> {counts.duplikat} duplikat dilewati.</span>}
-            {counts.error > 0 && <span> {counts.error} baris error diabaikan.</span>}
-          </p>
-          <Button type="primary" onClick={handleModalClose}>
-            Selesai
-          </Button>
-        </div>
+      {step === 3 && results && (
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {statCard('Berhasil', results.successful, token.colorSuccess)}
+            {statCard(
+              'Dilewati',
+              counts.duplikat + counts.error,
+              counts.duplikat + counts.error > 0 ? token.colorWarning : undefined,
+            )}
+          </div>
+          <ModalNotice tone="info" title={`Sebanyak ${results.successful} izin berhasil diterbitkan.`}>
+            {counts.duplikat > 0 && <div>{counts.duplikat} duplikat dilewati.</div>}
+            {counts.error > 0 && <div>{counts.error} baris error diabaikan.</div>}
+            {(counts.duplikat > 0 || counts.error > 0) && (
+              <div style={{ marginTop: 4 }}>Perbaiki baris bermasalah lalu impor ulang sisa file.</div>
+            )}
+          </ModalNotice>
+        </Space>
       )}
-    </AppModal>
+    </WizardModal>
   )
 }

@@ -65,6 +65,7 @@ import { countWeekdays, summarizeDays } from './api'
 import { exportAttendanceCsv, exportAttendanceXlsx } from './export'
 import { AttendancePage as MachineAttendancePage } from './machines/AttendancePage'
 import { AttendancePage as TeacherAttendancePage } from '../teachers/attendance/AttendancePage'
+import { SubjectsTab } from './SubjectsTab'
 import { useUrlTab } from '../../shared/hooks/useUrlTab'
 import {
   MONTH_NAMES,
@@ -1500,15 +1501,20 @@ function AttendanceSantriTab({ active = true }: { active?: boolean }) {
 }
 
 // ─── Shell: satu halaman Absensi bertab (pola ?tab= — SKILLS.md §Skill 2) ──
-type AttendanceTabKey = 'students' | 'teachers' | 'machines'
+type AttendanceTabKey = 'students' | 'subjects' | 'teachers' | 'machines'
 
-const ATTENDANCE_TAB_KEYS: readonly AttendanceTabKey[] = ['students', 'teachers', 'machines']
+const ATTENDANCE_TAB_KEYS: readonly AttendanceTabKey[] = ['students', 'subjects', 'teachers', 'machines']
 
 const ATTENDANCE_TAB_ITEMS: { key: AttendanceTabKey; label: string; subtitle: string }[] = [
   {
     key: 'students',
     label: 'Santri',
     subtitle: 'Kehadiran harian per kelas per bulan — grid, scan kartu, dan rekap dalam satu halaman',
+  },
+  {
+    key: 'subjects',
+    label: 'Mapel',
+    subtitle: 'Absensi per jam pelajaran — grid santri × jam, WA wali, dan analitik bulanan',
   },
   {
     key: 'teachers',
@@ -1538,10 +1544,14 @@ export function AttendancePage() {
   // Tab mesin mengikuti feature flag yang sama dengan tombol di tab santri.
   // Fallback true (fail-open): flag yang belum di-seed tidak boleh menyembunyikan fitur.
   const machineEnabled = useFlag('attendance.student_machines', true)
+  // Tab Mapel = modul absensi per jam pelajaran (P2)
+  const subjectsEnabled = useFlag('module.subject_attendance', true)
   useEffect(() => {
-    if (tab === 'machines' && !machineEnabled) setTab('students')
-  }, [tab, machineEnabled, setTab])
-  const items = ATTENDANCE_TAB_ITEMS.filter((t) => t.key !== 'machines' || machineEnabled)
+    if ((tab === 'machines' && !machineEnabled) || (tab === 'subjects' && !subjectsEnabled)) setTab('students')
+  }, [tab, machineEnabled, subjectsEnabled, setTab])
+  const items = ATTENDANCE_TAB_ITEMS.filter(
+    (t) => (t.key !== 'machines' || machineEnabled) && (t.key !== 'subjects' || subjectsEnabled),
+  )
   const activeKey = items.some((t) => t.key === tab) ? tab : items[0].key
   const active = items.find((t) => t.key === activeKey) ?? items[0]
 
@@ -1563,6 +1573,8 @@ export function AttendancePage() {
                   <TeacherAttendancePage />
                 ) : t.key === 'machines' ? (
                   <MachineAttendancePage />
+                ) : t.key === 'subjects' ? (
+                  <SubjectsTab active={activeKey === 'subjects'} />
                 ) : (
                   <AttendanceSantriTab active={activeKey === 'students'} />
                 ),

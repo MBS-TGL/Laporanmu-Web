@@ -19,6 +19,7 @@ import {
 } from '@ant-design/icons'
 import { AnimatePresence, motion } from 'motion/react'
 import { AppModal, MODAL_SIZE } from '../components/AppModal'
+import { useTablePagination } from '../hooks/useTablePagination'
 import { IconBox } from '../components/IconBox'
 import { WizardSteps } from '../components/WizardSteps'
 import { ModalNotice } from '../components/ModalNotice'
@@ -192,6 +193,8 @@ export function ImportWizard<R>({
     return rows.filter((_, i) => previews[i].status === 'siap')
   }, [rows, previews])
 
+  const pg = useTablePagination(filteredPreviews.length, { defaultPageSize: 8, showSizeChanger: false, hideOnSinglePage: true })
+
   const downloadTemplateCsv = () => {
     if (!template) return
     downloadCsvRows(`${template.filename}.csv`, template.headers, template.exampleRows)
@@ -286,8 +289,8 @@ export function ImportWizard<R>({
       <WizardSteps
         current={step}
         items={[
-          { title: 'Upload', description: 'Pilih file' },
-          { title: 'Review', description: 'Validasi' },
+          { title: 'Unggah', description: 'Pilih file' },
+          { title: 'Pratinjau', description: 'Validasi' },
           { title: 'Hasil', description: 'Selesai' },
         ]}
       />
@@ -389,7 +392,7 @@ export function ImportWizard<R>({
             size="small"
             columns={previewColumns}
             dataSource={filteredPreviews}
-            pagination={{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
+            pagination={pg.pagination}
             scroll={{ y: 320 }}
           />
         </div>

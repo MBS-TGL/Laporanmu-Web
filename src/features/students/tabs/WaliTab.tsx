@@ -17,6 +17,7 @@ import { ShortcutsModal } from '../../../shared/components/ShortcutsModal'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useStudentDetail } from '../useStudentDetail'
 import { fetchGuardianFamilies, type GuardianFamilyRow } from '../api'
 import type { GuardianRelation } from '../types'
@@ -98,6 +99,14 @@ export function WaliTab({ active }: { active: boolean }) {
         .includes(q),
     )
   }, [families, debouncedSearch])
+
+  const pg = useTablePagination(rows.length, { label: 'wali' })
+  const paginatedRows = useMemo(
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
+  )
+
+  const resetPage = pg.reset
 
   const withPhoneCount = families.filter((f) => f.phone).length
   const childCount = new Set(families.flatMap((f) => f.students.map((s) => s.id))).size
@@ -241,10 +250,18 @@ export function WaliTab({ active }: { active: boolean }) {
     active,
     <Space wrap>
       <Tooltip title="Muat ulang (R)">
-        <Button icon={<SyncOutlined spin={familiesQuery.isFetching} />} onClick={() => void familiesQuery.refetch()} />
+        <Button
+          aria-label="Muat ulang data"
+          icon={<SyncOutlined spin={familiesQuery.isFetching} />}
+          onClick={() => void familiesQuery.refetch()}
+        />
       </Tooltip>
       <Tooltip title="Shortcut keyboard (?)">
-        <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+        <Button
+          aria-label="Shortcut keyboard"
+          icon={<QuestionCircleOutlined />}
+          onClick={shortcuts.open}
+        />
       </Tooltip>
     </Space>,
   )
@@ -289,7 +306,10 @@ export function WaliTab({ active }: { active: boolean }) {
             prefix={<SearchOutlined />}
             allowClear
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              resetPage()
+            }}
             style={{ maxWidth: 420 }}
           />
         </div>
@@ -297,7 +317,7 @@ export function WaliTab({ active }: { active: boolean }) {
         <Table<FamilyGroup>
           rowKey="key"
           columns={columns}
-          dataSource={rows}
+          dataSource={paginatedRows}
           loading={familiesQuery.isPending}
           locale={{
             emptyText: (
@@ -307,13 +327,13 @@ export function WaliTab({ active }: { active: boolean }) {
                   familiesQuery.isError
                     ? 'Gagal memuat data wali (periksa koneksi / hak akses)'
                     : families.length > 0
-                      ? 'Tidak ada wali yang cocok dengan pencarian'
+                      ? 'Tidak ada wali yang cocok dengan filter'
                       : 'Belum ada data wali — isi data ayah/ibu/wali di form siswa'
                 }
               />
             ),
           }}
-          pagination={rows.length > 10 ? { showTotal: (t) => `Total ${t} wali` } : false}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

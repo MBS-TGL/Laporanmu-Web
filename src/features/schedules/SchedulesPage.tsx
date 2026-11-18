@@ -45,6 +45,7 @@ import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { useUrlTab } from '../../shared/hooks/useUrlTab'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import {
   analyzeAllConflicts,
   findConflicts,
@@ -103,8 +104,6 @@ export function SchedulesPage() {
   const [onlyConflicts, setOnlyConflicts] = useState(false)
   const [conflictDrawerOpen, setConflictDrawerOpen] = useState(false)
   const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Schedule | null>(null)
@@ -181,9 +180,11 @@ export function SchedulesPage() {
     })
   }, [levelSchedules, onlyConflicts, conflictScheduleIds, debouncedSearch, day, classId])
 
+  const pg = useTablePagination(rows.length, { label: 'jadwal' })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
   const resetFilters = () => {
@@ -191,7 +192,7 @@ export function SchedulesPage() {
     setDay('')
     setClassId(undefined)
     setOnlyConflicts(false)
-    setPage(1)
+    pg.setPage(1)
   }
 
   const hasActiveFilters = Boolean(debouncedSearch || day || classId || onlyConflicts)
@@ -512,7 +513,7 @@ export function SchedulesPage() {
               setDay('')
               setClassId(undefined)
               setOnlyConflicts(false)
-              setPage(1)
+              pg.setPage(1)
             }}
         items={[
           {
@@ -570,7 +571,7 @@ export function SchedulesPage() {
                       danger
                       onClick={() => {
                         setOnlyConflicts((prev) => !prev)
-                        setPage(1)
+                        pg.setPage(1)
                       }}
                     >
                       {onlyConflicts ? 'Tampilkan Semua Jadwal' : 'Filter Jadwal Bentrok Saja'}
@@ -600,7 +601,7 @@ export function SchedulesPage() {
               onClick={() => {
                 setDay('')
                 setOnlyConflicts(false)
-                setPage(1)
+                pg.setPage(1)
               }}
             />
             <StatChip
@@ -613,7 +614,7 @@ export function SchedulesPage() {
               onClick={() => {
                 setDay(day === String(todayDay) ? '' : String(todayDay))
                 setOnlyConflicts(false)
-                setPage(1)
+                pg.setPage(1)
               }}
             />
             <StatChip
@@ -640,7 +641,7 @@ export function SchedulesPage() {
                 active={onlyConflicts}
                 onClick={() => {
                   setOnlyConflicts((prev) => !prev)
-                  setPage(1)
+                  pg.setPage(1)
                 }}
               />
             )}
@@ -660,7 +661,7 @@ export function SchedulesPage() {
                 value={day}
                 onChange={(v) => {
                   setDay(v)
-                  setPage(1)
+                  pg.setPage(1)
                 }}
                 options={[
                   { label: 'Semua', value: '' },
@@ -678,7 +679,7 @@ export function SchedulesPage() {
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value)
-                  setPage(1)
+                  pg.setPage(1)
                 }}
                 style={{ flex: '1 1 200px', minWidth: 200 }}
               />
@@ -691,7 +692,7 @@ export function SchedulesPage() {
                 value={classId}
                 onChange={(v) => {
                   setClassId(v)
-                  setPage(1)
+                  pg.setPage(1)
                 }}
                 style={{ minWidth: 140 }}
               />
@@ -736,17 +737,7 @@ export function SchedulesPage() {
                     />
                   ),
                 }}
-                pagination={{
-                  current: page,
-                  pageSize,
-                  total: rows.length,
-                  showSizeChanger: true,
-                  showTotal: (t) => `Total ${t} jadwal`,
-                  onChange: (p, ps) => {
-                    setPage(p)
-                    setPageSize(ps)
-                  },
-                }}
+                pagination={pg.pagination}
                 scroll={{ x: true }}
               />
             </Card>

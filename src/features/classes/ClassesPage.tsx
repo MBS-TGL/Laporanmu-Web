@@ -47,6 +47,7 @@ import { Kbd, ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import {
   useAcademicYearsBrief,
   useBulkDeleteClasses,
@@ -92,8 +93,6 @@ export function ClassesPage() {
   const [emptyClass, setEmptyClass] = useState(false)
   const [sortBy, setSortBy] = useState<ClassSort | undefined>()
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ClassRow | null>(null)
@@ -162,12 +161,14 @@ export function ClassesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allClasses, debouncedSearch, academicYearId, grade, noHomeroom, emptyClass, sortBy, countsMap])
 
+  const pg = useTablePagination(rows.length, { label: 'kelas' })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
-  const resetPage = () => setPage(1)
+  const resetPage = pg.reset
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
@@ -782,17 +783,7 @@ export function ClassesPage() {
               },
             ],
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} kelas`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

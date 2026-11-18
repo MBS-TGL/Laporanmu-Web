@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   App,
   Button,
@@ -19,6 +19,7 @@ import {
   Timeline,
   Tooltip,
   Typography,
+  Grid,
 } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
@@ -28,6 +29,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip as RTooltip,
 import {
   AuditOutlined,
   BookOutlined,
+  CameraOutlined,
   CheckOutlined,
   EditOutlined,
   FileDoneOutlined,
@@ -45,10 +47,14 @@ import { usePermissions } from '../../../shared/hooks/useProfile'
 import { updateStudentTags } from '../api'
 import { useStudentOverview } from '../useStudentOverview'
 import { completenessPercent, missingFieldsOf } from '../completeness'
-import { useStudentGuardians } from '../hooks'
+import { useStudentGuardians, useStudentPhotos, useUpdateStudentPhoto } from '../hooks'
 import { GENDER_LABEL, STUDENT_STATUS_META } from '../status'
 import { WA_TEMPLATES, renderWaMessage, waLink } from '../wa'
 import type { GuardianRelation, Student } from '../types'
+import { StudentSubjectRecap } from './StudentSubjectRecap'
+import { StudentWorshipRecap } from './StudentWorshipRecap'
+import { StudentAttendanceRecap } from './StudentAttendanceRecap'
+import { compressImage } from '../../../shared/utils/imageCompress'
 
 const MASK = '••••••'
 const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
@@ -187,7 +193,9 @@ function LabelPopover({ student, tags, onSaved }: { student: Student; tags: stri
     try {
       await updateStudentTags(student.id, value)
       onSaved(value)
-      queryClient.invalidateQueries({ queryKey: ['students'] })
+      queryClient.invalidateQueries({ queryKey: ['students', 'list'] })
+      queryClient.invalidateQueries({ queryKey: ['students', 'detail', student.id] })
+      queryClient.invalidateQueries({ queryKey: ['student-stats'] })
       message.success('Label berhasil disimpan')
       setOpen(false)
     } catch {
@@ -242,6 +250,10 @@ interface DetailDrawerProps {
 }
 
 export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = false, notice }: DetailDrawerProps) {
+  const screens = Grid.useBreakpoint()
+  const isMobile = !screens.md
+  const gridCols = isMobile ? '1fr' : '1fr 1fr'
+
   const { canWrite } = usePermissions()
   const { message } = App.useApp()
   const [tab, setTab] = useState<ProfileTab>('info')
@@ -259,10 +271,43 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
     setTagsOverride(null)
   }, [studentId])
 
+  // A1: Foto lazy untuk drawer
+  const photosQuery = useStudentPhotos(open && studentId ? [studentId] : [])
+  const studentPhoto = student?.photo_url ?? photosQuery.data?.[studentId ?? '']
+
+  // D4: Upload foto per-siswa klik avatar di drawer
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const updatePhotoMutation = useUpdateStudentPhoto()
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !student) return
+    try {
+      message.loading({ content: 'Mengompres foto...', key: 'upload-photo' })
+      const photoUrl = await compressImage(file)
+      await updatePhotoMutation.mutateAsync({ id: student.id, photoUrl })
+      message.success({ content: 'Foto profil berhasil diperbarui', key: 'upload-photo' })
+    } catch (err) {
+      message.error({
+        content: err instanceof Error ? err.message : 'Gagal mengunggah foto',
+        key: 'upload-photo',
+      })
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   // Ringkasan lintas-modul (poin, raport, gate, audit) — satu hook bersama
+  // C8: Gate query per tab aktif
   const { reportsQuery, reportCardQuery, gateQuery, auditQuery } = useStudentOverview(
     studentId ?? undefined,
-    open && !!studentId,
+    {
+      enabled: open && !!studentId,
+      reports: tab === 'perilaku',
+      reportCard: tab === 'report-card',
+      gate: tab === 'gerbang',
+      audit: tab === 'audit',
+    },
   )
 
   // Data ayah/ibu/wali (student_guardians, 0020) — RLS hanya admin/pengurus;
@@ -303,8 +348,8 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
     onEdit?.(student)
   }
 
-  const missingFields = missingFieldsOf(student)
-  const completeness = completenessPercent(student)
+  const missingFields = missingFieldsOf({ ...student, photo_url: studentPhoto ?? null })
+  const completeness = completenessPercent({ ...student, photo_url: studentPhoto ?? null })
 
   const posCount = reports.filter((r) => r.points > 0).length
   const negCount = reports.filter((r) => r.points < 0).length
@@ -409,14 +454,49 @@ END:VCARD`
               fontSize: 26,
               fontWeight: 700,
               flexShrink: 0,
+              cursor: canWrite && !isPrivacyMode ? 'pointer' : 'default',
+              position: 'relative',
             }}
+            onClick={() => canWrite && !isPrivacyMode && fileInputRef.current?.click()}
+            title={canWrite && !isPrivacyMode ? 'Klik untuk mengganti foto' : undefined}
           >
-            {student.photo_url && !isPrivacyMode ? (
-              <img src={student.photo_url} alt={student.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {studentPhoto && !isPrivacyMode ? (
+              <img src={studentPhoto} alt={student.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              initials(student.name)
+              isPrivacyMode ? '*' : initials(student.name)
+            )}
+            {canWrite && !isPrivacyMode && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'rgba(15, 23, 42, 0.45)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0,
+                  transition: 'opacity 0.2s',
+                  color: '#fff',
+                  fontSize: 20,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '1'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '0'
+                }}
+              >
+                <CameraOutlined />
+              </div>
             )}
           </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handlePhotoUpload}
+          />
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
@@ -430,7 +510,7 @@ END:VCARD`
                 textOverflow: 'ellipsis',
               }}
             >
-              {student.name}
+              {isPrivacyMode ? MASK : student.name}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
               <StatusTag color={STUDENT_STATUS_META[student.status].color} icon={STUDENT_STATUS_META[student.status].icon}>
@@ -470,25 +550,37 @@ END:VCARD`
         </div>
       </div>
 
-      {/* ── Rail navigasi kiri + konten kanan ── */}
+       {/* ── Rail navigasi kiri + konten kanan ── */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <nav
           style={{
-            width: 148,
+            width: isMobile ? 64 : 148,
             flexShrink: 0,
             background: '#f8fafc',
             borderRight: '1px solid #eef2f7',
-            padding: 12,
+            padding: isMobile ? '12px 8px' : 12,
             display: 'flex',
             flexDirection: 'column',
             gap: 5,
           }}
+          role="tablist"
+          aria-label="Profil tabs"
         >
           {railItems.map((item) => {
             const active = tab === item.id
+            const countLabel =
+              item.count != null &&
+              item.count >= (item.id === 'gerbang' ? 20 : item.id === 'audit' ? 50 : 100)
+                ? `${item.count}+`
+                : item.count
+
             return (
               <button
                 key={item.id}
+                role="tab"
+                aria-selected={active}
+                aria-controls={`drawer-tab-${item.id}`}
+                id={`drawer-nav-${item.id}`}
                 onClick={() => {
                   setTab(item.id)
                   setVisibleLogs(8)
@@ -496,9 +588,10 @@ END:VCARD`
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 9,
+                  justifyContent: isMobile ? 'center' : 'flex-start',
+                  gap: isMobile ? 0 : 9,
                   width: '100%',
-                  padding: '10px 12px',
+                  padding: isMobile ? '10px 0' : '10px 12px',
                   borderRadius: 11,
                   border: 'none',
                   background: active ? '#eef2ff' : 'transparent',
@@ -506,22 +599,30 @@ END:VCARD`
                   cursor: 'pointer',
                   textAlign: 'left',
                 }}
+                title={isMobile ? item.label : undefined}
               >
                 <span style={{ fontSize: 16, display: 'inline-flex' }}>{item.icon}</span>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600 }}>{item.label}</span>
-                {item.count != null && item.count > 0 && (
+                {!isMobile && (
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 700 : 600 }}>
+                    {item.label}
+                  </span>
+                )}
+                {countLabel != null && countLabel !== 0 && (
                   <span
                     style={{
-                      fontSize: 11,
+                      fontSize: isMobile ? 9 : 11,
                       fontWeight: 700,
-                      lineHeight: '18px',
-                      padding: '0 7px',
+                      lineHeight: isMobile ? '14px' : '18px',
+                      padding: isMobile ? '0 4px' : '0 7px',
                       borderRadius: 9,
                       background: active ? '#fff' : '#e2e8f0',
                       color: active ? '#4f46e5' : '#64748b',
+                      position: isMobile ? 'absolute' : 'static',
+                      top: isMobile ? 6 : undefined,
+                      right: isMobile ? 6 : undefined,
                     }}
                   >
-                    {item.count}
+                    {countLabel}
                   </span>
                 )}
               </button>
@@ -529,12 +630,17 @@ END:VCARD`
           })}
         </nav>
 
-        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', scrollbarWidth: 'none', padding: '0 22px 24px' }}>
+        <div
+          id={`drawer-tab-${tab}`}
+          role="tabpanel"
+          aria-labelledby={`drawer-nav-${tab}`}
+          style={{ flex: 1, minWidth: 0, overflowY: 'auto', scrollbarWidth: 'none', padding: '0 22px 24px' }}
+        >
           {/* ── INFO ── */}
           {tab === 'info' && (
             <div>
               <SectionTitle>Profil Pribadi</SectionTitle>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
                 <InfoRow label="NISN">
                   <Typography.Text copyable={copyable(student.nisn)} style={{ fontSize: 14.5 }}>
                     {mask(student.nisn)}
@@ -551,13 +657,18 @@ END:VCARD`
                   </Typography.Text>
                 </InfoRow>
                 <InfoRow label="Jenis Kelamin">{student.gender ? GENDER_LABEL[student.gender] : '-'}</InfoRow>
-                <InfoRow label="Agama">{student.religion ?? '-'}</InfoRow>
-                <InfoRow label="Tempat, Tanggal Lahir">{ttl || '-'}</InfoRow>
-                {student.nickname && <InfoRow label="Nama Panggilan">{student.nickname}</InfoRow>}
+                <InfoRow label="Agama">{mask(student.religion)}</InfoRow>
+                <InfoRow label="Tempat, Tanggal Lahir">{mask(ttl)}</InfoRow>
+                {student.nickname && <InfoRow label="Nama Panggilan">{mask(student.nickname)}</InfoRow>}
                 {student.status === 'graduated' && (
                   <InfoRow label="Tahun Lulus">
                     {student.graduation_year ?? '-'}
                     {student.last_class?.name ? ` · ${student.last_class.name}` : ''}
+                  </InfoRow>
+                )}
+                {student.promoted_at && (
+                  <InfoRow label="Riwayat Kenaikan">
+                    Dipromosikan {dayjs(student.promoted_at).format('DD MMM YYYY')}
                   </InfoRow>
                 )}
               </div>
@@ -592,7 +703,7 @@ END:VCARD`
                 Wali &amp; Kontak
               </SectionTitle>
               {student.guardian_name || student.phone ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
                   <InfoRow label="Nama Wali">{mask(student.guardian_name)}</InfoRow>
                   <InfoRow label="Hubungan">{student.guardian_relation ?? '-'}</InfoRow>
                   <InfoRow label="No. HP / WhatsApp">
@@ -637,7 +748,7 @@ END:VCARD`
                         >
                           {GUARDIAN_RELATION_LABEL[g.relation]}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '10px 24px' }}>
                           <InfoRow label="Nama">{mask(g.name)}</InfoRow>
                           <InfoRow label="No. HP">
                             <Typography.Text copyable={copyable(g.phone)} style={{ fontSize: 14.5 }}>
@@ -656,8 +767,8 @@ END:VCARD`
 
               <SectionTitle>Alamat &amp; Domisili</SectionTitle>
               {student.address || student.dorms?.name ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
-                  <InfoRow label="Alamat">{student.address ?? '-'}</InfoRow>
+                <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
+                  <InfoRow label="Alamat">{mask(student.address)}</InfoRow>
                   <InfoRow label="Asrama">{student.dorms?.name ?? 'Tanpa asrama'}</InfoRow>
                 </div>
               ) : (
@@ -681,7 +792,7 @@ END:VCARD`
                 student.uniform_size) && (
                 <>
                   <SectionTitle>Data Lainnya</SectionTitle>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
                     <InfoRow label="No. KK">
                       <Typography.Text copyable={copyable(student.kk_number)} style={{ fontSize: 14.5 }}>
                         {mask(student.kk_number)}
@@ -760,6 +871,10 @@ END:VCARD`
                     </ResponsiveContainer>
                   </div>
                 </Card>
+
+                <StudentAttendanceRecap studentId={student.id} />
+                <StudentSubjectRecap studentId={student.id} />
+                <StudentWorshipRecap studentId={student.id} />
 
                 <Segmented
                   block

@@ -2,6 +2,7 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { hardDelete, hardDeleteMany } from '../../shared/api/crud'
 import { isIncomplete, type CompletenessFields } from './completeness'
+import { matchesStudentList } from './filterStudents'
 import type {
   GraduationSnapshot,
   PromotionClassBrief,
@@ -16,17 +17,50 @@ import type {
   StudentStats,
 } from './types'
 
-const SELECT_STR =
-  '*, classes!students_class_id_fkey(name), dorms(name), last_class:classes!students_last_class_id_fkey(name)'
+const RELATIONS =
+  'classes!students_class_id_fkey(name), dorms(name), last_class:classes!students_last_class_id_fkey(name)'
+
+/**
+ * Kolom eksplisit untuk baris siswa. `photo_url` sengaja TIDAK ikut: nilainya
+ * data-URL base64 sampai ~450 KB/baris (photoCompress), dan daftar 1.000 baris
+ * berarti puluhan MB. Keberadaan foto dibawa `has_photo` (kolom turunan
+ * migration 0058); isi foto diambil per-kebutuhan lewat `fetchStudentPhotos`.
+ */
+const STUDENT_COLUMNS =
+  'id, registration_code, pin, nisn, nis, nik, name, gender, status, total_points, class_id, dorm_id, phone, tags, guardian_name, guardian_relation, birth_place, birth_date, religion, address, nickname, kk_number, child_status, child_number, siblings_count, home_phone, origin_school, origin_graduation_year, admitted_at, uniform_size, graduated_at, graduation_year, last_class_id, previous_class_id, promoted_at, promotion_batch_id, deleted_at, created_at, updated_at'
+
+/** Rincian satu siswa (drawer, mutasi) — perlu `photo_url` penuh */
+const SELECT_STR = `*, ${RELATIONS}`
+
+/** Daftar/ekspor — ringan, tanpa base64 foto */
+const LIST_SELECT = `${STUDENT_COLUMNS}, has_photo, ${RELATIONS}`
+
+/** Cadangan bila migration 0058 (kolom has_photo) belum dijalankan */
+const LIST_SELECT_LEGACY = `${STUDENT_COLUMNS}, ${RELATIONS}`
+
+function isMissingHasPhoto(error: { code?: string; message?: string }): boolean {
+  if (!/has_photo/.test(error.message ?? '')) return false
+  return error.code === '42703' || /column .*has_photo.* does not exist/i.test(error.message ?? '')
+}
 
 /** Siswa dianggap berisiko bila poinnya mencapai batas ini */
 export const RISK_THRESHOLD = -30
 
-type StudentQuery = ReturnType<ReturnType<typeof supabase.from>['select']>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StudentQuery = any
 
 function applyStudentFilters(query: StudentQuery, filters: Partial<StudentFilters>): StudentQuery {
-  const { search, classId, gender, status, missing, pointMode, graduationYear, lastClassId } =
-    filters
+  const {
+    search,
+    classId,
+    dormId,
+    gender,
+    status,
+    missing,
+    pointMode,
+    graduationYear,
+    lastClassId,
+  } = filters
 
   let q = query
   if (search) {
@@ -34,6 +68,7 @@ function applyStudentFilters(query: StudentQuery, filters: Partial<StudentFilter
     q = q.or(`name.ilike.${term},registration_code.ilike.${term},nisn.ilike.${term}`)
   }
   if (classId) q = q.eq('class_id', classId)
+  if (dormId) q = q.eq('dorm_id', dormId)
   if (gender) q = q.eq('gender', gender)
   if (status) q = q.eq('status', status)
   if (graduationYear) q = q.eq('graduation_year', graduationYear)
@@ -41,50 +76,77 @@ function applyStudentFilters(query: StudentQuery, filters: Partial<StudentFilter
   if (missing === 'photo') q = q.is('photo_url', null)
   if (missing === 'phone') q = q.is('phone', null)
   if (missing === 'nisn') q = q.is('nisn', null)
-  if (missing === 'any') q = q.or('photo_url.is.null,phone.is.null,nisn.is.null')
+  // Definisi lengkap = 13 field master (completeness.ts), bukan 3 field lama
+  if (missing === 'any')
+    q = q.or(
+      [
+        'photo_url',
+        'nisn',
+        'nis',
+        'nik',
+        'phone',
+        'address',
+        'birth_place',
+        'birth_date',
+        'religion',
+        'guardian_name',
+        'kk_number',
+        'origin_school',
+        'tags',
+      ]
+        .map((col) => `${col}.is.null`)
+        .join(','),
+    )
   if (pointMode === 'negative') q = q.lt('total_points', 0)
   if (pointMode === 'positive') q = q.gt('total_points', 0)
   return q
 }
 
 function applySort(query: StudentQuery, sortBy?: SortOption): StudentQuery {
+  // `id` sebagai tiebreaker supaya paginasi .range() (ekspor) stabil
   switch (sortBy) {
     case 'name_desc':
-      return query.order('name', { ascending: false })
+      return query.order('name', { ascending: false }).order('id')
     case 'class_asc':
       return query
         .order('name', { ascending: true, referencedTable: 'classes' })
         .order('name', { ascending: true })
+        .order('id')
     case 'class_desc':
       return query
         .order('name', { ascending: false, referencedTable: 'classes' })
         .order('name', { ascending: true })
+        .order('id')
     case 'points_desc':
-      return query.order('total_points', { ascending: false }).order('name', { ascending: true })
+      return query.order('total_points', { ascending: false }).order('name', { ascending: true }).order('id')
     case 'points_asc':
-      return query.order('total_points', { ascending: true }).order('name', { ascending: true })
+      return query.order('total_points', { ascending: true }).order('name', { ascending: true }).order('id')
     case 'updated_desc':
-      return query.order('updated_at', { ascending: false })
+      return query.order('updated_at', { ascending: false }).order('id')
     case 'graduated_desc':
       return query
         .order('graduated_at', { ascending: false, nullsFirst: false })
         .order('name', { ascending: true })
+        .order('id')
     case 'graduated_asc':
       return query
         .order('graduated_at', { ascending: true, nullsFirst: false })
         .order('name', { ascending: true })
+        .order('id')
     case 'year_desc':
       return query
         .order('graduation_year', { ascending: false, nullsFirst: false })
         .order('graduated_at', { ascending: false, nullsFirst: false })
         .order('name', { ascending: true })
+        .order('id')
     case 'year_asc':
       return query
         .order('graduation_year', { ascending: true, nullsFirst: false })
         .order('graduated_at', { ascending: true, nullsFirst: false })
         .order('name', { ascending: true })
+        .order('id')
     default:
-      return query.order('name', { ascending: true })
+      return query.order('name', { ascending: true }).order('id')
   }
 }
 
@@ -92,29 +154,62 @@ export async function fetchStudents(filters: StudentFilters): Promise<{ data: St
   const { page, pageSize, sortBy } = filters
   const from = (page - 1) * pageSize
 
-  const query = applyStudentFilters(
-    supabase.from('students').select(SELECT_STR, { count: 'exact' }).is('deleted_at', null),
-    filters,
-  )
+  const run = (select: string) =>
+    applySort(
+      applyStudentFilters(
+        supabase.from('students').select(select, { count: 'exact' }).is('deleted_at', null),
+        filters,
+      ),
+      sortBy,
+    ).range(from, from + pageSize - 1)
 
-  const { data, count, error } = await applySort(query, sortBy).range(from, from + pageSize - 1)
+  let res = await run(LIST_SELECT)
+  if (res.error && isMissingHasPhoto(res.error)) res = await run(LIST_SELECT_LEGACY)
 
-  if (error) throw error
-  return { data: (data ?? []) as Student[], total: count ?? 0 }
+  if (res.error) throw res.error
+  return { data: (res.data ?? []) as unknown as Student[], total: res.count ?? 0 }
 }
 
-// Versi tanpa pagination — untuk ekspor CSV (mengikuti filter aktif)
+/** Ekspor: halaman demi halaman (1000/request) supaya tidak terpotong db-max-rows. */
 export async function fetchAllStudents(
   filters: Omit<StudentFilters, 'page' | 'pageSize'>,
 ): Promise<Student[]> {
-  const query = applyStudentFilters(
-    supabase.from('students').select(SELECT_STR).is('deleted_at', null),
-    filters,
-  )
+  const PAGE = 1000
+  const MAX_ROWS = 20000
+  const out: Student[] = []
 
-  const { data, error } = await applySort(query, filters.sortBy)
+  for (let page = 1; out.length < MAX_ROWS; page += 1) {
+    const { data, total } = await fetchStudents({
+      ...filters,
+      // Lulusan selalu disembunyikan di daftar aktif (pintu utamanya halaman Alumni)
+      status: filters.status === 'graduated' ? undefined : filters.status,
+      page,
+      pageSize: PAGE,
+    })
+    out.push(...data)
+    if (data.length < PAGE || out.length >= total) break
+  }
+
+  // Satu predikat untuk tabel & ekspor: pencarian, kelengkapan, asrama,
+  // poin, dan status lulus dihitung identik di klien.
+  return out.filter((s) => matchesStudentList(s, filters))
+}
+
+/** Foto siswa on-demand untuk baris yang benar-benar tampil (hindari base64 massal) */
+export async function fetchStudentPhotos(ids: string[]): Promise<Record<string, string>> {
+  const unique = [...new Set(ids)].filter(Boolean)
+  if (unique.length === 0) return {}
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, photo_url')
+    .in('id', unique)
   if (error) throw error
-  return (data ?? []) as Student[]
+  const map: Record<string, string> = {}
+  for (const row of data ?? []) {
+    const r = row as { id: string; photo_url: string | null }
+    if (r.photo_url) map[r.id] = r.photo_url
+  }
+  return map
 }
 
 /** Baris ekspor — satu sumber untuk CSV & Excel agar kolomnya selalu sinkron */
@@ -274,15 +369,25 @@ export async function softDeleteStudent(id: string): Promise<void> {
   if (error) throw error
 }
 
-export async function registrationCodeExists(code: string, excludeId?: string): Promise<boolean> {
-  let query = supabase
-    .from('students')
-    .select('id', { count: 'exact', head: true })
-    .eq('registration_code', code)
-  if (excludeId) query = query.neq('id', excludeId)
-  const { count, error } = await query
-  if (error) throw error
-  return (count ?? 0) > 0
+/** Alfabet tanpa karakter ambigu (0/O, 1/I/L) — konsisten dgn token CBT. */
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+
+/**
+ * Kode registrasi baru dgn format konvensi data: REG-XXXX-XXXX (anti-ambigu,
+ * cek kolisi terhadap daftar kode existing — dipakai form tambah siswa).
+ */
+export function generateRegistrationCode(existingCodes: readonly string[]): string {
+  const taken = new Set(existingCodes)
+  const rand = (n: number) =>
+    Array.from(
+      { length: n },
+      () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)],
+    ).join('')
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const code = `REG-${rand(4)}-${rand(4)}`
+    if (!taken.has(code)) return code
+  }
+  return `REG-${rand(4)}-${rand(4)}-${Date.now().toString(36).toUpperCase()}`
 }
 
 export async function searchStudents(search: string): Promise<StudentBrief[]> {
@@ -342,12 +447,21 @@ export async function importStudents(
 
 /** Kode registrasi yang sudah terdaftar (huruf kecil) — untuk pra-cek duplikat sebelum impor */
 export async function fetchExistingStudentCodes(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('students')
-    .select('registration_code')
-    .is('deleted_at', null)
-  if (error) throw error
-  return (data ?? []).map((r) => (r as { registration_code: string }).registration_code.toLowerCase())
+  const codes: string[] = []
+  // Halaman 1.000 baris: hindari kehilangan kode saat tabel melewati db-max-rows
+  for (let from = 0; from < 50000; from += 1000) {
+    const { data, error } = await supabase
+      .from('students')
+      .select('registration_code')
+      .is('deleted_at', null)
+      .order('id')
+      .range(from, from + 999)
+    if (error) throw error
+    const rows = (data ?? []) as { registration_code: string }[]
+    codes.push(...rows.map((r) => r.registration_code.toLowerCase()))
+    if (rows.length < 1000) break
+  }
+  return codes
 }
 
 // ------------------------------------------------------------
@@ -356,19 +470,28 @@ export async function fetchExistingStudentCodes(): Promise<string[]> {
 export async function fetchStudentStats(): Promise<StudentStats> {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [studentsRes, reportsRes] = await Promise.all([
+  // hint FK wajib sejak 0018 — students punya 2 FK ke classes (class_id & last_class_id)
+  // kolom lengkap dimuat untuk definisi kelengkapan 13 field (completeness.ts, §6.1b)
+  // `has_photo` (0058) menggantikan base64 photo_url; fallback ke photo_url bila
+  // migration belum dijalankan.
+  const statsQuery = (photoColumn: 'has_photo' | 'photo_url') =>
     supabase
       .from('students')
-      // hint FK wajib sejak 0018 — students punya 2 FK ke classes (class_id & last_class_id)
-      // kolom lengkap dimuat untuk definisi kelengkapan 13 field (completeness.ts, §6.1b)
       .select(
-        'id, name, gender, total_points, class_id, photo_url, nisn, nis, nik, phone, address, birth_place, birth_date, religion, guardian_name, kk_number, origin_school, tags, classes!students_class_id_fkey(name)',
+        `id, name, gender, total_points, class_id, ${photoColumn}, nisn, nis, nik, phone, address, birth_place, birth_date, religion, guardian_name, kk_number, origin_school, tags, classes!students_class_id_fkey(name)`,
       )
       .is('deleted_at', null)
       // Chips statistik merepresentasikan santri aktif — lulus/pindah/keluar tidak dihitung
-      .eq('status', 'active'),
+      .eq('status', 'active')
+
+  const [studentsFirst, reportsRes] = await Promise.all([
+    statsQuery('has_photo'),
     supabase.from('reports').select('points').gte('created_at', weekAgo),
   ])
+  let studentsRes = studentsFirst
+  if (studentsRes.error && isMissingHasPhoto(studentsRes.error)) {
+    studentsRes = await statsQuery('photo_url')
+  }
 
   if (studentsRes.error) throw studentsRes.error
   type Row = {
@@ -377,8 +500,16 @@ export async function fetchStudentStats(): Promise<StudentStats> {
     total_points: number
     class_id: string | null
     classes?: { name: string } | null
+    has_photo?: boolean | null
+    photo_url?: string | null
   } & CompletenessFields
-  const rows = (studentsRes.data ?? []) as unknown as Row[]
+  const rows = ((studentsRes.data ?? []) as unknown as Array<Omit<Row, 'photo_url'> & {
+    has_photo?: boolean | null
+    photo_url?: string | null
+  }>).map((r) => ({
+    ...r,
+    photo_url: r.photo_url ?? (r.has_photo ? '1' : null),
+  })) as Row[]
   const total = rows.length
 
   let male = 0
@@ -469,15 +600,18 @@ export async function fetchStudentStats(): Promise<StudentStats> {
 // ------------------------------------------------------------
 /** Semua siswa ter-soft delete — fetch sekali, filter/sort/search dilakukan di memori (pola AlumniPage) */
 export async function fetchArchivedStudents(): Promise<Student[]> {
-  const { data, error } = await supabase
-    .from('students')
-    .select(SELECT_STR)
-    .not('deleted_at', 'is', null)
-    .order('deleted_at', { ascending: false })
-    .limit(1000)
+  const run = (select: string) =>
+    supabase
+      .from('students')
+      .select(select)
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false })
+      .limit(1000)
 
-  if (error) throw error
-  return (data ?? []) as Student[]
+  let res = await run(LIST_SELECT)
+  if (res.error && isMissingHasPhoto(res.error)) res = await run(LIST_SELECT_LEGACY)
+  if (res.error) throw res.error
+  return (res.data ?? []) as unknown as Student[]
 }
 
 export async function restoreStudent(id: string): Promise<void> {
@@ -574,7 +708,24 @@ export async function graduateStudentsBulk(ids: string[], graduationYear: number
   if (error) throw error
 }
 
-/** Batalkan kelulusan: kembali jadi siswa aktif tanpa jejak kelulusan */
+/** Batalkan kelulusan massal — satu UPDATE, bukan N round-trip */
+export async function revertGraduationsBulk(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await supabase
+    .from('students')
+    .update({ status: 'active', graduated_at: null, graduation_year: null, last_class_id: null })
+    .in('id', ids)
+  if (error) throw error
+}
+
+/** Pulihkan banyak snapshot — tiap baris nilainya berbeda, jadi dibatasi 8 paralel */
+export async function restoreGraduationSnapshots(rows: GraduationSnapshot[]): Promise<void> {
+  const CONCURRENCY = 8
+  for (let i = 0; i < rows.length; i += CONCURRENCY) {
+    await Promise.all(rows.slice(i, i + CONCURRENCY).map(restoreGraduationSnapshot))
+  }
+}
+
 export async function revertGraduation(id: string): Promise<void> {
   const { error } = await supabase
     .from('students')
@@ -621,29 +772,40 @@ export interface ImportAlumniResult {
 
 /** Ambil seluruh siswa (non-deleted) untuk pra-cek duplikat alumni (NISN / Nama + Tahun) */
 export async function fetchExistingAlumniKeys(): Promise<ExistingAlumniKey[]> {
-  const { data, error } = await supabase
-    .from('students')
-    .select('id, nisn, name, graduation_year')
-    .is('deleted_at', null)
-  if (error) throw error
-  return (data ?? []) as ExistingAlumniKey[]
+  const rows: ExistingAlumniKey[] = []
+  for (let from = 0; from < 50000; from += 1000) {
+    const { data, error } = await supabase
+      .from('students')
+      .select('id, nisn, name, graduation_year')
+      .is('deleted_at', null)
+      .order('id')
+      .range(from, from + 999)
+    if (error) throw error
+    const page = (data ?? []) as ExistingAlumniKey[]
+    rows.push(...page)
+    if (page.length < 1000) break
+  }
+  return rows
 }
 
 /** Ambil ID alumni yang memiliki riwayat laporan poin di tabel reports */
 export async function fetchAlumniWithPointsHistory(studentIds: string[]): Promise<Set<string>> {
   if (studentIds.length === 0) return new Set()
-  const { data, error } = await supabase
-    .from('reports')
-    .select('student_id')
-    .in('student_id', studentIds)
-    .limit(10000)
-  if (error) {
-    console.warn('Gagal mengecek riwayat laporan alumni:', error)
-    return new Set()
-  }
   const set = new Set<string>()
-  for (const r of data ?? []) {
-    if (r.student_id) set.add(r.student_id)
+  const CHUNK = 500
+  for (let i = 0; i < studentIds.length; i += CHUNK) {
+    const { data, error } = await supabase
+      .from('reports')
+      .select('student_id')
+      .in('student_id', studentIds.slice(i, i + CHUNK))
+      .limit(10000)
+    if (error) {
+      console.warn('Gagal mengecek riwayat laporan alumni:', error)
+      return new Set()
+    }
+    for (const r of data ?? []) {
+      if (r.student_id) set.add(r.student_id)
+    }
   }
   return set
 }
@@ -714,6 +876,29 @@ export async function updateAlumni(id: string, values: AlumniFormValues): Promis
   return data as Student
 }
 
+async function insertAlumniWithRetry(
+  payloads: any[],
+  offset: number,
+): Promise<ImportAlumniResult[]> {
+  const { error } = await supabase.from('students').insert(payloads)
+  if (!error) {
+    return payloads.map((_, j) => ({ row_index: offset + j + 1, ok: true, error: null }))
+  }
+
+  // Jika satu baris pun gagal, kembalikan errornya
+  if (payloads.length === 1) {
+    return [{ row_index: offset + 1, ok: false, error: error.message }]
+  }
+
+  // Pecah biner untuk mengisolasi baris yang bermasalah (retry split-biner)
+  const mid = Math.ceil(payloads.length / 2)
+  const [left, right] = await Promise.all([
+    insertAlumniWithRetry(payloads.slice(0, mid), offset),
+    insertAlumniWithRetry(payloads.slice(mid), offset + mid),
+  ])
+  return [...left, ...right]
+}
+
 export async function importAlumniBatch(
   rows: ImportAlumniRowPayload[],
   onProgress?: (processed: number, total: number) => void,
@@ -741,22 +926,8 @@ export async function importAlumniBatch(
       total_points: 0,
     }))
 
-    const { error } = await supabase.from('students').insert(payloads)
-    if (!error) {
-      for (let j = 0; j < chunk.length; j++) {
-        results.push({ row_index: i + j + 1, ok: true, error: null })
-      }
-    } else {
-      // Fallback row-by-row agar baris valid tetap masuk jika chunk error
-      for (let j = 0; j < chunk.length; j++) {
-        const { error: rowError } = await supabase.from('students').insert(payloads[j])
-        results.push({
-          row_index: i + j + 1,
-          ok: !rowError,
-          error: rowError ? rowError.message : null,
-        })
-      }
-    }
+    const chunkResults = await insertAlumniWithRetry(payloads, i)
+    results.push(...chunkResults)
 
     if (onProgress) {
       onProgress(Math.min(i + CHUNK_SIZE, rows.length), rows.length)
@@ -783,13 +954,32 @@ export async function resetPoints(classId: string | null): Promise<number> {
 // ------------------------------------------------------------
 export async function fetchStudentsByIds(ids: string[]): Promise<Student[]> {
   if (ids.length === 0) return []
-  const { data, error } = await supabase
-    .from('students')
-    .select(SELECT_STR)
-    .in('id', ids)
-    .order('name')
-  if (error) throw error
-  return (data ?? []) as Student[]
+  const uniqueIds = [...new Set(ids)]
+  const CHUNK = 200
+  const out: Student[] = []
+
+  const run = async (select: string, chunk: string[]) => {
+    const { data, error } = await supabase.from('students').select(select).in('id', chunk)
+    if (error) throw error
+    return (data ?? []) as unknown as Student[]
+  }
+
+  for (let i = 0; i < uniqueIds.length; i += CHUNK) {
+    const chunk = uniqueIds.slice(i, i + CHUNK)
+    let rows: Student[]
+    try {
+      rows = await run(LIST_SELECT, chunk)
+    } catch (e: any) {
+      if (isMissingHasPhoto(e)) {
+        rows = await run(LIST_SELECT_LEGACY, chunk)
+      } else {
+        throw e
+      }
+    }
+    out.push(...rows)
+  }
+
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'id'))
 }
 
 export async function updateStudentPhoto(id: string, photoUrl: string): Promise<void> {
@@ -831,6 +1021,10 @@ export interface WaSettingsStatus {
   auto_spp_wa: boolean
   /** WA otomatis skor ujian CBT (migration 0048) */
   auto_cbt_wa: boolean
+  /** WA otomatis alpa jam pelajaran (migration 0054) */
+  auto_absen_mapel_wa: boolean
+  /** WA otomatis kemahiran ibadah (migration 0055) */
+  auto_rohani_wa: boolean
   updated_at: string | null
 }
 
@@ -839,7 +1033,7 @@ export async function fetchWaSettingsStatus(): Promise<WaSettingsStatus> {
   if (error) throw error
   const res = data as unknown as WaSettingsStatus | { error: string } | null
   if (res && 'error' in res) throw new Error(res.error)
-  return res ?? { configured: false, sender_name: null, auto_violation_wa: false, auto_bk_wa: false, auto_savings_wa: false, auto_spp_wa: false, auto_cbt_wa: false, updated_at: null }
+  return res ?? { configured: false, sender_name: null, auto_violation_wa: false, auto_bk_wa: false, auto_savings_wa: false, auto_spp_wa: false, auto_cbt_wa: false, auto_absen_mapel_wa: false, auto_rohani_wa: false, updated_at: null }
 }
 
 export async function updateWaSettings(
@@ -850,6 +1044,8 @@ export async function updateWaSettings(
   autoSavings?: boolean,
   autoSpp?: boolean,
   autoCbt?: boolean,
+  autoAbsenMapel?: boolean,
+  autoRohani?: boolean,
 ): Promise<void> {
   const { data, error } = await supabase.rpc('update_wa_settings', {
     p_token: token,
@@ -860,6 +1056,8 @@ export async function updateWaSettings(
     p_auto_savings: autoSavings ?? null,
     p_auto_spp: autoSpp ?? null,
     p_auto_cbt: autoCbt ?? null,
+    p_auto_absen_mapel: autoAbsenMapel ?? null,
+    p_auto_rohani: autoRohani ?? null,
   })
   if (error) throw error
   const res = data as unknown as { ok?: boolean; error?: string } | null

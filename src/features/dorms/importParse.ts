@@ -7,8 +7,11 @@ import type {
 } from './types'
 
 /**
- * Parser pure untuk import CSV kamar asrama — tanpa efek samping agar
- * mudah dites (pola attendance/importParse.ts). UI wizard ada di ImportModal.
+ * Parser pure untuk impor kamar asrama — tanpa efek samping agar mudah dites.
+ * Pola sama dengan students/importParse.ts: FIELDS + autoMatch (pemetaan kolom
+ * oleh user di langkah Mapping) + template Excel dua sheet. Aturan error baris
+ * WAJIB dipertahankan persis: nama kosong → gender → kapasitas → status →
+ * duplikat dalam file → duplikat di database → musyrif (peringatan, bukan error).
  */
 
 /** Alias gender yang diterima (case-insensitive) */
@@ -38,31 +41,139 @@ const STATUS_ALIASES: Record<string, DormStatus> = {
   nonactive: 'inactive',
 }
 
-interface ColMap {
-  name: number
-  gender: number
-  capacity: number
-  musyrif: number
-  status: number
+// ---------------------------------------------------------------------------
+// Definisi kolom
+// ---------------------------------------------------------------------------
+
+export const FIELDS = [
+  { key: 'name', label: 'Nama', required: true, aliases: ['kamar', 'nama kamar', 'name', 'nama ruang', 'room'] },
+  { key: 'gender', label: 'Gender', aliases: ['kelamin', 'jk', 'jenis kelamin'] },
+  { key: 'capacity', label: 'Kapasitas', required: true, aliases: ['kuota', 'capacity', 'kapasitas kamar'] },
+  { key: 'musyrif', label: 'Musyrif', aliases: ['nama musyrif', 'pembina', 'pengasuh', 'ustadz', 'ustadzah'] },
+  { key: 'status', label: 'Status', aliases: ['status kamar'] },
+] as const satisfies readonly {
+  key: string
+  label: string
+  required?: boolean
+  aliases: readonly string[]
+}[]
+
+export type FieldKey = (typeof FIELDS)[number]['key']
+export type Mapping = Partial<Record<FieldKey, number>>
+
+// Keterangan per kolom untuk sheet "Petunjuk" di template Excel
+const FIELD_NOTES: Partial<Record<FieldKey, string>> = {
+  name: 'Wajib diisi & unik. Kamar dengan nama yang sudah ada di database akan dilewati.',
+  gender: 'Putra, Putri, atau Campur. Kosong = tidak ditentukan.',
+  capacity: 'Wajib. Angka bulat 1–100.',
+  musyrif:
+    'Nama musyrif persis seperti di Data Guru (boleh kosong; tidak ditemukan → kolom dikosongkan dengan peringatan).',
+  status: 'Aktif, Penuh, atau Nonaktif. Kosong = Aktif.',
 }
+
+// ---------------------------------------------------------------------------
+// Template & unduhan
+// ---------------------------------------------------------------------------
+
+export const TEMPLATE_COLUMNS = FIELDS.map((f) => f.key)
+
+const TEMPLATE_ROWS: Record<FieldKey, string>[] = [
+  { name: 'Melati A1', gender: 'Putra', capacity: '12', musyrif: 'Ustadz Ahmad', status: 'Aktif' },
+  { name: 'Anggrek B2', gender: 'Putri', capacity: '10', musyrif: 'Ustadzah Fatimah', status: 'Penuh' },
+]
+
+const byNaturalOrder = (a: string, b: string) => a.localeCompare(b, 'id', { numeric: true })
+
+export function downloadTemplate(refs?: { teachers?: string[] }) {
+  // xlsx (bukan CSV) supaya sheet "Petunjuk" ikut terbawa; sheet pertama =
+  // data, karena readSheet membaca SheetNames[0]
+  void import('xlsx').then((XLSX) => {
+    const header: string[] = FIELDS.map((f) => f.label)
+    const data = TEMPLATE_ROWS.map((row) => TEMPLATE_COLUMNS.map((col) => row[col]))
+    const ws = XLSX.utils.aoa_to_sheet([header, ...data])
+    ws['!cols'] = header.map((h, c) => ({
+      wch: Math.min(34, Math.max(h.length + 2, ...data.map((row) => row[c].length + 2))),
+    }))
+
+    // Sheet kedua: petunjuk. JANGAN dipindah ke depan — readSheet membaca sheet pertama.
+    const teachers = [...(refs?.teachers ?? [])].sort(byNaturalOrder)
+    const guide: string[][] = [
+      ['PENTING: hapus 2 baris contoh (Melati A1 & Anggrek B2) di sheet "Kamar" sebelum mengisi data Anda.'],
+      [],
+      ['Kolom', 'Wajib', 'Keterangan'],
+      ...FIELDS.map((f) => [
+        f.label as string,
+        'required' in f && f.required ? 'Wajib' : 'Opsional',
+        FIELD_NOTES[f.key] ?? '',
+      ]),
+    ]
+    if (teachers.length > 0) {
+      guide.push([], ['Musyrif valid'])
+      for (const t of teachers) guide.push([t])
+    }
+    const wsGuide = XLSX.utils.aoa_to_sheet(guide)
+    wsGuide['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 80 }]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Kamar')
+    XLSX.utils.book_append_sheet(wb, wsGuide, 'Petunjuk')
+    XLSX.writeFile(wb, 'Template-Impor-Kamar.xlsx')
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Pemetaan kolom otomatis
+// ---------------------------------------------------------------------------
+
+export function normHeader(value: string) {
+  return value
+    .replace(/^\ufeff/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+export function autoMatch(headers: string[]): Mapping {
+  const normalized = headers.map(normHeader)
+  const used = new Set<number>()
+  const mapping: Mapping = {}
+  for (const field of FIELDS) {
+    const names = new Set([field.key, field.label, ...field.aliases].map(normHeader))
+    const index = normalized.findIndex((h, i) => !used.has(i) && names.has(h))
+    if (index >= 0) {
+      mapping[field.key] = index
+      used.add(index)
+    }
+  }
+  return mapping
+}
+
+export function columnLetter(index: number) {
+  let n = index
+  let letters = ''
+  do {
+    letters = String.fromCharCode(65 + (n % 26)) + letters
+    n = Math.floor(n / 26) - 1
+  } while (n >= 0)
+  return letters
+}
+
+export function sampleValues(rows: string[][], index?: number) {
+  if (index === undefined) return []
+  const values: string[] = []
+  for (const row of rows) {
+    const v = row[index]?.trim()
+    if (v) values.push(v)
+    if (values.length === 2) break
+  }
+  return values
+}
+
+// ---------------------------------------------------------------------------
+// Parse & validasi baris
+// ---------------------------------------------------------------------------
 
 const cell = (row: string[], i: number): string => (row[i] ?? '').trim()
-
-function detectColumns(headers: string[]): ColMap | null {
-  const lower = headers.map((h) => h.trim().toLowerCase())
-  const find = (...keys: string[]) =>
-    lower.findIndex((h) => keys.some((k) => h === k || h.includes(k)))
-
-  // "nama musyrif" juga mengandung "nama" — cek musyrif lebih dulu
-  const musyrif = find('musyrif')
-  const name = find('nama', 'kamar', 'name')
-  const gender = find('gender', 'kelamin', 'jk')
-  const capacity = find('kapasitas', 'kuota', 'capacity')
-  const status = find('status')
-
-  if (name === -1) return null
-  return { name, gender, capacity, musyrif, status }
-}
 
 function parseGender(raw: string): { value: DormGender | null } | { error: string } {
   if (!raw) return { value: null }
@@ -87,15 +198,17 @@ function parseStatus(raw: string): { value: DormStatus } | { error: string } {
 const isEmptyRow = (row: string[]) => row.every((c) => !c || !c.trim())
 
 /**
- * Parse tabel kamar (hasil Papa.parse — array of arrays, tanpa header).
+ * Parse tabel kamar (baris pertama = header, hasil autoMatch pemetaan user).
  * Mengembalikan baris dengan status 'siap' | 'error' | 'duplikat' per baris.
- * Throw bila kolom nama tidak ditemukan (format tak dikenali).
+ * Throw bila kolom nama tidak dipetakan (format tak dikenali).
  */
-export function parseDormTable(table: string[][], ctx: DormImportContext): DormParseResult {
+export function parseDormTable(
+  table: string[][],
+  mapping: Mapping,
+  ctx: DormImportContext,
+): DormParseResult {
   if (table.length === 0) throw new Error('File kosong — tidak ada baris untuk diproses')
-
-  const colMap = detectColumns(table[0])
-  if (!colMap) {
+  if (mapping.name === undefined) {
     throw new Error(
       'Kolom "Nama" tidak ditemukan. Gunakan template: Nama, Gender, Kapasitas, Musyrif, Status',
     )
@@ -107,6 +220,11 @@ export function parseDormTable(table: string[][], ctx: DormImportContext): DormP
   const existing = new Set(ctx.existingNames)
   const seenInFile = new Set<string>()
 
+  const get = (row: string[], field: FieldKey): string => {
+    const idx = mapping[field]
+    return idx === undefined ? '' : cell(row, idx)
+  }
+
   const rows: ParsedDormRow[] = []
   let skippedRows = 0
 
@@ -117,13 +235,14 @@ export function parseDormTable(table: string[][], ctx: DormImportContext): DormP
       continue
     }
 
-    const name = cell(raw, colMap.name)
+    const name = get(raw, 'name')
+    const musyrifRaw = get(raw, 'musyrif')
     const base: Omit<ParsedDormRow, 'rowStatus' | 'message'> = {
       row: i, // 1-based termasuk header, sesuai nomor baris di spreadsheet
       name,
       gender: null,
       capacity: 0,
-      musyrifName: colMap.musyrif >= 0 ? cell(raw, colMap.musyrif) || null : null,
+      musyrifName: musyrifRaw || null,
       musyrifId: null,
       status: 'active',
     }
@@ -133,17 +252,17 @@ export function parseDormTable(table: string[][], ctx: DormImportContext): DormP
       continue
     }
 
-    const genderRes = parseGender(cell(raw, colMap.gender))
+    const genderRes = parseGender(get(raw, 'gender'))
     if ('error' in genderRes) {
       rows.push({ ...base, rowStatus: 'error', message: genderRes.error })
       continue
     }
-    const capacityRes = parseCapacity(cell(raw, colMap.capacity))
+    const capacityRes = parseCapacity(get(raw, 'capacity'))
     if ('error' in capacityRes) {
       rows.push({ ...base, rowStatus: 'error', message: capacityRes.error })
       continue
     }
-    const statusRes = parseStatus(colMap.status >= 0 ? cell(raw, colMap.status) : '')
+    const statusRes = parseStatus(get(raw, 'status'))
     if ('error' in statusRes) {
       rows.push({ ...base, rowStatus: 'error', message: statusRes.error })
       continue
@@ -195,3 +314,22 @@ export function parseDormTable(table: string[][], ctx: DormImportContext): DormP
 
   return { rows, skippedRows }
 }
+
+// ---------------------------------------------------------------------------
+// Ilustrasi struktur kolom (langkah Upload)
+// ---------------------------------------------------------------------------
+
+// Kolom inti yang ditampilkan di contoh modal. Semua kolom wajib HARUS ada di sini
+// (dijaga oleh test importParse).
+const SAMPLE_KEYS: FieldKey[] = ['name', 'gender', 'capacity', 'musyrif', 'status']
+const REQUIRED_KEYS = new Set<string>(
+  FIELDS.filter((f) => 'required' in f && f.required).map((f) => f.key),
+)
+
+// Diturunkan dari FIELDS + TEMPLATE_ROWS supaya selalu sama dengan template
+export const SAMPLE_COLUMNS = SAMPLE_KEYS.map((key) => ({
+  key,
+  label: FIELDS.find((f) => f.key === key)?.label ?? (key as string), // sama persis dengan header template
+  required: REQUIRED_KEYS.has(key),
+  values: TEMPLATE_ROWS.map((row) => row[key]),
+}))

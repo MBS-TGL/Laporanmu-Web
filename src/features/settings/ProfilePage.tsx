@@ -71,7 +71,7 @@ export function ProfilePage() {
             label="Nama Sekolah / Pondok"
             rules={[{ required: true, message: 'Nama sekolah wajib diisi' }]}
           >
-            <Input maxLength={120} placeholder="Contoh: Laporanmu Boarding School" />
+            <Input maxLength={120} placeholder="Contoh: Muhammadiyah Boarding School Tanggul" />
           </Form.Item>
 
           <Form.Item name="school_address" label="Alamat">

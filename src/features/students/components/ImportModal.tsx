@@ -372,13 +372,17 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
         for (const r of res) aggregated.push({ ...r, row_index: i + r.row_index })
         setImportProgress({ done: Math.min(i + IMPORT_CHUNK_SIZE, payload.length), total: payload.length })
       }
-      void queryClient.invalidateQueries({ queryKey: ['students'] })
+      void queryClient.invalidateQueries({ queryKey: ['students', 'list'] })
+      void queryClient.invalidateQueries({ queryKey: ['student-stats'] })
+      void queryClient.invalidateQueries({ queryKey: ['students', 'codes'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       setResults(aggregated)
       setStep(3)
     } catch (err) {
       // chunk yang sudah terkirim tetap tersimpan (RPC per-baris) — tampilkan apa yang sudah masuk
-      void queryClient.invalidateQueries({ queryKey: ['students'] })
+      void queryClient.invalidateQueries({ queryKey: ['students', 'list'] })
+      void queryClient.invalidateQueries({ queryKey: ['student-stats'] })
+      void queryClient.invalidateQueries({ queryKey: ['students', 'codes'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       if (aggregated.length > 0) {
         setResults(aggregated)
@@ -463,6 +467,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 12,
           padding: '10px 16px',
           background: token.colorFillAlter,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
@@ -470,73 +475,81 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
       >
         <Text strong style={{ fontSize: 12, letterSpacing: 0.4 }}>
           <TableOutlined style={{ marginRight: 8, color: token.colorPrimary }} />
-          CONTOH STRUKTUR KOLOM EXCEL
+          CONTOH ISI FILE EXCEL
         </Text>
-        <Text style={{ fontSize: 12, color: token.colorSuccess, fontWeight: 600 }}>
+        <Text style={{ fontSize: 12, color: token.colorSuccess, fontWeight: 600, whiteSpace: 'nowrap' }}>
           <CheckCircleFilled style={{ marginRight: 6 }} />
-          Auto-Match Active
+          Pencocokan otomatis
         </Text>
       </div>
-      <div style={{ overflowX: 'auto' }}>
+      {/* bayangan di tepi kiri/kanan muncul otomatis bila tabel bisa digeser */}
+      <div
+        style={{
+          overflowX: 'auto',
+          backgroundColor: token.colorBgContainer,
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: '32px 100%, 32px 100%, 12px 100%, 12px 100%',
+          backgroundPosition: '0 0, 100% 0, 0 0, 100% 0',
+          backgroundAttachment: 'local, local, scroll, scroll',
+          backgroundImage: `linear-gradient(to right, ${token.colorBgContainer}, transparent), linear-gradient(to left, ${token.colorBgContainer}, transparent), radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.14), transparent), radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.14), transparent)`,
+        }}
+      >
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
+          <tbody>
+            {/* baris 1 = judul kolom, persis seperti di Excel */}
             <tr>
-              <th style={{ width: 36, background: token.colorFillAlter }} />
+              <td
+                style={{
+                  width: 36,
+                  textAlign: 'center',
+                  fontSize: 13,
+                  color: token.colorTextTertiary,
+                  background: token.colorFillTertiary,
+                  borderBottom: `2px solid ${token.colorBorder}`,
+                }}
+              >
+                1
+              </td>
               {SAMPLE_COLUMNS.map((col) => (
-                <th
-                  key={col.letter}
+                <td
+                  key={col.key}
+                  title={col.required ? 'Wajib diisi' : 'Opsional'}
                   style={{
-                    textAlign: 'left',
-                    padding: '8px 12px',
+                    padding: '9px 14px',
                     borderLeft: `1px solid ${token.colorBorderSecondary}`,
-                    borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                    borderBottom: `2px solid ${token.colorBorder}`,
+                    background: token.colorFillTertiary,
+                    fontSize: 13,
+                    fontWeight: 600,
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <span style={{ fontWeight: 600 }}>{col.letter}</span>
-                  <span
-                    style={{
-                      float: 'right',
-                      marginLeft: 12,
-                      fontSize: 10,
-                      color: token.colorSuccess,
-                      fontWeight: 600,
-                    }}
-                  >
-                    ({col.label})
-                  </span>
-                  <div
-                    style={{
-                      height: 3,
-                      marginTop: 6,
-                      borderRadius: 2,
-                      background: token.colorSuccessBorder,
-                    }}
-                  />
-                </th>
+                  {col.label}
+                  {col.required && <span style={{ color: token.colorError, marginLeft: 3 }}>*</span>}
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
             {[0, 1].map((r) => (
               <tr key={r}>
                 <td
                   style={{
                     textAlign: 'center',
+                    fontSize: 13,
+                    color: token.colorTextTertiary,
                     background: token.colorFillAlter,
-                    color: token.colorTextSecondary,
-                    fontWeight: 600,
+                    borderTop: r === 0 ? undefined : `1px solid ${token.colorBorderSecondary}`,
                   }}
                 >
-                  {r + 1}
+                  {r + 2}
                 </td>
                 {SAMPLE_COLUMNS.map((col) => (
                   <td
-                    key={col.letter}
+                    key={col.key}
                     style={{
-                      padding: '8px 12px',
+                      padding: '9px 14px',
                       borderLeft: `1px solid ${token.colorBorderSecondary}`,
-                      borderTop: `1px solid ${token.colorBorderSecondary}`,
+                      borderTop: r === 0 ? undefined : `1px solid ${token.colorBorderSecondary}`,
+                      fontSize: 13,
                       whiteSpace: 'nowrap',
                     }}
                   >
@@ -553,13 +566,14 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 12,
           padding: '8px 16px',
           borderTop: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
-        <Text type="secondary" italic style={{ fontSize: 12 }}>
-          * Baris pertama = judul kolom. Judul yang mendekati nama kolom di atas dicocokkan otomatis,
-          dan bisa diatur ulang di langkah berikutnya.
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          <span style={{ color: token.colorError }}>*</span> Wajib diisi. Baris 1 adalah judul kolom, urutan
+          bebas. {FIELDS.length - SAMPLE_COLUMNS.length} kolom opsional lain ada di Template Excel.
         </Text>
         <Space size={4}>
           <Tag style={{ margin: 0 }}>.xlsx</Tag>
@@ -757,9 +771,9 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
       current={step}
       footerByStep={footerByStep}
       steps={[
-        { title: 'Upload', description: 'Pilih file' },
-        { title: 'Mapping', description: 'Atur kolom' },
-        { title: 'Review', description: 'Validasi' },
+        { title: 'Unggah', description: 'Pilih file' },
+        { title: 'Pemetaan', description: 'Atur kolom' },
+        { title: 'Pratinjau', description: 'Validasi' },
         { title: 'Hasil', description: 'Selesai' },
       ]}
     >
@@ -769,7 +783,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
             value={sheetSource}
             onChange={(v) => setSheetSource(v as 'file' | 'gsheets')}
             options={[
-              { label: 'Upload File', value: 'file', icon: <FileExcelOutlined /> },
+              { label: 'Unggah File', value: 'file', icon: <FileExcelOutlined /> },
               { label: 'Google Sheets', value: 'gsheets', icon: <LinkOutlined /> },
             ]}
           />
@@ -834,11 +848,19 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <Popover trigger="click" placement="bottomLeft" content={referenceContent}>
                   <Button>
-                    Daftar kelas valid <Tag color="processing" style={{ margin: '0 4px 0 6px' }}>{classes.length}</Tag>
+                    Kelas & asrama valid <Tag color="processing" style={{ margin: '0 4px 0 6px' }}>{classes.length + dorms.length}</Tag>
                     <DownOutlined />
                   </Button>
                 </Popover>
-                <Button icon={<DownloadOutlined />} onClick={downloadTemplate}>
+                <Button
+                  icon={<DownloadOutlined />}
+                  onClick={() =>
+                    downloadTemplate({
+                      classes: classes.map((c) => c.name),
+                      dorms: dorms.map((d) => d.name),
+                    })
+                  }
+                >
                   Unduh Template Excel
                 </Button>
               </div>
@@ -850,15 +872,25 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
             items={[
               {
                 key: 'sample',
-                label: 'Contoh struktur kolom Excel & tips pengisian',
+                label: 'Contoh isi file Excel & tips pengisian',
                 children: (
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     {columnStructure}
-                    <ModalNotice
-                      tone="info"
-                      title="Tips Excel"
-                    >
-                      Paling aman pakai tombol Unduh Template Excel di atas: kolom angkanya sudah berformat Teks. Isi file sendiri? Atur kolom NISN, NIS, NIK, dan nomor telepon ke format Teks supaya angka 0 di depan tidak hilang dan angka panjang tidak berubah menjadi notasi ilmiah.
+                    <ModalNotice tone="info" title="Tips Excel">
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Hapus 2 baris contoh di template sebelum mengisi data Anda.
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        <li>
+                          Paling aman pakai Template Excel di atas: kolom angka sudah berformat Teks, jadi angka
+                          0 di depan tidak hilang. Isi file sendiri? Format kolom NISN, NIS, NIK, dan telepon
+                          sebagai Teks.
+                        </li>
+                        <li>
+                          Nama kelas harus sama persis dengan yang ada di Kelas & asrama valid (boleh kosong
+                          bila memilih kelas default).
+                        </li>
+                      </ul>
                     </ModalNotice>
                   </Space>
                 ),

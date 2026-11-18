@@ -1,0 +1,19 @@
+{
+  "name": "Laporanmu",
+  "short_name": "Laporanmu",
+  "description": "Portal santri Laporanmu: jadwal, nilai, absensi, poin, SPP, dan tahfidz.",
+  "lang": "id",
+  "start_url": "/portal?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#4f46e5",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/logo-icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

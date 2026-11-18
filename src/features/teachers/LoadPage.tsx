@@ -25,6 +25,7 @@ import Papa from 'papaparse'
 import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { useAcademicYearsBrief } from '../classes/hooks'
 import { useClassSubjectsByYear } from '../classes/hooks'
 import { useTeachers } from './hooks'
@@ -171,6 +172,9 @@ export function LoadPage({ active }: { active: boolean }) {
         r.subjects.some((s) => s.subjectName.toLowerCase().includes(q) || (s.teacherName && s.teacherName.toLowerCase().includes(q))),
     )
   }, [classRows, search])
+
+  const pgTeacher = useTablePagination(filteredTeacherRows.length, { label: 'guru', defaultPageSize: 20 })
+  const pgClass = useTablePagination(filteredClassRows.length, { label: 'kelas', defaultPageSize: 20 })
 
   const stats = useMemo(() => {
     const teachingCount = teacherRows.filter((r) => r.totalHours > 0).length
@@ -432,7 +436,7 @@ export function LoadPage({ active }: { active: boolean }) {
             columns={teacherColumns}
             dataSource={filteredTeacherRows}
             loading={teachersQuery.isPending || csQuery.isPending}
-            pagination={{ pageSize: 20, showTotal: (t) => `Total ${t} guru` }}
+            pagination={pgTeacher.pagination}
             locale={{
               emptyText: (
                 <Empty
@@ -450,7 +454,7 @@ export function LoadPage({ active }: { active: boolean }) {
             columns={classColumns}
             dataSource={filteredClassRows}
             loading={csQuery.isPending}
-            pagination={{ pageSize: 20, showTotal: (t) => `Total ${t} kelas` }}
+            pagination={pgClass.pagination}
             locale={{
               emptyText: (
                 <Empty

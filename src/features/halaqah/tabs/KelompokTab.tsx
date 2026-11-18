@@ -32,6 +32,7 @@ import { StatChip } from '../../../shared/components/StatChip'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import {
   useCreateHalaqah,
   useDeleteHalaqah,
@@ -58,8 +59,6 @@ export function KelompokTab({ active }: { active: boolean }) {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [gender, setGender] = useState<'L' | 'P' | undefined>(undefined)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<HalaqahGroup | null>(null)
@@ -88,15 +87,17 @@ export function KelompokTab({ active }: { active: boolean }) {
     })
   }, [allGroups, debouncedSearch, gender])
 
+  const pg = useTablePagination(rows.length, { label: 'halaqah' })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
   const resetFilters = () => {
     setSearch('')
     setGender(undefined)
-    setPage(1)
+    pg.setPage(1)
   }
 
   const hasActiveFilters = Boolean(debouncedSearch || gender)
@@ -359,7 +360,7 @@ export function KelompokTab({ active }: { active: boolean }) {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ flex: '1 1 240px', minWidth: 220 }}
           />
@@ -370,7 +371,7 @@ export function KelompokTab({ active }: { active: boolean }) {
             value={gender}
             onChange={(v) => {
               setGender(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={[
               { value: 'L', label: 'Putra' },
@@ -405,17 +406,7 @@ export function KelompokTab({ active }: { active: boolean }) {
               />
             ),
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} halaqah`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

@@ -6,7 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { AppModal } from '../../../shared/components/AppModal'
 import { ModalFooter } from '../../../shared/components/ModalFooter'
 import { ModalNotice } from '../../../shared/components/ModalNotice'
-import { useGenerateStudentPins } from '../hooks'
+import { useGenerateStudentPins, useStudentPhotos } from '../hooks'
 import { GENDER_LABEL } from '../status'
 import type { Student } from '../types'
 
@@ -29,14 +29,16 @@ function checkUrl(student: Student): string {
  * Foto siswa dengan fallback inisial — dipakai juga saat cetak:
  * jika foto gagal dimuat, inisial tetap tampil (bukan kotak kosong).
  */
-function CardAvatar({ student }: { student: Student }) {
+function CardAvatar({ student, photo }: { student: Student; photo?: string }) {
   const [photoLoaded, setPhotoLoaded] = useState(false)
   const initial = student.name?.charAt(0).toUpperCase() ?? '?'
+  const src = student.photo_url ?? photo
+
   return (
     <div className="student-id-card-avatar">
-      {student.photo_url ? (
+      {src ? (
         <img
-          src={student.photo_url}
+          src={src}
           alt=""
           onLoad={() => setPhotoLoaded(true)}
           style={{ opacity: photoLoaded ? 1 : 0 }}
@@ -57,6 +59,10 @@ interface CardModalProps {
 export function CardModal({ open, onClose, students }: CardModalProps) {
   const { message } = App.useApp()
   const generatePins = useGenerateStudentPins()
+
+  // A1: Ambil foto on-demand hanya saat modal cetak terbuka
+  const photosQuery = useStudentPhotos(open ? students.map((s) => s.id) : [])
+  const photos = photosQuery.data ?? {}
   // PIN hasil generate ditempelkan lokal agar kartu langsung menampilkan
   // PIN baru tanpa menunggu refetch daftar siswa di halaman
   const [pinOverrides, setPinOverrides] = useState<Map<string, string>>(new Map())
@@ -117,7 +123,7 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
     <div className="student-id-card" key={s.id}>
       <div className="student-id-card-head">Kartu Portal Santri</div>
       <div className="student-id-card-body">
-        <CardAvatar student={s} />
+        <CardAvatar student={s} photo={photos[s.id]} />
         <div className="student-id-card-info">
           <div className="student-id-card-name">{s.name}</div>
           <div className="student-id-card-meta">

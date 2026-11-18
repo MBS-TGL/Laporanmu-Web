@@ -26,6 +26,7 @@ export function DetailProvider({ children }: { children: ReactNode }) {
     queryKey: ['students', 'detail', studentId],
     queryFn: () => fetchStudentById(studentId!),
     enabled: !!studentId,
+    staleTime: 1000 * 60 * 60, // 1 jam, rincian jarang berubah mendadak
   })
 
   const value = useMemo(

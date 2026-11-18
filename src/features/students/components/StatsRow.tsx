@@ -1,9 +1,11 @@
+import { memo } from 'react'
 import { Popover, theme } from 'antd'
 import {
   CrownFilled,
   ExclamationCircleOutlined,
   FallOutlined,
   FileDoneOutlined,
+  KeyOutlined,
   ManOutlined,
   RiseOutlined,
   TeamOutlined,
@@ -20,6 +22,7 @@ interface StatsRowProps {
   gender?: Gender
   pointMode?: PointMode
   missing?: MissingField
+  noPinCount?: number
   onGenderToggle: (g: Gender) => void
   onPointMode: (m: PointMode) => void
   onMissing: (m: MissingField) => void
@@ -30,12 +33,13 @@ interface StatsRowProps {
 }
 
 /** Baris chip statistik + strip insight Terbaik/Terendah */
-export function StatsRow({
+export const StatsRow = memo(function StatsRow({
   stats,
   loading,
   gender,
   pointMode,
   missing,
+  noPinCount,
   onGenderToggle,
   onPointMode,
   onMissing,
@@ -75,27 +79,26 @@ export function StatsRow({
           active={gender === 'P'}
           onClick={() => onGenderToggle('P')}
         />
-        {(!stats || stats.avgPoints !== 0) && (
-          <StatChip
-            icon={<TrophyOutlined />}
-            label="Rata-rata Poin"
-            value={stats ? (stats.avgPoints > 0 ? `+${stats.avgPoints}` : stats.avgPoints) : '–'}
-            color="emerald"
-            loading={loading}
-            active={pointMode === 'positive'}
-            onClick={() => onPointMode('positive')}
-          />
-        )}
-        {(stats?.riskCount ?? 0) > 0 && (
-          <StatChip
-            icon={<WarningOutlined />}
-            label="Berisiko"
-            value={stats!.riskCount}
-            color="rose"
-            active={pointMode === 'negative'}
-            onClick={() => onPointMode('negative')}
-          />
-        )}
+        <StatChip
+          icon={<TrophyOutlined />}
+          label="Rata-rata Poin"
+          value={stats ? (stats.avgPoints > 0 ? `+${stats.avgPoints}` : stats.avgPoints) : '–'}
+          color="emerald"
+          loading={loading}
+          hideIfZero
+          active={pointMode === 'positive'}
+          onClick={() => onPointMode('positive')}
+        />
+        <StatChip
+          icon={<WarningOutlined />}
+          label="Berisiko"
+          value={stats?.riskCount ?? '–'}
+          color="rose"
+          loading={loading}
+          hideIfZero
+          active={pointMode === 'negative'}
+          onClick={() => onPointMode('negative')}
+        />
         <StatChip
           icon={<ExclamationCircleOutlined />}
           label="Tidak Lengkap"
@@ -105,6 +108,18 @@ export function StatsRow({
           active={missing === 'any'}
           onClick={() => onMissing('any')}
         />
+        {noPinCount !== undefined && (
+          <StatChip
+            icon={<KeyOutlined />}
+            label="Tanpa PIN"
+            value={noPinCount}
+            color="amber"
+            loading={loading}
+            hideIfZero
+            active={missing === 'pin'}
+            onClick={() => onMissing('pin')}
+          />
+        )}
         {trend !== null && trend !== undefined && trend !== 0 && (
           <StatChip
             icon={trend < 0 ? <FallOutlined /> : <RiseOutlined />}
@@ -133,7 +148,7 @@ export function StatsRow({
             <CrownFilled style={{ color: '#f59e0b' }} />
             <span style={{ color: token.colorTextSecondary }}>Terbaik:</span>
             <span style={{ fontWeight: 600 }}>{stats.topPerformer.name}</span>
-            <span style={{ fontWeight: 700, color: '#16a34a' }}>+{stats.topPerformer.points}</span>
+            <span style={{ fontWeight: 700, color: token.colorSuccess }}>+{stats.topPerformer.points}</span>
           </span>
         )}
         {worst && (
@@ -155,10 +170,10 @@ export function StatsRow({
             }}
             title={`Filter siswa kelas ${worst.name}`}
           >
-            <WarningOutlined style={{ color: '#dc2626' }} />
+            <WarningOutlined style={{ color: token.colorError }} />
             <span style={{ color: token.colorTextSecondary }}>Terendah:</span>
-            <span style={{ fontWeight: 600, color: '#dc2626' }}>{worst.name}</span>
-            <span style={{ fontWeight: 700, color: '#dc2626' }}>({worst.avg})</span>
+            <span style={{ fontWeight: 600, color: token.colorError }}>{worst.name}</span>
+            <span style={{ fontWeight: 700, color: token.colorError }}>({worst.avg})</span>
           </button>
         )}
         {worstCompl && (
@@ -173,7 +188,7 @@ export function StatsRow({
                 {[...(stats?.classCompleteness ?? [])]
                   .sort((a, b) => a.percent - b.percent || a.name.localeCompare(b.name, 'id'))
                   .map((c) => {
-                    const color = c.percent < 50 ? '#dc2626' : c.percent < 80 ? '#f59e0b' : '#16a34a'
+                    const color = c.percent < 50 ? token.colorError : c.percent < 80 ? token.colorWarning : token.colorSuccess
                     return (
                       <button
                         key={c.id}
@@ -267,10 +282,10 @@ export function StatsRow({
                 cursor: 'pointer',
               }}
             >
-              <FileDoneOutlined style={{ color: '#f59e0b' }} />
+              <FileDoneOutlined style={{ color: token.colorWarning }} />
               <span style={{ color: token.colorTextSecondary }}>Kelengkapan:</span>
-              <span style={{ fontWeight: 600, color: '#f59e0b' }}>{worstCompl.name}</span>
-              <span style={{ fontWeight: 700, color: '#f59e0b' }}>
+              <span style={{ fontWeight: 600, color: token.colorWarning }}>{worstCompl.name}</span>
+              <span style={{ fontWeight: 700, color: token.colorWarning }}>
                 {worstCompl.percent}% ({worstCompl.incomplete}/{worstCompl.total})
               </span>
             </button>
@@ -279,4 +294,4 @@ export function StatsRow({
       </div>
     </div>
   )
-}
+})

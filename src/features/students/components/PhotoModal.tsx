@@ -64,7 +64,7 @@ export function PhotoModal({ open, onClose }: PhotoModalProps) {
   const updatePhotoMutation = useUpdateStudentPhoto()
 
   // ambil semua siswa aktif untuk pencocokan
-  const studentsQuery = useStudents({ page: 1, pageSize: 1000 })
+  const studentsQuery = useStudents({ page: 1, pageSize: 1000 }, { enabled: open })
   const students = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data])
 
   const studentOptions = useMemo(

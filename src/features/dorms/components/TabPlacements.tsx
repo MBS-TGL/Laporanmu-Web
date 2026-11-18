@@ -6,6 +6,7 @@ import { StatChip } from '../../../shared/components/StatChip'
 import { downloadCsv } from '../../../shared/utils/csv'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { downloadPlacementsXlsx } from '../api'
 import { useClassesBrief, usePlacementCounts, usePlacements, usePlacementsExport } from '../hooks'
 import type { Placement } from '../types'
@@ -35,13 +36,13 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict, onOpenTextPlace }:
   const [gender, setGender] = useState<'L' | 'P' | undefined>()
   const [classId, setClassId] = useState<string | undefined>()
   const [status, setStatus] = useState<PlacementStatus>('all')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  // Tabel server-paginated: total asli dari query, di-override di prop Table.
+  const pg = useTablePagination(0, { label: 'santri' })
   const [selectedKeys, setSelectedKeys] = useState<Key[]>([])
 
   const filters = useMemo(
-    () => ({ search: debouncedSearch || undefined, gender, classId, placement: status, page, pageSize }),
-    [debouncedSearch, gender, classId, status, page, pageSize],
+    () => ({ search: debouncedSearch || undefined, gender, classId, placement: status, page: pg.page, pageSize: pg.pageSize }),
+    [debouncedSearch, gender, classId, status, pg.page, pg.pageSize],
   )
 
   const query = usePlacements(filters)
@@ -67,7 +68,7 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict, onOpenTextPlace }:
       active={status === key}
       onClick={() => {
         setStatus((prev) => (prev === key ? 'all' : key))
-        setPage(1)
+        pg.setPage(1)
       }}
     />
   )
@@ -185,7 +186,7 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict, onOpenTextPlace }:
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ flex: 1, minWidth: 220 }}
           />
@@ -198,7 +199,7 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict, onOpenTextPlace }:
             value={classId}
             onChange={(v) => {
               setClassId(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             loading={classesQuery.isLoading}
             options={(classesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
@@ -210,7 +211,7 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict, onOpenTextPlace }:
             value={gender}
             onChange={(v) => {
               setGender(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={[
               { value: 'L', label: 'Laki-laki' },
@@ -294,18 +295,11 @@ export function TabPlacements({ onAssign, onMoveOne, onEvict, onOpenTextPlace }:
           dataSource={query.data?.data ?? []}
           loading={query.isPending}
           rowSelection={{ selectedRowKeys: selectedKeys, onChange: setSelectedKeys }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: query.data?.total ?? 0,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} santri`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-              setSelectedKeys([])
-            },
-          }}
+          pagination={{ ...pg.pagination, total: query.data?.total ?? 0, onChange: (p, ps) => {
+            pg.setPage(p)
+            pg.setPageSize(ps)
+            setSelectedKeys([])
+          } }}
           scroll={{ x: true }}
         />
       </Card>

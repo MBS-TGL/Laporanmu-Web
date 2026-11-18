@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import dayjs from 'dayjs'
 import type { AttendanceDays, StudentAttendanceRow } from './types'
 
 export interface AttendanceUpsert {
@@ -95,4 +96,130 @@ export function countWeekdays(year: number, month: number): number {
     if (dow !== 0 && dow !== 6) n++
   }
   return n
+}
+
+// ─── P2 Absensi per jam pelajaran (module.subject_attendance, 0054) ──────────
+
+export interface SubjectSlot {
+  schedule_id: string
+  start_time: string
+  end_time: string
+  subject: string | null
+  teacher: string | null
+  room: string | null
+}
+
+export interface SubjectAttendanceUpsert {
+  student_id: string
+  schedule_id: string
+  date: string
+  status: 'H' | 'S' | 'I' | 'A'
+  recorded_by: string | null
+}
+
+export interface SubjectAttendanceEntry {
+  student_id: string
+  schedule_id: string
+  date: string
+  status: 'H' | 'S' | 'I' | 'A'
+  subject: string | null
+}
+
+/** Slot pelajaran kelas pada satu tanggal = baris jadwal hari itu
+ *  (deviasi plan: tanpa tabel time_slots terpisah), guru jam itu
+ *  dari jadwal + override substitution_logs bila ada. */
+export async function fetchSubjectSlots(classId: string, date: string): Promise<SubjectSlot[]> {
+  const d = dayjs(date)
+  const isodow = d.day() === 0 ? 7 : d.day()
+  const { data, error } = await supabase
+    .from('schedules')
+    .select(
+      'id, start_time, end_time, room, subjects(name), teachers!schedules_teacher_id_fkey(name), substitution_logs!substitution_logs_schedule_id_fkey(date, substitute_teacher_id, teachers!substitution_logs_substitute_teacher_id_fkey(name))',
+    )
+    .eq('class_id', classId)
+    .eq('day_of_week', isodow)
+    .is('deleted_at', null)
+    .order('start_time')
+  if (error) throw error
+  return (data ?? []).map((r: Record<string, unknown>) => {
+    const subs = (r.substitution_logs as Array<{ date: string; teachers: { name: string } | null }> | null) ?? []
+    const todaySub = subs.find((s) => s.date === date)
+    const teacher = (r.teachers as { name: string } | null)?.name ?? null
+    return {
+      schedule_id: r.id as string,
+      start_time: r.start_time as string,
+      end_time: r.end_time as string,
+      subject: (r.subjects as { name: string } | null)?.name ?? null,
+      teacher: todaySub?.teachers?.name ?? teacher,
+      room: (r.room as string | null) ?? null,
+    }
+  })
+}
+
+/** Absensi mapel kelas pada satu tanggal (dipetakan per schedule_id). */
+export async function fetchSubjectAttendance(
+  scheduleIds: string[],
+  date: string,
+): Promise<SubjectAttendanceEntry[]> {
+  if (scheduleIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('subject_attendance')
+    .select('student_id, schedule_id, date, status')
+    .in('schedule_id', scheduleIds)
+    .eq('date', date)
+  if (error) throw error
+  return (data ?? []) as SubjectAttendanceEntry[]
+}
+
+export async function upsertSubjectAttendance(payload: SubjectAttendanceUpsert[]): Promise<void> {
+  if (payload.length === 0) return
+  const { error } = await supabase
+    .from('subject_attendance')
+    .upsert(payload, { onConflict: 'student_id,schedule_id,date' })
+  if (error) throw error
+}
+
+/** Rentang tanggal untuk analitik — join jadwal untuk nama mapel. */
+export async function fetchSubjectAttendanceRange(
+  classId: string,
+  from: string,
+  to: string,
+): Promise<SubjectAttendanceEntry[]> {
+  const { data, error } = await supabase
+    .from('subject_attendance')
+    .select('student_id, schedule_id, date, status, schedules!inner(class_id, subjects(name))')
+    .eq('schedules.class_id', classId)
+    .gte('date', from)
+    .lte('date', to)
+  if (error) throw error
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    student_id: r.student_id as string,
+    schedule_id: r.schedule_id as string,
+    date: r.date as string,
+    status: r.status as 'H' | 'S' | 'I' | 'A',
+    subject: (r.schedules as { subjects: { name: string } | null } | null)?.subjects?.name ?? null,
+  }))
+}
+
+/** Rekap absensi mapel satu santri (bulan berjalan) untuk DetailDrawer. */
+export async function fetchStudentSubjectRecap(
+  studentId: string,
+  from: string,
+  to: string,
+): Promise<SubjectAttendanceEntry[]> {
+  const { data, error } = await supabase
+    .from('subject_attendance')
+    .select('student_id, schedule_id, date, status, schedules(subjects(name))')
+    .eq('student_id', studentId)
+    .gte('date', from)
+    .lte('date', to)
+    .order('date', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    student_id: r.student_id as string,
+    schedule_id: r.schedule_id as string,
+    date: r.date as string,
+    status: r.status as 'H' | 'S' | 'I' | 'A',
+    subject: (r.schedules as { subjects: { name: string } | null } | null)?.subjects?.name ?? null,
+  }))
 }

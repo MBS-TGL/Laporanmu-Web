@@ -1,8 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
+import {
+  createCurriculumCp,
+  createCurriculumTp,
+  deleteCurriculumCp,
+  deleteCurriculumTp,
+  fetchCurriculumCps,
+  fetchCurriculumTps,
+  moveCurriculumTp,
+  updateCurriculumCp,
+  updateCurriculumTp,
+} from '../documents/api'
 import { createSubject, fetchSubjects, softDeleteSubject, updateSubject } from './api'
-import type { SubjectFormValues } from './types'
+import type { CpFormValues, SubjectFormValues } from './types'
 
 /** Daftar mapel aktif untuk select (jadwal, dsb.) */
 export function useSubjectsBrief() {
@@ -74,5 +85,82 @@ export function useDeleteSubject() {
       void qc.invalidateQueries({ queryKey: ['subjects'] })
       void qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
+  })
+}
+
+// ─── Kurikulum CP/TP (tab di halaman ini; API di documents/api) ─────────────
+// Audit create/update/delete ada di dalam api (pola file documents/api) —
+// hooks cukup invalidate supaya tidak dobel log.
+
+export function useCurriculumCps() {
+  return useQuery({
+    queryKey: ['curriculum', 'cps'],
+    queryFn: fetchCurriculumCps,
+  })
+}
+
+export function useCurriculumTps() {
+  return useQuery({
+    queryKey: ['curriculum', 'tps'],
+    queryFn: fetchCurriculumTps,
+  })
+}
+
+export function useCreateCp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (values: CpFormValues) => createCurriculumCp(values),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['curriculum'] }),
+  })
+}
+
+export function useUpdateCp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, values }: { id: string; values: CpFormValues }) =>
+      updateCurriculumCp(id, values),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['curriculum'] }),
+  })
+}
+
+export function useDeleteCp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteCurriculumCp(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['curriculum'] }),
+  })
+}
+
+export function useCreateTp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ cpId, description, sortOrder }: { cpId: string; description: string; sortOrder: number }) =>
+      createCurriculumTp(cpId, description, sortOrder),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['curriculum'] }),
+  })
+}
+
+export function useUpdateTp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, description }: { id: string; description: string }) =>
+      updateCurriculumTp(id, description),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['curriculum'] }),
+  })
+}
+
+export function useDeleteTp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteCurriculumTp(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['curriculum'] }),
+  })
+}
+
+export function useMoveTp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, dir }: { id: string; dir: 'up' | 'down' }) => moveCurriculumTp(id, dir),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['curriculum'] }),
   })
 }

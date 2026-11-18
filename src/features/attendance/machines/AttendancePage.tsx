@@ -29,6 +29,7 @@ import {
 import dayjs from 'dayjs'
 import { StatChip } from '../../../shared/components/StatChip'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import {
   useAttendanceMachines,
   useDeleteMachine,
@@ -62,6 +63,7 @@ export function AttendancePage() {
     matchedStatus: statusFilter,
   })
   const logs = logsQuery.data ?? []
+  const pg = useTablePagination(logs.length, { label: 'log scan', defaultPageSize: 25 })
 
   const syncMutation = useSyncMachineToAttendance()
   const deleteMachineMutation = useDeleteMachine()
@@ -354,7 +356,7 @@ export function AttendancePage() {
                   columns={logColumns}
                   dataSource={logs}
                   loading={logsQuery.isPending}
-                  pagination={{ pageSize: 25, showTotal: (t) => `Total ${t} log scan` }}
+                  pagination={pg.pagination}
                   locale={{
                     emptyText: (
                       <Empty

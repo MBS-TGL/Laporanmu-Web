@@ -3,6 +3,7 @@ import { App, Alert, Button, Card, Input, Popconfirm, Select, Space, Spin, Table
 import { DeleteOutlined, InboxOutlined, RestOutlined, SearchOutlined, UndoOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useDebounce } from '../../shared/hooks/useDebounce'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { StatChip } from '../../shared/components/StatChip'
 import { ActionBar } from '../../shared/components/ActionBar'
 import { useTabActions } from '../../shared/components/ActionsSlot'
@@ -59,6 +60,8 @@ export function TrashPage({ active }: { active: boolean }) {
       return true
     })
   }, [entries, debouncedSearch, moduleFilter])
+
+  const pg = useTablePagination(filtered.length, { label: 'item', showSizeChanger: false, defaultPageSize: 15 })
 
   const restore = async (targets: TrashEntry[]) => {
     for (const t of targets) {
@@ -240,7 +243,7 @@ export function TrashPage({ active }: { active: boolean }) {
             columns={columns}
             dataSource={filtered}
             rowSelection={{ selectedRowKeys: selectedKeys, onChange: setSelectedKeys }}
-            pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (total) => `${total} item` }}
+            pagination={pg.pagination}
             size="middle"
             scroll={{ x: 700 }}
           />

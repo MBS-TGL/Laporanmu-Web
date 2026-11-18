@@ -4,6 +4,7 @@ import { useUrlTab } from '../../shared/hooks/useUrlTab'
 import { ShellItem, ShellStagger } from '../../shared/components/ShellMotion'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { TabActionsContext } from '../../shared/components/ActionsSlot'
+import { useFlag } from '../../shared/hooks/useFeatureFlags'
 import { useTableStats } from './hooks'
 import { TABLE_CONFIG } from './api'
 import { AdminDashboardTab } from './DashboardPage'
@@ -17,17 +18,20 @@ import { TrashPage } from './TrashPage'
 import { StoragePage } from './StoragePage'
 import { MediaPage } from './MediaPage'
 import { AuditPage } from './AuditPage'
+import { IntegrationsPage } from './IntegrationsPage'
 import { useRbac } from '../../shared/rbac/useRbac'
 
 // `perm` menggerbangi tab via RBAC (useRbac.can) — tab tanpa permission
 // hilang dari bar tab untuk role yang tidak berhak.
-const ADMIN_TAB_ITEMS = [
+// `flag` (opsional) menggerbangi via feature flag module.*/system.*.
+const ADMIN_TAB_ITEMS: Array<{ key: string; label: string; perm: string; flag?: string }> = [
   { key: 'ringkasan', label: 'Ringkasan', perm: 'admin:access' },
   { key: 'insights', label: 'AI Insights', perm: 'admin:access' },
   { key: 'pengguna', label: 'Pengguna', perm: 'admin:users' },
   { key: 'roles', label: 'Roles', perm: 'admin:roles' },
   { key: 'pengaturan', label: 'Pengaturan', perm: 'admin:settings' },
   { key: 'otomatisasi', label: 'Otomatisasi', perm: 'admin:automation' },
+  { key: 'integrations', label: 'Integrasi', perm: 'admin:integrations', flag: 'system.api' },
   { key: 'database', label: 'Database', perm: 'admin:database' },
   { key: 'sampah', label: 'Sampah', perm: 'trash:read' },
   { key: 'penyimpanan', label: 'Penyimpanan', perm: 'admin:storage' },
@@ -61,6 +65,10 @@ const ADMIN_TAB_META: Record<string, { title: string; subtitle: string }> = {
   otomatisasi: {
     title: 'Otomasi',
     subtitle: 'Picu tugas pemeliharaan berat secara manual — tanpa menunggu jadwal',
+  },
+  integrations: {
+    title: 'Integrasi',
+    subtitle: 'API key dan webhook PPDB — pendaftar dari formulir publik masuk otomatis',
   },
   database: {
     title: 'Kesehatan Database',
@@ -96,6 +104,8 @@ function tabContent(key: string, onNavigateTab: (tab: string) => void, active: b
       return <FlagsPage active={active} />
     case 'otomatisasi':
       return <TasksPage active={active} />
+    case 'integrations':
+      return <IntegrationsPage active={active} />
     case 'database':
       return <DatabasePage active={active} />
     case 'sampah':
@@ -120,10 +130,15 @@ function tabContent(key: string, onNavigateTab: (tab: string) => void, active: b
  * portal ke kanan judul via ActionsSlot.
  */
 export function AdminPage() {
-  const { tab, setTab } = useUrlTab('ringkasan')
+  const { tab, setTab } = useUrlTab('ringkasan', { keys: ADMIN_TAB_ITEMS.map((t) => t.key) })
   const { can } = useRbac()
-  // Tab yang tak berhak dilihat role ini disembunyikan (RBAC, bukan sekadar UI)
-  const visibleTabs = useMemo(() => ADMIN_TAB_ITEMS.filter((t) => can(t.perm)), [can])
+  const apiFlag = useFlag('system.api')
+  // Tab yang tak berhak dilihat role ini disembunyikan (RBAC, bukan sekadar UI);
+  // tab ber-flag hilang pula saat flag dimatikan.
+  const visibleTabs = useMemo(
+    () => ADMIN_TAB_ITEMS.filter((t) => can(t.perm) && (!t.flag || apiFlag)),
+    [can, apiFlag],
+  )
   const meta = ADMIN_TAB_META[tab] ?? ADMIN_TAB_META.ringkasan
   // Subtitle dinamis untuk tab database — cache dibagi dengan useTableStats di tab (tanpa fetch ganda)
   const statsQuery = useTableStats()

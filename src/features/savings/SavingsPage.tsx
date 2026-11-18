@@ -36,6 +36,7 @@ import { StudentSelect } from '../../shared/components/StudentSelect'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { formatRupiah, verifyStaffPin } from './api'
 import {
   useApplyTxn,
@@ -57,8 +58,6 @@ export function SavingsPage() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'closed'>('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
 
   const [openAccountOpen, setOpenAccountOpen] = useState(false)
   const [newStudentId, setNewStudentId] = useState<string | undefined>()
@@ -88,15 +87,17 @@ export function SavingsPage() {
     })
   }, [allAccounts, debouncedSearch, statusFilter])
 
+  const pg = useTablePagination(rows.length, { label: 'rekening' })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
   const resetFilters = () => {
     setSearch('')
     setStatusFilter('')
-    setPage(1)
+    pg.setPage(1)
   }
 
   const hasActiveFilters = Boolean(debouncedSearch || statusFilter)
@@ -351,7 +352,7 @@ export function SavingsPage() {
           active={statusFilter === ''}
           onClick={() => {
             setStatusFilter('')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -363,7 +364,7 @@ export function SavingsPage() {
           active={statusFilter === 'active'}
           onClick={() => {
             setStatusFilter(statusFilter === 'active' ? '' : 'active')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -375,7 +376,7 @@ export function SavingsPage() {
           active={statusFilter === 'closed'}
           onClick={() => {
             setStatusFilter(statusFilter === 'closed' ? '' : 'closed')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
       </div>
@@ -386,7 +387,7 @@ export function SavingsPage() {
             value={statusFilter}
             onChange={(v) => {
               setStatusFilter(v as '' | 'active' | 'closed')
-              setPage(1)
+              pg.setPage(1)
             }}
             options={[
               { label: 'Semua', value: '' },
@@ -402,7 +403,7 @@ export function SavingsPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ flex: '1 1 240px', minWidth: 220 }}
           />
@@ -432,17 +433,7 @@ export function SavingsPage() {
               />
             ),
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} rekening`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

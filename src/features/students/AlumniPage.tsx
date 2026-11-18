@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react'
+import { lazy, Suspense, useMemo, useRef, useState, useEffect } from 'react'
 import {
   Alert,
   App,
@@ -54,6 +54,7 @@ import { actionMenuLabel } from '../../shared/components/ActionMenu'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { formatDisplayName } from '../../shared/utils/displayName'
 import {
   useAlumni,
@@ -66,10 +67,13 @@ import {
   useRestoreGraduationSnapshots,
   useRestoreStudent,
   useRevertGraduation,
+  useStudentPhotos,
   useUpdateAlumni,
 } from './hooks'
 import { fetchAlumniWithPointsHistory, type AlumniFormValues } from './api'
-import { DetailDrawer } from './components/DetailDrawer'
+const DetailDrawer = lazy(() =>
+  import('./components/DetailDrawer').then((m) => ({ default: m.DetailDrawer })),
+)
 import { ExportModal } from './components/ExportModal'
 import { AlumniForm } from './components/AlumniForm'
 import { AlumniImport } from './components/AlumniImport'
@@ -134,8 +138,6 @@ export function AlumniPage({ active }: { active: boolean }) {
   const [year, setYear] = useState<number | undefined>()
   const [lastClassId, setLastClassId] = useState<string | undefined>()
   const [sortBy, setSortBy] = useState<AlumniSort>('graduated_desc')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(15)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [privacy, setPrivacy] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -150,6 +152,7 @@ export function AlumniPage({ active }: { active: boolean }) {
   const searchInputRef = useRef<InputRef>(null)
 
   const alumniQuery = useAlumni()
+
   const existingKeysQuery = useExistingAlumniKeys(formOpen)
   const revertMutation = useRevertGraduation()
   const bulkRevertMutation = useBulkRevertGraduation()
@@ -251,12 +254,19 @@ export function AlumniPage({ active }: { active: boolean }) {
     return [...data].sort(comparators[sortBy])
   }, [allAlumni, debouncedSearch, gender, year, lastClassId, sortBy])
 
+  const pg = useTablePagination(rows.length, { label: 'alumni', defaultPageSize: 15 })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
-  const resetPage = () => setPage(1)
+  // A1: Ambil foto on-demand hanya untuk baris yang tampil (hindari payload base64 massal).
+  const visibleIds = useMemo(() => paginatedRows.map((r) => r.id), [paginatedRows])
+  const photosQuery = useStudentPhotos(visibleIds)
+  const photos = photosQuery.data ?? {}
+
+  const resetPage = pg.reset
 
   const clearAllFilters = () => {
     setSearch('')
@@ -534,7 +544,7 @@ export function AlumniPage({ active }: { active: boolean }) {
       .catch((err: Error) => message.error(err.message || 'Gagal menghapus alumni'))
   }
 
-  const isBlocked = exportOpen || detail !== null || formOpen
+  const isBlocked = !active || exportOpen || detail !== null || formOpen
 
   const shortcutItems: ShortcutItem[] = [
     {
@@ -638,7 +648,7 @@ export function AlumniPage({ active }: { active: boolean }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Avatar
             size={34}
-            src={privacy ? undefined : photoThumb(row.photo_url)}
+            src={privacy ? undefined : photoThumb(row.photo_url ?? photos[row.id])}
             style={{ background: token.colorPrimaryBg, color: token.colorPrimaryTextActive, fontWeight: 700, fontSize: 13, flexShrink: 0 }}
           >
             {privacy ? '*' : initials(row.name)}
@@ -649,7 +659,7 @@ export function AlumniPage({ active }: { active: boolean }) {
               style={{ padding: 0, height: 'auto', fontWeight: 600, fontSize: 13.5 }}
               onClick={() => setDetail(row)}
             >
-              {formatDisplayName(row.name)}
+              {privacy ? MASK : formatDisplayName(row.name)}
             </Button>
             <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
               {row.gender === 'P' ? 'Perempuan' : 'Laki-laki'} ·{' '}
@@ -769,18 +779,28 @@ export function AlumniPage({ active }: { active: boolean }) {
     active,
     <Space wrap>
       <Tooltip title="Muat ulang (R)">
-        <Button icon={<ReloadOutlined spin={alumniQuery.isFetching} />} onClick={() => void alumniQuery.refetch()} />
+        <Button
+          aria-label="Muat ulang data"
+          icon={<ReloadOutlined spin={alumniQuery.isFetching} />}
+          onClick={() => void alumniQuery.refetch()}
+        />
       </Tooltip>
-      <Dropdown menu={headerMenu} trigger={['click']} placement="bottomRight" overlayStyle={{ minWidth: 240 }}>
+      <Dropdown
+        menu={headerMenu}
+        trigger={['click']}
+        placement="bottomRight"
+        overlayStyle={{ minWidth: 240 }}
+      >
         <Tooltip title="Menu lainnya">
-          <Button icon={<MoreOutlined />} />
+          <Button aria-label="Menu lainnya" icon={<MoreOutlined />} />
         </Tooltip>
       </Dropdown>
       <Tooltip title="Shortcut keyboard (?)">
-        <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+        <Button aria-label="Shortcut keyboard" icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
       </Tooltip>
       <Tooltip title="Mode privasi (P)">
         <Button
+          aria-label="Toggle mode privasi"
           icon={privacy ? <EyeInvisibleOutlined /> : <EyeOutlined />}
           onClick={togglePrivacy}
           style={
@@ -932,6 +952,21 @@ export function AlumniPage({ active }: { active: boolean }) {
 
         <FilterChips chips={filterChips} marginTop={showAdvanced ? 0 : 12} />
 
+        {alumniQuery.isError && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 12, borderRadius: 10 }}
+            message="Gagal memuat data alumni"
+            description={alumniQuery.error?.message}
+            action={
+              <Button size="small" danger onClick={() => void alumniQuery.refetch()}>
+                Coba lagi
+              </Button>
+            }
+          />
+        )}
+
         {isTruncated && (
           <Alert
             type="warning"
@@ -995,17 +1030,7 @@ export function AlumniPage({ active }: { active: boolean }) {
               },
             ],
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} alumni`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>
@@ -1079,16 +1104,20 @@ export function AlumniPage({ active }: { active: boolean }) {
         filteredCount={rows.length}
       />
 
-      <DetailDrawer
-        open={!!detail}
-        student={detail}
-        isPrivacyMode={privacy}
-        onClose={() => setDetail(null)}
-        onEdit={(student) => {
-          setDetail(null)
-          openEdit(student)
-        }}
-      />
+      {detail !== null && (
+        <Suspense fallback={null}>
+          <DetailDrawer
+            open={!!detail}
+            student={detail}
+            isPrivacyMode={privacy}
+            onClose={() => setDetail(null)}
+            onEdit={(student) => {
+              setDetail(null)
+              openEdit(student)
+            }}
+          />
+        </Suspense>
+      )}
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>

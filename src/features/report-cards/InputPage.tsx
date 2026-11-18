@@ -27,6 +27,7 @@ import { supabase } from '../../lib/supabase'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { SetupBar } from './components/SetupBar'
 import { ExtrasDrawer } from './components/ExtrasDrawer'
 import {
@@ -35,6 +36,7 @@ import {
   BULANAN_MAX_SCORE,
   calcAverage,
   getCriteria,
+  getScoreWithFallback,
   isComplete,
   REPORT_CARD_TYPE_LABEL,
 } from './constants'
@@ -94,6 +96,7 @@ export function InputPage() {
   const studentsQuery = useReportCardStudents(classId || undefined)
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data])
   const studentIds = useMemo(() => students.map((s) => s.id), [students])
+  const pg = useTablePagination(students.length, { label: 'santri', defaultPageSize: 20, showSizeChanger: false })
 
   const isMonthly = type === 'monthly'
   const prevMonth = month === 1 ? 12 : month - 1
@@ -448,14 +451,15 @@ export function InputPage() {
     },
     ...criteria.map((c) => ({
       title: (
-        <Tooltip title={`Skala 0–${maxScore}`}>
-          {c.label}
+        <Tooltip title={c.desc ? `${c.label} · ${c.desc} (Skala 0–${maxScore})` : `Skala 0–${maxScore}`}>
+          <span style={{ cursor: 'help' }}>{c.label}</span>
         </Tooltip>
       ),
       key: c.key,
-      width: 96,
+      width: 104,
       render: (_: unknown, row: ReportCardStudent) => {
-        const value = effectiveScores(row.id)[c.key]
+        const scoresObj = effectiveScores(row.id)
+        const value = getScoreWithFallback(scoresObj, c.key)
         return (
           <InputNumber
             size="small"
@@ -632,7 +636,7 @@ export function InputPage() {
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Kelas ini belum punya siswa" />
             ),
           }}
-          pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (t) => `Total ${t} santri` }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

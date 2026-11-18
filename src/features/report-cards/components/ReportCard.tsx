@@ -1,5 +1,11 @@
 import dayjs from 'dayjs'
-import { calcAverage, getCriteria, getPredicate, REPORT_CARD_TYPE_LABEL } from '../constants'
+import {
+  calcAverage,
+  getCriteria,
+  getPredicate,
+  getScoreWithFallback,
+  REPORT_CARD_TYPE_LABEL,
+} from '../constants'
 import type { MonthlyReport, ReportCardStudent, SchoolSettings, SemesterReport } from '../types'
 import type { ReportCardType } from '../types'
 
@@ -72,10 +78,10 @@ export function ReportCard({
   const isMonthly = type === 'monthly'
 
   const scoreRows = criteria.map((c, i) => {
-    const value = scores[c.key] ?? null
+    const value = getScoreWithFallback(scores, c.key)
     return {
       no: i + 1,
-      label: c.label,
+      label: c.desc ? `${c.label} (${c.desc})` : c.label,
       value,
       predicate: getPredicate(type, value),
     }
@@ -94,7 +100,7 @@ export function ReportCard({
             </td>
             <td className="report-card-header-center">
               <div style={{ color: primary, fontWeight: 800, fontSize: 17, letterSpacing: '-0.01em' }}>
-                {school?.school_name ?? 'Laporanmu Boarding School'}
+                {school?.school_name ?? 'Muhammadiyah Boarding School Tanggul'}
               </div>
               {school?.school_address && (
                 <div style={{ fontSize: 11, color: '#475569' }}>{school.school_address}</div>

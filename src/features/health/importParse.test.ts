@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FIELDS,
+  SAMPLE_COLUMNS,
+  TEMPLATE_COLUMNS,
+  autoMatch,
   normalizeStatusInput,
   parseDateValue,
   parseLogTable,
   parseMedicineTable,
   parseQtyValue,
   parseTimeValue,
+  type Mapping,
   type ParseContext,
 } from './importParse'
 
@@ -22,6 +27,9 @@ const ctx: ParseContext = {
     { id: 'm2', name: 'Betadine', unit: 'botol' },
   ],
 }
+
+/** Pemetaan seperti langkah Mapping: deteksi otomatis dari header tabel. */
+const map = (table: string[][]): Mapping => autoMatch(table[0] ?? [])
 
 describe('parseDateValue', () => {
   it('menerima ISO dan DD/MM/YYYY', () => {
@@ -77,7 +85,7 @@ describe('parseLogTable', () => {
       ['kode', 'nama', 'tanggal', 'jam', 'keluhan', 'diagnosis', 'penanganan', 'obat', 'jumlah', 'status'],
       ['LPM-0001-001', 'Ahmad Fulan', '2026-11-10', '08:30', 'demam tinggi', 'suspect flu', 'kompres', 'Paracetamol 500mg', '2', 'UKS'],
     ]
-    const { rows } = parseLogTable(table, ctx)
+    const { rows } = parseLogTable(table, map(table), ctx)
     expect(rows).toHaveLength(1)
     const r = rows[0]
     expect(r.rowStatus).toBe('siap')
@@ -96,7 +104,7 @@ describe('parseLogTable', () => {
       ['nama', 'keluhan'],
       ['  siti   aminah ', 'sakit perut'],
     ]
-    const { rows } = parseLogTable(table, ctx)
+    const { rows } = parseLogTable(table, map(table), ctx)
     const r = rows[0]
     expect(r.rowStatus).toBe('siap')
     expect(r.studentId).toBe('s2')
@@ -115,7 +123,7 @@ describe('parseLogTable', () => {
       ['LPM-0001-001', '2026-11-10', '08:00', 'flu lagi'],
       ['LPM-0001-001', '2026-11-10', '08:00', 'flu'],
     ]
-    const { rows } = parseLogTable(table, ctx)
+    const { rows } = parseLogTable(table, map(table), ctx)
     expect(rows[0].rowStatus).toBe('tak_dikenal')
     expect(rows[1].rowStatus).toBe('siap')
     expect(rows[2].rowStatus).toBe('siap') // keluhan berbeda = kunjungan berbeda
@@ -124,7 +132,7 @@ describe('parseLogTable', () => {
 
   it('duplikat dengan DB via existingKeys', () => {
     const table = [['kode', 'tanggal', 'jam', 'keluhan'], ['LPM-0001-001', '2026-11-10', '09:00', 'flu']]
-    const { rows } = parseLogTable(table, { ...ctx, existingKeys: new Set(['s1|2026-11-10|09:00|flu']) })
+    const { rows } = parseLogTable(table, map(table), { ...ctx, existingKeys: new Set(['s1|2026-11-10|09:00|flu']) })
     expect(rows[0].rowStatus).toBe('duplikat')
   })
 
@@ -134,7 +142,7 @@ describe('parseLogTable', () => {
       ['LPM-0001-001', '2026-11-10', 'flu', 'Obat misterius', '1'],
       ['LPM-0001-001', '2026-11-10', 'batuk', 'Betadine', 'x'],
     ]
-    const { rows } = parseLogTable(table, ctx)
+    const { rows } = parseLogTable(table, map(table), ctx)
     expect(rows[0].rowStatus).toBe('error')
     expect(rows[0].error).toContain('Obat "Obat misterius"')
     expect(rows[1].rowStatus).toBe('error')
@@ -148,14 +156,14 @@ describe('parseLogTable', () => {
       [],
       ['', ''],
     ]
-    const { rows, skippedRows } = parseLogTable(table, ctx)
+    const { rows, skippedRows } = parseLogTable(table, map(table), ctx)
     expect(rows[0].rowStatus).toBe('error')
     expect(skippedRows).toBeGreaterThanOrEqual(1)
   })
 
   it('lempar error bila kolom identitas/keluhan tidak ada', () => {
-    expect(() => parseLogTable([['a', 'b'], ['1', '2']], ctx)).toThrow(/identifikasi/i)
-    expect(() => parseLogTable([['kode', 'x'], ['LPM-0001-001', '2']], ctx)).toThrow(/keluhan/i)
+    expect(() => parseLogTable([['a', 'b'], ['1', '2']], map([['a', 'b'], ['1', '2']]), ctx)).toThrow(/identifikasi/i)
+    expect(() => parseLogTable([['kode', 'x'], ['LPM-0001-001', '2']], map([['kode', 'x'], ['LPM-0001-001', '2']]), ctx)).toThrow(/keluhan/i)
   })
 })
 
@@ -199,5 +207,29 @@ describe('parseMedicineTable', () => {
   it('lempar error bila kolom nama/stok tidak ada', () => {
     expect(() => parseMedicineTable([['x'], ['1']], [])).toThrow(/nama/i)
     expect(() => parseMedicineTable([['nama'], ['Paracetamol']], [])).toThrow(/stok/i)
+  })
+})
+
+describe('SAMPLE_COLUMNS', () => {
+  it('memuat semua kolom wajib', () => {
+    const requiredKeys = FIELDS.filter((f) => 'required' in f && f.required).map((f) => f.key)
+    expect(requiredKeys.length).toBeGreaterThan(0)
+    for (const key of requiredKeys) {
+      expect(SAMPLE_COLUMNS.some((c) => c.key === key)).toBe(true)
+    }
+  })
+
+  it('label = judul kolom template, key ikut TEMPLATE_COLUMNS, maksimal 7 kolom', () => {
+    expect(SAMPLE_COLUMNS.length).toBeLessThanOrEqual(7)
+    for (const col of SAMPLE_COLUMNS) {
+      expect(TEMPLATE_COLUMNS).toContain(col.key)
+      expect(FIELDS.find((f) => f.key === col.key)?.label).toBe(col.label)
+    }
+  })
+
+  it('baris contoh ke-2 tidak kosong untuk kolom yang ditampilkan', () => {
+    for (const col of SAMPLE_COLUMNS) {
+      expect(col.values[1]).not.toBe('')
+    }
   })
 })

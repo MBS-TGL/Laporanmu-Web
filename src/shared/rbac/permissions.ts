@@ -51,6 +51,8 @@ export const MODULE_REGISTRY: RbacModuleMeta[] = [
   { key: 'tahfidz', label: 'Tahfidz', actions: CRUD },
   { key: 'halaqah', label: 'Halaqah', actions: CRUD },
   { key: 'ekskul', label: 'Ekstrakurikuler', actions: CRUD },
+  { key: 'worship', label: 'Ibadah', actions: CRUD },
+  { key: 'documents', label: 'Pusat Dokumen', actions: CRUD },
   // Keuangan & Aset
   { key: 'finance', label: 'Keuangan SPP', actions: CRUD },
   { key: 'savings', label: 'Tabungan', actions: CRUD },
@@ -74,6 +76,7 @@ export const MODULE_REGISTRY: RbacModuleMeta[] = [
       { key: 'roles', label: 'Roles & Permission' },
       { key: 'settings', label: 'Pengaturan Developer' },
       { key: 'automation', label: 'Otomasi' },
+      { key: 'integrations', label: 'Integrasi API' },
       { key: 'database', label: 'Kesehatan Database' },
       { key: 'audit', label: 'Audit Log' },
     ],
@@ -110,7 +113,7 @@ function operationalPermissions(): string[] {
  * modul lain hanya lihat. Sinkron dengan matrix di MEMORY.md.
  */
 const TEACHING_MODULES = ['attendance', 'grades', 'cbt', 'tahfidz', 'halaqah', 'report_cards']
-const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'discipline', 'leave_permit', 'gate', 'library', 'ekskul', 'finance', 'savings', 'inventory', 'academic_years', 'announcements', 'evaluation']
+const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'discipline', 'leave_permit', 'gate', 'library', 'ekskul', 'finance', 'savings', 'inventory', 'academic_years', 'announcements', 'evaluation', 'worship', 'documents']
 
 function teacherPermissions(): string[] {
   const perms: string[] = []

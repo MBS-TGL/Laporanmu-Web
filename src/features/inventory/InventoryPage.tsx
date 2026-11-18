@@ -35,6 +35,7 @@ import { StatusTag } from '../../shared/components/StatusTag'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { useCreateItem, useDeleteItem, useItems, useUpdateItem } from './hooks'
 import { CONDITION_OPTIONS, ItemForm } from './components/ItemForm'
 import type { InventoryItem, ItemCondition, ItemFormValues } from './types'
@@ -55,8 +56,6 @@ export function InventoryPage() {
   const [category, setCategory] = useState<string | undefined>(undefined)
   const [condition, setCondition] = useState<ItemCondition | ''>('')
   const [lowOnly, setLowOnly] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
@@ -91,9 +90,11 @@ export function InventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allItems, debouncedSearch, category, condition, lowOnly])
 
+  const pg = useTablePagination(rows.length, { label: 'barang' })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
   const resetFilters = () => {
@@ -101,7 +102,7 @@ export function InventoryPage() {
     setCategory(undefined)
     setCondition('')
     setLowOnly(false)
-    setPage(1)
+    pg.setPage(1)
   }
 
   const hasActiveFilters = Boolean(debouncedSearch || category || condition || lowOnly)
@@ -369,7 +370,7 @@ export function InventoryPage() {
           active={!lowOnly}
           onClick={() => {
             setLowOnly(false)
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -389,7 +390,7 @@ export function InventoryPage() {
           hideIfZero
           onClick={() => {
             setLowOnly(!lowOnly)
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -402,7 +403,7 @@ export function InventoryPage() {
           hideIfZero
           onClick={() => {
             setCondition(condition ? '' : 'light_damaged')
-            setPage(1)
+            pg.setPage(1)
           }}
         />
       </div>
@@ -417,7 +418,7 @@ export function InventoryPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ flex: '1 1 240px', minWidth: 220 }}
           />
@@ -428,7 +429,7 @@ export function InventoryPage() {
             value={category}
             onChange={(v) => {
               setCategory(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ minWidth: 140 }}
           />
@@ -439,7 +440,7 @@ export function InventoryPage() {
             value={condition || undefined}
             onChange={(v) => {
               setCondition(v ?? '')
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ minWidth: 140 }}
           />
@@ -466,17 +467,7 @@ export function InventoryPage() {
               />
             ),
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} barang`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

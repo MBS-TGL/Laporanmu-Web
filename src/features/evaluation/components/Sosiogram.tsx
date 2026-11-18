@@ -6,13 +6,15 @@ import type { SociometryResult } from '../analysis'
 interface SosiogramProps {
   responses: InstrumentResponse[]
   result: SociometryResult
+  /** Peta id → nama santri (termasuk yang dipilih tapi belum merespons). */
+  nameById?: Map<string, string>
 }
 
 /**
  * Sosiogram SVG sederhana: santri diposisikan melingkar, garis
  * menghubungkan pilihan; garis hijau tebal = saling memilih (mutual).
  */
-export function Sosiogram({ responses, result }: SosiogramProps) {
+export function Sosiogram({ responses, result, nameById }: SosiogramProps) {
   const { token } = theme.useToken()
 
   const nodes = useMemo(() => {
@@ -30,7 +32,7 @@ export function Sosiogram({ responses, result }: SosiogramProps) {
     const cy = 175
     return list.map((id, i) => {
       const angle = (i / list.length) * 2 * Math.PI - Math.PI / 2
-      const name = responses.find((r) => r.student?.id === id)?.student?.name ?? id
+      const name = responses.find((r) => r.student?.id === id)?.student?.name ?? nameById?.get(id) ?? id
       return {
         id,
         name,
@@ -39,7 +41,7 @@ export function Sosiogram({ responses, result }: SosiogramProps) {
         received: result.received.get(id) ?? 0,
       }
     })
-  }, [responses, result])
+  }, [responses, result, nameById])
 
   const edges = useMemo(() => {
     const out: { x1: number; y1: number; x2: number; y2: number; mutual: boolean }[] = []

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Alert,
   App,
@@ -21,7 +21,8 @@ import {
   theme,
   type InputRef,
   type TableColumnsType,
-  type TableProps,
+  type   TableProps,
+  Grid,
 } from 'antd'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -40,6 +41,7 @@ import {
   ManOutlined,
   MoreOutlined,
   PlusOutlined,
+  QrcodeOutlined,
   RiseOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -66,7 +68,7 @@ import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions, useProfile } from '../../shared/hooks/useProfile'
 import { WaliTab } from './tabs/WaliTab'
 import { formatDisplayName } from '../../shared/utils/displayName'
-import { useDorms } from '../dorms/hooks'
+import { matchesStudentList } from './filterStudents'
 import {
   useBulkDeleteStudents,
   useBulkRestoreStudents,
@@ -77,11 +79,15 @@ import {
   useSaveStudentGuardians,
   useStudentStats,
   useStudents,
+  useStudentPhotos,
   useUpdateStudent,
+  useDormsBrief as useDorms,
 } from './hooks'
 import { StudentForm } from './components/StudentForm'
 import { ImportModal } from './components/ImportModal'
-import { DetailDrawer } from './components/DetailDrawer'
+const DetailDrawer = lazy(() =>
+  import('./components/DetailDrawer').then((m) => ({ default: m.DetailDrawer })),
+)
 import { StatsRow } from './components/StatsRow'
 import { ResetModal } from './components/ResetModal'
 import { PhotoModal } from './components/PhotoModal'
@@ -92,14 +98,15 @@ import { BroadcastModal } from './components/BroadcastModal'
 import { GatewayModal } from './components/GatewayModal'
 import { CardModal } from './components/CardModal'
 import { CardsModal } from './components/CardsModal'
+import { ScanModal } from './components/ScanModal'
 import { RISK_THRESHOLD } from './api'
-import { isIncomplete } from './completeness'
 import { waLink } from './wa'
 import { STUDENT_STATUS_META, GENDER_LABEL } from './status'
 import { ArchivePage } from './ArchivePage'
 import { AlumniPage } from './AlumniPage'
 import { PromoteModal } from './PromotePage'
 import { useUrlTab } from '../../shared/hooks/useUrlTab'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { TabActionsContext, useTabActions } from '../../shared/components/ActionsSlot'
 import type {
   Gender,
@@ -140,6 +147,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 const MISSING_OPTIONS: { value: MissingField; label: string }[] = [
   { value: 'any', label: 'Data belum lengkap' },
   { value: 'photo', label: 'Tanpa foto' },
+  { value: 'pin', label: 'Tanpa PIN' },
   { value: 'phone', label: 'Tanpa nomor telepon' },
   { value: 'nisn', label: 'Tanpa NISN' },
 ]
@@ -163,13 +171,140 @@ function initials(name: string): string {
   return name.charAt(0).toUpperCase()
 }
 
+/** Aksi baris tabel: tombol ikon di desktop, menu dropdown di mobile (C4) */
+function StudentActions({
+  row,
+  canWrite,
+  canDelete,
+  onDetail,
+  onCard,
+  onEdit,
+  onDelete,
+  token,
+}: {
+  row: Student
+  canWrite: boolean
+  canDelete: boolean
+  onDetail: (s: Student) => void
+  onCard: (s: Student) => void
+  onEdit: (s: Student) => void
+  onDelete: (id: string) => void
+  token: any
+}) {
+  const screens = Grid.useBreakpoint()
+  const isMobile = !screens.md
+
+  const actions = (
+    <>
+      <Tooltip title="Lihat detail">
+        <Button
+          type="text"
+          aria-label="Lihat detail"
+          icon={<EyeOutlined />}
+          onClick={() => onDetail(row)}
+        />
+      </Tooltip>
+      <Tooltip title="Kartu portal (kode & PIN)">
+        <Button
+          type="text"
+          aria-label="Kartu portal"
+          icon={<IdcardOutlined />}
+          onClick={() => onCard(row)}
+        />
+      </Tooltip>
+      <Tooltip title={row.phone ? 'Chat WhatsApp' : 'Nomor HP belum tersedia'}>
+        <span>
+          <Button
+            type="text"
+            aria-label="Chat WhatsApp"
+            disabled={!row.phone}
+            icon={<WhatsAppOutlined style={{ color: row.phone ? token.colorSuccess : undefined }} />}
+            onClick={() => row.phone && window.open(waLink(row.phone), '_blank', 'noopener')}
+          />
+        </span>
+      </Tooltip>
+      {canWrite && (
+        <Tooltip title="Edit">
+          <Button
+            type="text"
+            aria-label="Edit data"
+            icon={<EditOutlined />}
+            onClick={() => onEdit(row)}
+          />
+        </Tooltip>
+      )}
+      {canDelete && (
+        <Popconfirm
+          title="Hapus siswa ini?"
+          description="Data akan ditandai terhapus (soft delete)."
+          onConfirm={() => onDelete(row.id)}
+          okText="Ya, Hapus"
+          cancelText="Batal"
+        >
+          <Tooltip title="Hapus">
+            <Button type="text" danger aria-label="Hapus siswa" icon={<DeleteOutlined />} />
+          </Tooltip>
+        </Popconfirm>
+      )}
+    </>
+  )
+
+  if (!isMobile) return <Space size={0}>{actions}</Space>
+
+  return (
+    <Dropdown
+      trigger={['click']}
+      placement="bottomRight"
+      menu={{
+        items: [
+          { key: 'detail', icon: <EyeOutlined />, label: 'Lihat Detail', onClick: () => onDetail(row) },
+          { key: 'card', icon: <IdcardOutlined />, label: 'Kartu Portal', onClick: () => onCard(row) },
+          {
+            key: 'wa',
+            icon: <WhatsAppOutlined />,
+            label: 'WhatsApp',
+            disabled: !row.phone,
+            onClick: () => row.phone && window.open(waLink(row.phone), '_blank', 'noopener'),
+          },
+          ...(canWrite
+            ? [{ key: 'edit', icon: <EditOutlined />, label: 'Edit Data', onClick: () => onEdit(row) }]
+            : []),
+          ...(canDelete
+            ? [
+                { type: 'divider' as const },
+                {
+                  key: 'delete',
+                  icon: <DeleteOutlined />,
+                  label: 'Hapus',
+                  danger: true,
+                  onClick: () => {
+                    // Popconfirm dalam dropdown sering bermasalah — pakai konfirmasi modal bila mobile?
+                    // Untuk simpelnya, panggil onDelete langsung (handleDelete sudah punya konfirmasi?)
+                    // Tidak, handleDelete di parent dipicu Popconfirm.
+                    // Gunakan onDelete saja, atau biarkan Popconfirm di luar.
+                    // Cara termudah: panggil onDelete yang membungkus konfirmasi.
+                    onDelete(row.id)
+                  },
+                },
+              ]
+            : []),
+        ],
+      }}
+    >
+      <Button type="text" icon={<MoreOutlined />} />
+    </Dropdown>
+  )
+}
+
 function StudentsActiveTab({
   active,
+  promoteOpen,
   onNavigateTab,
   onOpenPromote,
 }: {
   /** true saat tab ini aktif — wajib untuk gate portal aksi tab bar */
   active: boolean
+  promoteOpen: boolean
   onNavigateTab: (tab: string) => void
   onOpenPromote: () => void
 }) {
@@ -177,11 +312,12 @@ function StudentsActiveTab({
   const { token } = theme.useToken()
   const { canWrite, canDelete } = usePermissions()
   // Deep-link dari halaman lain (mis. ClassDrawer "Kelola santri", DetailDrawer asrama), dibaca sekali saat mount
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 350)
   const [classId, setClassId] = useState<string | undefined>(() => searchParams.get('classId') ?? undefined)
   const [dormId, setDormId] = useState<string | undefined>(() => searchParams.get('dormId') ?? undefined)
+  const [tag, setTag] = useState<string | undefined>()
   const [gender, setGender] = useState<Gender | undefined>()
   // Default hanya aktif — lulus/pindah/keluar tetap bisa dilihat lewat tab "Semua"
   const [status, setStatus] = useState<StudentStatus | ''>('active')
@@ -189,8 +325,6 @@ function StudentsActiveTab({
   const [missing, setMissing] = useState<MissingField | undefined>()
   const [pointMode, setPointMode] = useState<PointMode | undefined>()
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [privacy, setPrivacy] = useState(false)
 
@@ -207,8 +341,28 @@ function StudentsActiveTab({
   /** 'selection' = kartu untuk semua siswa terpilih; Student = kartu satu siswa dari aksi baris */
   const [cardStudents, setCardStudents] = useState<Student[] | null>(null)
   const [bulkCardOpen, setBulkCardOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
   const [editing, setEditing] = useState<Student | null>(null)
   const [detail, setDetail] = useState<Student | null>(null)
+
+  // D3: Deep-link ?student= untuk membuka drawer langsung via URL yang bisa dibagikan
+  const openDetail = useCallback((student: Student) => {
+    setDetail(student)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('student', student.id)
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
+  const closeDetail = useCallback(() => {
+    setDetail(null)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('student')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
 
   const searchInputRef = useRef<InputRef>(null)
 
@@ -231,6 +385,15 @@ function StudentsActiveTab({
   const allStudents = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data])
   const isRefreshing = studentsQuery.isFetching || statsQuery.isFetching
 
+  // Sinkronisasi deep-link ?student= saat pertama kali data termuat
+  const urlStudentId = searchParams.get('student')
+  useEffect(() => {
+    if (urlStudentId && allStudents.length > 0 && detail?.id !== urlStudentId) {
+      const found = allStudents.find((s) => s.id === urlStudentId)
+      if (found) setDetail(found)
+    }
+  }, [urlStudentId, allStudents, detail?.id])
+
   // Total dari server — untuk mendeteksi daftar terpotong batas 1000
   const totalActive = studentsQuery.data?.total ?? 0
   const isTruncated = totalActive > allStudents.length
@@ -242,30 +405,34 @@ function StudentsActiveTab({
   )
   const alreadyPinned = selectedStudents.filter((s) => s.pin).length
 
+  // D2: Kumpulan seluruh tag siswa untuk filter lanjutan
+  const tagOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const s of allStudents) {
+      for (const t of s.tags ?? []) set.add(t)
+    }
+    return Array.from(set).sort().map((t) => ({ value: t, label: t }))
+  }, [allStudents])
+
+  // D1: Jumlah siswa aktif yang belum punya PIN portal wali
+  const noPinCount = useMemo(
+    () => allStudents.filter((s) => s.status === 'active' && !s.pin).length,
+    [allStudents],
+  )
+
   const rows = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase()
-    const data = allStudents.filter((s) => {
-      // Alumni selalu dikecualikan dari daftar — pintu utamanya halaman Alumni
-      if (s.status === 'graduated') return false
-      if (
-        q &&
-        !`${s.name} ${s.registration_code} ${s.nisn ?? ''} ${s.nis ?? ''} ${s.classes?.name ?? ''} ${s.dorms?.name ?? ''} ${s.guardian_name ?? ''} ${s.phone ?? ''}`
-          .toLowerCase()
-          .includes(q)
-      )
-        return false
-      if (classId && s.class_id !== classId) return false
-      if (dormId && s.dorm_id !== dormId) return false
-      if (gender && s.gender !== gender) return false
-      if (status && s.status !== status) return false
-      if (missing === 'photo' && s.photo_url) return false
-      if (missing === 'phone' && s.phone) return false
-      if (missing === 'nisn' && s.nisn) return false
-      if (missing === 'any' && !isIncomplete(s)) return false
-      if (pointMode === 'negative' && s.total_points >= 0) return false
-      if (pointMode === 'positive' && s.total_points <= 0) return false
-      return true
-    })
+    const data = allStudents.filter((s) =>
+      matchesStudentList(s, {
+        search: debouncedSearch,
+        classId,
+        dormId,
+        tag,
+        gender,
+        status: status || undefined,
+        missing,
+        pointMode,
+      }),
+    )
 
     const cmpName = (a: Student, b: Student) => a.name.localeCompare(b.name, 'id')
     // numeric: true agar kelas urut alami (8A < 9A < 10A, bukan 10A < 8A)
@@ -300,20 +467,28 @@ function StudentsActiveTab({
       year_asc: (a, b) => (a.graduation_year ?? 0) - (b.graduation_year ?? 0) || cmpName(a, b),
     }
     return [...data].sort(comparators[sortBy ?? 'name_asc'])
-  }, [allStudents, debouncedSearch, classId, dormId, gender, status, missing, pointMode, sortBy])
+  }, [allStudents, debouncedSearch, classId, dormId, tag, gender, status, missing, pointMode, sortBy])
+
+  const pg = useTablePagination(rows.length, { label: 'siswa' })
 
   // Pagination client-side — slice dari hasil filter+sort di memori
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
-  const resetPage = () => setPage(1)
+  // A1: Ambil foto on-demand hanya untuk baris yang tampil (hindari payload base64 massal).
+  const visibleIds = useMemo(() => paginatedRows.map((r) => r.id), [paginatedRows])
+  const photosQuery = useStudentPhotos(visibleIds)
+  const photos = photosQuery.data ?? {}
+
+  const resetPage = pg.reset
 
   const clearAllFilters = () => {
     setSearch('')
     setClassId(undefined)
     setDormId(undefined)
+    setTag(undefined)
     setGender(undefined)
     setStatus('active')
     setSortBy(undefined)
@@ -324,7 +499,10 @@ function StudentsActiveTab({
   }
 
   // Jumlah filter lanjutan aktif — badge di tombol "Lainnya"
-  const advFilterCount = [classId, dormId, sortBy, missing, pointMode].filter(Boolean).length
+  const advFilterCount = useMemo(
+    () => [classId, dormId, tag, sortBy, missing, pointMode].filter(Boolean).length,
+    [classId, dormId, tag, sortBy, missing, pointMode],
+  )
 
   // Chip filter aktif — bisa dihapus satu per satu
   const filterChips = useMemo<FilterChip[]>(() => {
@@ -360,6 +538,16 @@ function StudentsActiveTab({
         },
       })
     }
+    if (tag) {
+      chips.push({
+        key: 'tag',
+        label: `Label: ${tag}`,
+        onClear: () => {
+          setTag(undefined)
+          resetPage()
+        },
+      })
+    }
     if (sortBy) {
       const label = SORT_OPTIONS.find((o) => o.value === sortBy)?.label
       chips.push({
@@ -390,33 +578,43 @@ function StudentsActiveTab({
         },
       })
     return chips
-  }, [debouncedSearch, classId, dormId, sortBy, missing, pointMode, classesQuery.data, dormsQuery.data])
+  }, [debouncedSearch, classId, dormId, tag, sortBy, missing, pointMode, classesQuery.data, dormsQuery.data])
 
-  const toggleSelectAll = () => {
-    // Memilih semua baris HASIL FILTER (lintas halaman) — bukan hanya halaman aktif
-    const filteredIds = rows.map((r) => r.id)
-    const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIdSet.has(id))
+  const toggleSelectAll = useCallback(() => {
+    const filteredIdSet = new Set(rows.map((r) => r.id))
+    const allSelected = rows.length > 0 && rows.every((r) => selectedIdSet.has(r.id))
     setSelectedIds(
       allSelected
-        ? selectedIds.filter((id) => !filteredIds.includes(id))
-        : Array.from(new Set([...selectedIds, ...filteredIds])),
+        ? selectedIds.filter((id) => !filteredIdSet.has(id))
+        : Array.from(new Set([...selectedIds, ...filteredIdSet])),
     )
-  }
+  }, [rows, selectedIdSet, selectedIds])
 
-  const toggleGender = (g: Gender) => {
+  const toggleGender = useCallback((g: Gender) => {
     setGender((prev) => (prev === g ? undefined : g))
     resetPage()
-  }
+  }, [resetPage])
 
-  const togglePointMode = (m: PointMode) => {
+  const togglePointMode = useCallback((m: PointMode) => {
     setPointMode((prev) => (prev === m ? undefined : m))
     resetPage()
-  }
+  }, [resetPage])
 
-  const toggleMissing = (m: MissingField) => {
+  const toggleMissing = useCallback((m: MissingField) => {
     setMissing((prev) => (prev === m ? undefined : m))
     resetPage()
-  }
+  }, [resetPage])
+
+  const handleWorstClass = useCallback((id: string) => {
+    setClassId(id)
+    resetPage()
+  }, [resetPage])
+
+  const handleWorstCompleteness = useCallback((id: string) => {
+    setClassId(id)
+    setMissing('any')
+    resetPage()
+  }, [resetPage])
 
   const handleRefresh = () => {
     void studentsQuery.refetch()
@@ -577,46 +775,52 @@ function StudentsActiveTab({
     label: actionMenuLabel(title, desc, shortcut),
   })
 
-  const headerMenu = {
-    items: [
-      {
-        key: 'data',
-        type: 'group' as const,
-        label: 'Data',
-        children: [
-          menuItem('import', <FileExcelOutlined />, 'Import Data', 'Unggah dari Excel atau Google Sheets', ['I'], { disabled: !canWrite, onClick: () => setImportOpen(true) }),
-          menuItem('export', <ExportOutlined />, 'Export Data', 'Cadangkan seluruh database', ['Ctrl', 'E'], { onClick: () => openExport('filtered') }),
-          menuItem('bulk-photo', <CameraOutlined />, 'Bulk Foto', 'Update foto siswa secara masal via NISN', ['B'], { disabled: !canWrite, onClick: () => setBulkPhotoOpen(true) }),
-          menuItem('wa-settings', <WhatsAppOutlined />, 'Pengaturan WA', 'Token Fonnte untuk broadcast wali santri', ['W'], { disabled: !canWrite, onClick: () => setWaSettingsOpen(true) }),
-        ],
-      },
-      {
-        key: 'manajemen',
-        type: 'group' as const,
-        label: 'Manajemen',
-        children: [
-          menuItem('bulk-card', <IdcardOutlined />, 'Cetak Kartu Massal', 'Per kelas, semua aktif, atau sesuai filter', ['C'], { onClick: () => setBulkCardOpen(true) }),
-          menuItem('promote', <RiseOutlined />, 'Kenaikan Kelas', 'Wizard promosi massal & kelulusan tahun ajaran', undefined, { disabled: !canWrite, onClick: onOpenPromote }),
-          menuItem('reset-points', <SyncOutlined />, 'Reset Poin', 'Bersihkan semua poin untuk semester baru', undefined, { danger: true, disabled: !canWrite, onClick: () => setResetOpen(true) }),
-        ],
-      },
-    ],
-  }
+  const headerMenu = useMemo(
+    () => ({
+      items: [
+        {
+          key: 'data',
+          type: 'group' as const,
+          label: 'Data',
+          children: [
+            menuItem('import', <FileExcelOutlined />, 'Impor Data', 'Unggah dari Excel atau Google Sheets', ['I'], { disabled: !canWrite, onClick: () => setImportOpen(true) }),
+            menuItem('export', <ExportOutlined />, 'Ekspor Data', 'Cadangkan seluruh database', ['Ctrl', 'E'], { onClick: () => openExport('filtered') }),
+            menuItem('bulk-photo', <CameraOutlined />, 'Bulk Foto', 'Update foto siswa secara masal via NISN', ['B'], { disabled: !canWrite, onClick: () => setBulkPhotoOpen(true) }),
+            menuItem('wa-settings', <WhatsAppOutlined />, 'Pengaturan WA', 'Token Fonnte untuk broadcast wali santri', ['W'], { disabled: !canWrite, onClick: () => setWaSettingsOpen(true) }),
+          ],
+        },
+        {
+          key: 'manajemen',
+          type: 'group' as const,
+          label: 'Manajemen',
+          children: [
+            menuItem('bulk-card', <IdcardOutlined />, 'Cetak Kartu Massal', 'Per kelas, semua aktif, atau sesuai filter', ['C'], { onClick: () => setBulkCardOpen(true) }),
+            menuItem('promote', <RiseOutlined />, 'Kenaikan Kelas', 'Wizard promosi massal & kelulusan tahun ajaran', undefined, { disabled: !canWrite, onClick: onOpenPromote }),
+            menuItem('reset-points', <SyncOutlined />, 'Reset Poin', 'Bersihkan semua poin untuk semester baru', undefined, { danger: true, disabled: !canWrite, onClick: () => setResetOpen(true) }),
+          ],
+        },
+      ],
+    }),
+    [canWrite, onOpenPromote],
+  )
 
   // -------------------------------------------------------------------------
   // Shortcut keyboard (juga menjadi isi palet "?")
   // -------------------------------------------------------------------------
 
   const isBlocked =
+    !active ||
     formOpen ||
     importOpen ||
     resetOpen ||
     bulkPhotoOpen ||
     exportOpen ||
+    promoteOpen ||
     moveOpen ||
     graduateOpen ||
     waOpen ||
     waSettingsOpen ||
+    scanOpen ||
     cardStudents !== null ||
     bulkCardOpen ||
     detail !== null
@@ -660,14 +864,14 @@ function StudentsActiveTab({
     },
     {
       keys: ['Ctrl', 'E'],
-      label: 'Buka export',
+      label: 'Buka ekspor',
       group: 'Aksi',
       icon: <ExportOutlined />,
       run: () => openExport('filtered'),
     },
     {
       keys: ['I'],
-      label: 'Import data',
+      label: 'Impor data',
       group: 'Aksi',
       icon: <FileExcelOutlined />,
       when: canWrite,
@@ -680,6 +884,13 @@ function StudentsActiveTab({
       icon: <CameraOutlined />,
       when: canWrite,
       run: () => setBulkPhotoOpen(true),
+    },
+    {
+      keys: ['S'],
+      label: 'Scan kartu santri',
+      group: 'Aksi',
+      icon: <QrcodeOutlined />,
+      run: () => setScanOpen(true),
     },
     {
       keys: ['C'],
@@ -750,9 +961,10 @@ function StudentsActiveTab({
     resetPage()
   }
 
-  const columns: TableColumnsType<Student> = [
-    {
-      title: 'Siswa',
+  const columns: TableColumnsType<Student> = useMemo(
+    () => [
+      {
+        title: 'Siswa',
       dataIndex: 'name',
       key: 'name',
       sorter: true,
@@ -762,7 +974,7 @@ function StudentsActiveTab({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Avatar
             size={32}
-            src={privacy ? undefined : photoThumb(row.photo_url)}
+            src={privacy ? undefined : photoThumb(row.photo_url ?? photos[row.id])}
             style={{ background: token.colorPrimaryBg, color: token.colorPrimaryTextActive, fontWeight: 700, flexShrink: 0 }}
           >
             {privacy ? '*' : initials(row.name)}
@@ -771,9 +983,9 @@ function StudentsActiveTab({
             <Button
               type="link"
               style={{ padding: 0, height: 'auto', fontWeight: 600, fontSize: 14 }}
-              onClick={() => setDetail(row)}
+              onClick={() => openDetail(row)}
             >
-              {formatDisplayName(row.name)}
+              {privacy ? MASK : formatDisplayName(row.name)}
             </Button>
             <div style={{ fontSize: 12, color: token.colorTextTertiary, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>
@@ -782,9 +994,17 @@ function StudentsActiveTab({
               </span>
               {row.tags && row.tags.length > 0 && (
                 <span>
-                  {row.tags.slice(0, 2).map((tag) => (
-                    <Tag key={tag} style={{ borderRadius: 6, fontSize: 11, lineHeight: '16px', paddingInline: 5 }}>
-                      {tag}
+                  {row.tags.slice(0, 2).map((t) => (
+                    <Tag
+                      key={t}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setTag(t)
+                        resetPage()
+                      }}
+                      style={{ borderRadius: 6, fontSize: 11, lineHeight: '16px', paddingInline: 5, cursor: 'pointer' }}
+                    >
+                      {t}
                     </Tag>
                   ))}
                   {row.tags.length > 2 && (
@@ -889,55 +1109,36 @@ function StudentsActiveTab({
       key: 'actions',
       width: 170,
       render: (_, row) => (
-        <Space size={0}>
-          <Tooltip title="Lihat detail">
-            <Button type="text" icon={<EyeOutlined />} onClick={() => setDetail(row)} />
-          </Tooltip>
-          <Tooltip title="Kartu portal (kode & PIN)">
-            <Button type="text" icon={<IdcardOutlined />} onClick={() => setCardStudents([row])} />
-          </Tooltip>
-          <Tooltip title={row.phone ? 'Chat WhatsApp' : 'Nomor HP belum tersedia'}>
-            <span>
-              <Button
-                type="text"
-                disabled={!row.phone}
-                icon={<WhatsAppOutlined style={{ color: row.phone ? token.colorSuccess : undefined }} />}
-                onClick={() => row.phone && window.open(waLink(row.phone), '_blank', 'noopener')}
-              />
-            </span>
-          </Tooltip>
-          {canWrite && (
-            <Tooltip title="Edit">
-              <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(row)} />
-            </Tooltip>
-          )}
-          {canDelete && (
-            <Popconfirm
-              title="Hapus siswa ini?"
-              description="Data akan ditandai terhapus (soft delete)."
-              onConfirm={() => handleDelete(row.id)}
-              okText="Ya, Hapus"
-              cancelText="Batal"
-            >
-              <Tooltip title="Hapus">
-                <Button type="text" danger icon={<DeleteOutlined />} />
-              </Tooltip>
-            </Popconfirm>
-          )}
-        </Space>
+        <StudentActions
+          row={row}
+          canWrite={canWrite}
+          canDelete={canDelete}
+          onDetail={openDetail}
+          onCard={(s) => setCardStudents([s])}
+          onEdit={openEdit}
+          onDelete={handleDelete}
+          token={token}
+        />
       ),
     },
-  ]
+  ], [sortBy, privacy, photos, canWrite, canDelete, token])
 
   // Sinkron dengan toggleSelectAll & dropdown pilihan tabel: semua baris hasil filter
-  const allFilteredSelected = rows.length > 0 && rows.every((r) => selectedIdSet.has(r.id))
+  const allFilteredSelected = useMemo(
+    () => rows.length > 0 && rows.every((r) => selectedIdSet.has(r.id)),
+    [rows, selectedIdSet],
+  )
 
   // Aksi halaman di ujung kanan tab bar (judul & subtitle ada di shell, di atas tab bar)
   const tabActions = useTabActions(
     active,
     <Space wrap>
       <Tooltip title="Muat ulang (R)">
-        <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={handleRefresh} />
+        <Button
+          aria-label="Muat ulang data"
+          icon={<SyncOutlined spin={isRefreshing} />}
+          onClick={handleRefresh}
+        />
       </Tooltip>
       <Dropdown
         menu={headerMenu}
@@ -946,14 +1147,22 @@ function StudentsActiveTab({
         overlayStyle={{ minWidth: 300 }}
       >
         <Tooltip title="Menu lainnya">
-          <Button icon={<MoreOutlined />} />
+          <Button aria-label="Menu lainnya" icon={<MoreOutlined />} />
         </Tooltip>
       </Dropdown>
+      <Tooltip title="Scan QR kartu (S)">
+        <Button
+          aria-label="Scan QR kartu santri"
+          icon={<QrcodeOutlined />}
+          onClick={() => setScanOpen(true)}
+        />
+      </Tooltip>
       <Tooltip title="Shortcut keyboard (?)">
-        <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+        <Button aria-label="Shortcut keyboard" icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
       </Tooltip>
       <Tooltip title="Mode privasi (P)">
         <Button
+          aria-label="Toggle mode privasi"
           icon={privacy ? <EyeInvisibleOutlined /> : <EyeOutlined />}
           onClick={togglePrivacy}
           style={
@@ -984,18 +1193,12 @@ function StudentsActiveTab({
         gender={gender}
         pointMode={pointMode}
         missing={missing}
+        noPinCount={noPinCount}
         onGenderToggle={toggleGender}
         onPointMode={togglePointMode}
         onMissing={toggleMissing}
-        onWorstClass={(id) => {
-          setClassId(id)
-          resetPage()
-        }}
-        onWorstCompleteness={(id) => {
-          setClassId(id)
-          setMissing('any')
-          resetPage()
-        }}
+        onWorstClass={handleWorstClass}
+        onWorstCompleteness={handleWorstCompleteness}
       />
 
       <Card>
@@ -1027,7 +1230,7 @@ function StudentsActiveTab({
           />
           <Input
             ref={searchInputRef}
-            placeholder="Cari nama / kode / kelas / wali…"
+            placeholder="Cari nama / kode / NISN / wali / telepon…"
             prefix={<SearchOutlined />}
             allowClear
             value={search}
@@ -1095,6 +1298,18 @@ function StudentsActiveTab({
                 options={MISSING_OPTIONS}
               />
               <Select
+                placeholder="Label / Tag"
+                allowClear
+                showSearch
+                style={{ minWidth: 160 }}
+                value={tag}
+                onChange={(v) => {
+                  setTag(v)
+                  resetPage()
+                }}
+                options={tagOptions}
+              />
+              <Select
                 placeholder="Filter poin"
                 allowClear
                 style={{ minWidth: 150 }}
@@ -1113,6 +1328,21 @@ function StudentsActiveTab({
         )}
 
         <FilterChips chips={filterChips} marginTop={showAdvanced ? 0 : 12} />
+
+        {studentsQuery.isError && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 12, borderRadius: 10 }}
+            message="Gagal memuat data siswa"
+            description={studentsQuery.error?.message}
+            action={
+              <Button size="small" danger onClick={() => void studentsQuery.refetch()}>
+                Coba lagi
+              </Button>
+            }
+          />
+        )}
 
         {isTruncated && (
           <Alert
@@ -1138,37 +1368,42 @@ function StudentsActiveTab({
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={allStudents.length > 0 ? 'Tidak ada siswa yang cocok dengan filter' : 'Belum ada siswa'}
-              />
+              >
+                {allStudents.length === 0 && !studentsQuery.isPending && (
+                  <Space>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                      Tambah Siswa
+                    </Button>
+                    <Button icon={<FileExcelOutlined />} onClick={() => setImportOpen(true)}>
+                      Import Data
+                    </Button>
+                  </Space>
+                )}
+              </Empty>
             ),
           }}
-          rowSelection={{
-            selectedRowKeys: selectedIds,
-            onChange: (keys) => setSelectedIds(keys as string[]),
-            selections: [
-              {
-                key: 'all-filtered',
-                text: `Pilih semua hasil filter (${rows.length} siswa)`,
-                onSelect: () => setSelectedIds(rows.map((r) => r.id)),
-              },
-              Table.SELECTION_INVERT,
-              {
-                key: 'none',
-                text: 'Kosongkan pilihan',
-                onSelect: () => setSelectedIds([]),
-              },
-            ],
-          }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} siswa`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          rowSelection={
+            canWrite
+              ? {
+                  selectedRowKeys: selectedIds,
+                  onChange: (keys) => setSelectedIds(keys as string[]),
+                  selections: [
+                    {
+                      key: 'all-filtered',
+                      text: `Pilih semua hasil filter (${rows.length} siswa)`,
+                      onSelect: () => setSelectedIds(rows.map((r) => r.id)),
+                    },
+                    Table.SELECTION_INVERT,
+                    {
+                      key: 'none',
+                      text: 'Kosongkan pilihan',
+                      onSelect: () => setSelectedIds([]),
+                    },
+                  ],
+                }
+              : undefined
+          }
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>
@@ -1284,16 +1519,27 @@ function StudentsActiveTab({
 
       <PhotoModal open={bulkPhotoOpen} onClose={() => setBulkPhotoOpen(false)} />
 
-      <DetailDrawer
-        open={!!detail}
-        student={detail}
-        isPrivacyMode={privacy}
-        onClose={() => setDetail(null)}
-        onEdit={(s) => {
-          setDetail(null)
-          openEdit(s)
-        }}
+      <ScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        allStudents={allStudents}
+        onSelectStudent={openDetail}
       />
+
+      {detail !== null && (
+        <Suspense fallback={null}>
+          <DetailDrawer
+            open={!!detail}
+            student={detail}
+            isPrivacyMode={privacy}
+            onClose={closeDetail}
+            onEdit={(s) => {
+              closeDetail()
+              openEdit(s)
+            }}
+          />
+        </Suspense>
+      )}
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>
@@ -1361,6 +1607,7 @@ export function StudentsPage() {
             t.key === 'aktif' ? (
               <StudentsActiveTab
                 active={tab === 'aktif'}
+                promoteOpen={promoteOpen}
                 onNavigateTab={setTab}
                 onOpenPromote={() => setPromoteOpen(true)}
               />

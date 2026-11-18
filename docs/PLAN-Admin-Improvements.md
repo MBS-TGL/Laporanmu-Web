@@ -250,3 +250,21 @@
 - **Fase 4 (P3 + performa)**: RPC stats/integrity/aggregate, pagination server, storage rekursif, realtime.
 
 Setiap fase ditutup dengan update `MEMORY.md`.
+
+---
+
+## Re-plan 2026-11-18 — dampak Fase 5 (0051–0056)
+
+Fase 5 menambah ±14 tabel baru + modul baru. Item di bawah TIDAK ada di katalog lama dan perlu dikerjakan setelah eksekusi berjalan (sesi lain) selesai:
+
+| # | Item | Lokasi |
+|---|------|--------|
+| N1 | `TABLE_CONFIG` tambah tabel baru: instruments, instrument_responses, api_keys, api_request_log, entities, portal_sessions, portal_login_attempts, push_subscriptions, subject_attendance, worship_items/mastery/scores, curriculum_cps/tps, cocurricular_dims/scores, graduation_checks | `admin/api.ts` (kini 26 → ±40) |
+| N2 | `TABLE_LABELS` audit untuk tabel-tabel di atas (saat ini audit menampilkan nama mentah) | `admin/AuditPage.tsx` |
+| N3 | `TRASH_TABLES` tambah tabel soft-delete baru: worship_items, entities, instruments, curriculum_cps/tps, cocurricular_dims (softDelete tersedia di semua) | `admin/trash.ts` |
+| N4 | QUICK_LINKS/pintasan dashboard menunjuk modul baru (Pusat Dokumen, Evaluasi, Ibadah) — opsional | `admin/DashboardPage.tsx` |
+| N5 | Kesehatan Sistem: cek integritas baru (API key aktif tanpa pemakaian, push_subscriptions yatim, sesi portal kedaluwarsa) — opsional | RPC integritas (Fase berjalan) |
+
+Status sweep katalog lama (stale vs relevan):
+- Sudah usang/terlewati oleh batch lain: Fase 1 semua [x]; `NavItem.flag` [x]; guard router modul [x]; seed module.* [x]; audit URL persist + filter user [x]; flags CRUD [x]; maintenance kustom [x].
+- Masih relevan penuh: seluruh item Insights (limit cap, RPC agregat, top-N berisiko), Otomatisasi (task_runs, dry-run, RBAC per task), Storage (listing rekursif, orphan _trash), Database (RPC integritas — sedang dikerjakan), sebagian Pengguna & Audit (ekspor, diff JSON, user_agent).

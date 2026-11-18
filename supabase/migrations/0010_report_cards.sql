@@ -92,7 +92,7 @@ create trigger trg_student_semester_reports_updated_at
 -- ------------------------------------------------------------
 create table public.school_settings (
   id boolean primary key default true check (id = true),
-  school_name text not null default 'Laporanmu Boarding School',
+  school_name text not null default 'Muhammadiyah Boarding School Tanggul',
   school_address text,
   headmaster_name text,
   pengasuh_name text,

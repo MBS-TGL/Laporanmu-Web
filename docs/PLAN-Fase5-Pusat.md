@@ -13,14 +13,14 @@
 | Batch | Flag | Migration | Status |
 |---|---|---|---|
 | A — Finance SPP (`/finance`) | `module.finance_spp` | 0046 ✅ run | ✅ core done |
-| B — CBT Advanced (5 question types, difficulty mix, essay grading) | `module.cbt_lanjutan` | 0047 ⏳ run | ✅ core done |
-| R — Naming Normalization | — | 0050 | ✅ code done (0050 ⏳ run) |
-| P6 — CBT Elite (item analysis, answer review, remedial, leaderboard, realtime, WA score) | `module.cbt_elite` | 0048 ⏳ run | ✅ code done |
-| P1 — Evaluation Center (`/instruments`, `/survey/:token`) | `module.evaluation` | 0049 ⏳ run | ✅ core done |
-| P5 — Connectivity (PPDB webhook / multi-entity / PWA portal) | `system.api` / `system.multi_entity` / `system.student_portal` | 0051–0053 | ⬜ next |
-| P2 — Attendance Center (`/attendance?tab=subjects`) | `module.subject_attendance` | 0054 | ⬜ |
-| P3 — Spiritual Center (`/worship`) | `module.spiritual` | 0055 | ⬜ |
-| P4 — Document Center (`/documents`) | `module.documents` | 0056 | ⬜ |
+| B — CBT Advanced (5 question types, difficulty mix, essay grading) | `module.cbt_lanjutan` | 0047 ✅ run | ✅ core done |
+| R — Naming Normalization | — | 0050 ✅ run | ✅ done |
+| P6 — CBT Elite (item analysis, answer review, remedial, leaderboard, realtime, WA score) | `module.cbt_elite` | 0048 ✅ run | ✅ done |
+| P1 — Evaluation Center (`/instruments`, `/survey/:token`) | `module.evaluation` | 0049 ✅ run | ✅ done (e2e verified) |
+| P5 — Connectivity (PPDB webhook / multi-entity / PWA portal) | `system.api` / `system.multi_entity` / `system.student_portal` | 0051–0053 ✅ run | ✅ done (e2e verified) |
+| P2 — Attendance Center (`/attendance?tab=subjects`) | `module.subject_attendance` | 0054 ✅ run | ✅ done (live verified) |
+| P3 — Spiritual Center (`/worship`) | `module.spiritual` | 0055 ✅ run | ✅ done (live verified) |
+| P4 — Document Center (`/documents`) | `module.documents` | 0056 ✅ run | ✅ done (data verified; klik cetak/yudisium konfirmasi user) |
 
 Execution order approved by user: **P6 → P1 → P5 → P2 → P3 → P4**.
 
@@ -63,10 +63,10 @@ Execution order approved by user: **P6 → P1 → P5 → P2 → P3 → P4**.
 
 ## P5 — Connectivity (migrations 0051–0053)
 
-- **P5a PPDB webhook** (0051): `api_keys` (name, key_hash, last_used_at); Edge Function `ppdb-webhook` (validate key → upsert `admissions` dedupe registration_number → rate limit); admin UI `/admin?tab=integrations` (CRUD key + endpoint + sample payload).
-- **P5b Multi-entity** (0052): `entities` (name, code, type, is_active) + seed 1 default; `entity_id` on root tables (students, teachers, classes, academic_years, inventory, spp_components); RLS helper `current_entity_id()` (from `app.current_entity` request header); EntitySwitcher in Topbar; school profile per entity.
-- **P5c PWA Student Portal** (0053): RPC `portal_login(p_code, p_pin)` → hashed session token 12h (suspension pattern); manifest + service worker (vite-plugin-pwa); `/portal` (today schedule, grades/leger, attendance, points, SPP balance+bills, tahfidz progress); web push: VAPID + `push_subscriptions` + Edge `web-push` (announcements/bills/rapor) for students & guardians (via `/check`).
-- Flags: `system.api`, `system.multi_entity`, `system.student_portal`; admin toggle.
+- **P5a PPDB webhook** (0051): `api_keys` (name, key_hash, last_used_at); Edge Function `ppdb-webhook` (validate key → upsert `admissions` dedupe registration_number → rate limit); admin UI `/admin?tab=integrations` (CRUD key + endpoint + sample payload). — ✅ done
+- **P5b Multi-entity** (0052): `entities` (name, code, type, is_active) + seed 1 default; `entity_id` on root tables (students, teachers, classes, academic_years, inventory, spp_components); RLS helper `current_entity_id()` (from `app.current_entity` request header); EntitySwitcher in Topbar; school profile per entity. — ✅ done (profil sekolah per-entity menunggu restrukturisasi PK school_settings — lihat MEMORY)
+- **P5c PWA Student Portal** (0053): RPC `portal_login(p_code, p_pin)` → hashed session token 12h (suspension pattern); manifest + service worker (hand-rolled, tanpa vite-plugin-pwa); `/portal` (today schedule, grades, attendance, points, SPP balance+bills, tahfidz progress); web push: `push_subscriptions` + VAPID via app_settings `push.vapid_public` + Edge `push-send` (students; guardian via `/check` menyusul). — ✅ done
+- Flags: `system.api`, `system.multi_entity`, `system.student_portal`; admin toggle. — ✅
 
 ## P2 — Attendance Center (migration 0054, flag `module.subject_attendance`)
 
@@ -91,6 +91,21 @@ Execution order approved by user: **P6 → P1 → P5 → P2 → P3 → P4**.
   - Digital Buku Induk per class (print + XLSX).
   - Yudisium: requirements checklist (grades complete / tahfidz target / SPP paid from spp / discipline points) → decision → graduation document.
 - Permission `documents`; all documents letterhead + QR verification (official letters pattern).
+
+## Sisa sub-item per batch (kecil, belum dibangun — 2026-11-18)
+
+Hasil audit ulang: status besar done, tapi sub-spesifikasi berikut belum terealisasi. Urut prioritas:
+
+| Batch | Sub-item | Catatan |
+|---|---|---|
+| P4 | Per-student achievement radar (recharts) di rapor | grafik capaian per santri |
+| P4 | QR verification pada dokumen (pola surat resmi) | kop sudah ada, QR belum |
+| P3 | Unified spiritual profile (integrasi tahfidz/halaqah di /worship) | data tahfidz sudah ada di DetailDrawer |
+| P3 | Import kemahiran (ImportWizard) | preset + manual dianggap cukup v1 |
+| P1 | Class recap angket (rekap per kelas di tab Hasil) | dimensi per santri sudah ada |
+| P5 | Push wali via /check + auto-fire push (pengumuman/SPP/rapor) | butuh VAPID + prod dulu |
+| P5 | Profil sekolah per-entity | tunggu restrukturisasi PK school_settings |
+| P2 | URL sync pilihan kelas/tanggal di tab Mapel | deep-link grid |
 
 ## Definition of done per batch
 

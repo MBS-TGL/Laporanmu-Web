@@ -1,28 +1,44 @@
 import { useMemo, useState } from 'react'
-import { Button, Progress, Select, Space, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Progress, Segmented, Select, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { ExportOutlined, ReloadOutlined } from '@ant-design/icons'
-import { ShellItem } from '../../../shared/components/ShellMotion'
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  ExportOutlined,
+  ReloadOutlined,
+  TeamOutlined,
+} from '@ant-design/icons'
 import { StatChip } from '../../../shared/components/StatChip'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useStudentDetail } from '../../students/useStudentDetail'
+import { fetchStudentsByIds } from '../../students/api'
 import { useInstrumentResponses, useInstruments } from '../hooks'
 import { analyze } from '../analysis'
 import { INSTRUMENT_KIND_LABEL, type InstrumentResponse } from '../types'
 import { Sosiogram } from '../components/Sosiogram'
 import { ExportModal } from '../../finance/components/ExportModal'
+import { useQuery } from '@tanstack/react-query'
 
 /** Tab Hasil: pilih angket → analisis (dimensi/MBTI/sosiometri) + daftar respons. */
 export function ResultsTab({ active }: { active: boolean }) {
   const instrumentsQuery = useInstruments()
-  const [instrumentId, setInstrumentId] = useState<string | undefined>()
-  const selected = (instrumentsQuery.data ?? []).find((i) => i.id === instrumentId) ?? null
-  const responsesQuery = useInstrumentResponses(instrumentId)
+  const [pickedId, setPickedId] = useState<string | undefined>(undefined)
+  const [hasPicked, setHasPicked] = useState(false)
+  const responsesQuery = useInstrumentResponses(pickedId)
   const { open: openStudent } = useStudentDetail()
   const [exportOpen, setExportOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'mengisi' | 'belum'>('all')
 
-  const responses = responsesQuery.data ?? []
+  const rows = instrumentsQuery.data ?? []
+  // Auto-pilih angket pertama sekali (sampai user secara eksplisit memilih/clear)
+  const instrumentId = hasPicked ? pickedId : pickedId ?? rows[0]?.id
+  const selected = rows.find((i) => i.id === instrumentId) ?? null
+
+  const responses = useMemo(() => responsesQuery.data ?? [], [responsesQuery.data])
   const submitted = responses.filter((r) => r.submitted_at)
+  const notSubmitted = responses.filter((r) => !r.submitted_at)
+
   const classmateIds = useMemo(() => {
     const ids = new Set<string>()
     for (const r of responses) {
@@ -35,6 +51,22 @@ export function ResultsTab({ active }: { active: boolean }) {
     return [...ids]
   }, [responses])
 
+  // Nama untuk semua peserta sosiogram (pemilih + dipilih yang belum merespons)
+  const namesQuery = useQuery({
+    queryKey: ['sosiogram-names', classmateIds.join(',')],
+    queryFn: () => fetchStudentsByIds(classmateIds),
+    enabled: classmateIds.length > 0,
+    staleTime: 5 * 60_000,
+  })
+  const nameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of namesQuery.data ?? []) map.set(s.id, s.name)
+    for (const r of responses) {
+      if (r.student) map.set(r.student.id, r.student.name)
+    }
+    return map
+  }, [namesQuery.data, responses])
+
   const analysis = useMemo(
     () =>
       selected
@@ -43,9 +75,20 @@ export function ResultsTab({ active }: { active: boolean }) {
     [selected, responses, classmateIds],
   )
 
+  const tableRows = useMemo(() => {
+    if (statusFilter === 'mengisi') return submitted
+    if (statusFilter === 'belum') return notSubmitted
+    return responses
+  }, [responses, submitted, notSubmitted, statusFilter])
+
+  const pg = useTablePagination(tableRows.length, { label: 'respons', defaultPageSize: 10, showSizeChanger: false })
+
   const columns: ColumnsType<InstrumentResponse> = [
     {
       title: 'Santri',
+      dataIndex: 'student',
+      key: 'name',
+      sorter: (a, b) => (a.student?.name ?? '').localeCompare(b.student?.name ?? '', 'id'),
       render: (_, r) =>
         r.student ? (
           <Button type="link" size="small" style={{ paddingInline: 0 }} onClick={() => openStudent(r.student!.id)}>
@@ -69,45 +112,93 @@ export function ResultsTab({ active }: { active: boolean }) {
     {
       title: 'Waktu Mengisi',
       width: 170,
+      sorter: (a, b) =>
+        (a.submitted_at ?? '').localeCompare(b.submitted_at ?? ''),
       render: (_, r) => (r.submitted_at ? new Date(r.submitted_at).toLocaleString('id-ID') : '-'),
     },
   ]
 
   const node = (
     <Space size={8} wrap>
-      <Button icon={<ReloadOutlined />} onClick={() => void responsesQuery.refetch()} />
-      <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)} disabled={!selected} />
+      <Button icon={<ReloadOutlined />} onClick={() => void responsesQuery.refetch()} aria-label="Segarkan respons" />
+      <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)} disabled={!selected}>
+        Ekspor
+      </Button>
     </Space>
   )
   const actions = useTabActions(active, node)
 
   return (
-    <ShellItem>
+    <div>
       <Select
         showSearch
         allowClear
         placeholder="Pilih angket untuk melihat hasil"
         style={{ maxWidth: 420, marginBottom: 16 }}
         value={instrumentId}
-        onChange={setInstrumentId}
+        onChange={(v) => {
+          setHasPicked(true)
+          setPickedId(v)
+        }}
         loading={instrumentsQuery.isPending}
-        options={(instrumentsQuery.data ?? []).map((i) => ({
+        options={rows.map((i) => ({
           value: i.id,
           label: `${i.title} (${INSTRUMENT_KIND_LABEL[i.kind]})`,
         }))}
         filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
       />
 
+      {responsesQuery.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="Gagal memuat respons"
+          description="Pastikan migration 0049_evaluasi.sql sudah diterapkan di Supabase."
+          style={{ marginBottom: 12 }}
+        />
+      ) : null}
+
+      {actions}
+
       {!selected ? (
         <Typography.Text type="secondary">Pilih angket di atas untuk melihat hasil analisis.</Typography.Text>
+      ) : responsesQuery.isPending ? (
+        <Typography.Text type="secondary">Memuat respons…</Typography.Text>
+      ) : responses.length === 0 ? (
+        <Alert
+          type="info"
+          showIcon
+          message="Belum ada respons masuk"
+          description="Bagikan token angket ke santri: mereka membuka /survey, memasukkan token dan NIS/kode registrasi. Respons akan muncul di sini secara otomatis."
+          style={{ borderRadius: 10, marginTop: 12 }}
+        />
       ) : (
         <>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-            <StatChip icon={<ReloadOutlined />} label="Respons" value={submitted.length} loading={responsesQuery.isPending} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16, marginTop: 12 }}>
+            <StatChip
+              icon={<TeamOutlined />}
+              label="Respons"
+              value={responses.length}
+              color="indigo"
+              loading={responsesQuery.isPending}
+            />
+            <StatChip icon={<CheckCircleOutlined />} label="Mengisi" value={submitted.length} color="emerald" />
+            <StatChip icon={<ClockCircleOutlined />} label="Belum Mengisi" value={notSubmitted.length} color="sky" />
             {analysis.sociometry && (
               <>
-                <StatChip icon={<ExportOutlined />} label="Kohesi" value={`${Math.round(analysis.sociometry.cohesion * 100)}%`} color="emerald" />
-                <StatChip icon={<ExportOutlined />} label="Terisolasi" value={analysis.sociometry.isolated.length} color="rose" hideIfZero />
+                <StatChip
+                  icon={<TeamOutlined />}
+                  label="Kohesi"
+                  value={`${Math.round(analysis.sociometry.cohesion * 100)}%`}
+                  color="emerald"
+                />
+                <StatChip
+                  icon={<ClockCircleOutlined />}
+                  label="Terisolasi"
+                  value={analysis.sociometry.isolated.length}
+                  color="rose"
+                  hideIfZero
+                />
               </>
             )}
           </div>
@@ -153,20 +244,21 @@ export function ResultsTab({ active }: { active: boolean }) {
           )}
 
           {/* Sosiometri */}
-          {analysis.sociometry && (
+          {analysis.sociometry && submitted.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <Typography.Title level={5} style={{ marginBottom: 10 }}>
                 Sosiogram
               </Typography.Title>
-              <Sosiogram responses={responses} result={analysis.sociometry} />
+              <Sosiogram responses={responses} result={analysis.sociometry} nameById={nameById} />
               <Typography.Paragraph type="secondary" style={{ fontSize: 12.5, marginTop: 8 }}>
                 Terpopuler:{' '}
                 {analysis.sociometry.stars.length
-                  ? analysis.sociometry.stars.map((s) => s.studentId).join(', ')
+                  ? analysis.sociometry.stars.map((s) => nameById.get(s.studentId) ?? s.studentId).join(', ')
                   : '—'}
                 {analysis.sociometry.isolated.length > 0 && (
                   <>
-                    {' '}· Terisolasi: <b>{analysis.sociometry.isolated.length} santri</b> (perlu perhatian BK)
+                    {' '}· Terisolasi:{' '}
+                    {analysis.sociometry.isolated.map((id) => nameById.get(id) ?? id).join(', ')} (perlu perhatian BK)
                   </>
                 )}
               </Typography.Paragraph>
@@ -176,14 +268,26 @@ export function ResultsTab({ active }: { active: boolean }) {
           <Typography.Title level={5} style={{ marginBottom: 8 }}>
             Daftar Respons
           </Typography.Title>
+          <Space size={8} style={{ marginBottom: 10 }}>
+            <Segmented
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as 'all' | 'mengisi' | 'belum')}
+              options={[
+                { label: `Semua (${responses.length})`, value: 'all' },
+                { label: `Mengisi (${submitted.length})`, value: 'mengisi' },
+                { label: `Belum (${notSubmitted.length})`, value: 'belum' },
+              ]}
+            />
+          </Space>
           <Table<InstrumentResponse>
             rowKey="id"
             size="middle"
             loading={responsesQuery.isPending}
             columns={columns}
-            dataSource={responses}
-            pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} respons` }}
+            dataSource={tableRows}
+            pagination={pg.pagination}
             scroll={{ x: 'max-content' }}
+            locale={{ emptyText: 'Tidak ada respons pada filter ini.' }}
           />
         </>
       )}
@@ -202,7 +306,6 @@ export function ResultsTab({ active }: { active: boolean }) {
           { header: 'Jawaban', value: (r) => JSON.stringify(r.answers) },
         ]}
       />
-      {actions}
-    </ShellItem>
+    </div>
   )
 }

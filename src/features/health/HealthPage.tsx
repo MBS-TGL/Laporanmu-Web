@@ -39,6 +39,7 @@ import { PageHeader } from '../../shared/components/PageHeader'
 import { StatChip } from '../../shared/components/StatChip'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { useStudentDetail } from '../students/useStudentDetail'
 import { supabase } from '../../lib/supabase'
@@ -112,6 +113,7 @@ export function HealthPage() {
     [search, period, statusFilter, classFilter],
   )
   const filteredLogs = useMemo(() => filterHealthLogs(logs, filters, today), [logs, filters, today])
+  const pg = useTablePagination(filteredLogs.length, { defaultPageSize: 10, showSizeChanger: false })
   const usage = useMemo(() => computeMedicineUsage(logs, 30, today), [logs, today])
 
   const resting = logs.filter((l) => RESTING_STATUSES.includes(l.status))
@@ -736,7 +738,7 @@ export function HealthPage() {
                       />
                     ),
                   }}
-                  pagination={{ pageSize: 10, showSizeChanger: false }}
+                  pagination={pg.pagination}
                   scroll={{ x: 950 }}
                 />
               </Card>

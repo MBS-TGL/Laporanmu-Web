@@ -3,19 +3,10 @@ import { AutoComplete, Col, Form, Input, InputNumber, Row, Select, Switch } from
 import { BookOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import { subjectCodeExists } from '../api'
-import type { Subject, SubjectFormValues } from '../types'
+import { PHASE_OPTIONS, type Subject, type SubjectFormValues } from '../types'
 
 // Kategori bawaan — digabung dengan kategori yang sudah dipakai
 const PRESET_CATEGORIES = ['Umum', 'Diniyah', 'Bahasa', 'Keagamaan', 'Muatan Lokal']
-
-export const PHASE_OPTIONS = [
-  { value: 'A', label: 'Fase A (Kelas 1-2)' },
-  { value: 'B', label: 'Fase B (Kelas 3-4)' },
-  { value: 'C', label: 'Fase C (Kelas 5-6)' },
-  { value: 'D', label: 'Fase D (Kelas 7-9)' },
-  { value: 'E', label: 'Fase E (Kelas 10)' },
-  { value: 'F', label: 'Fase F (Kelas 11-12)' },
-]
 
 const CURRICULUM_GROUP_OPTIONS = [
   { value: 'A', label: 'Kelompok A (Wajib)' },

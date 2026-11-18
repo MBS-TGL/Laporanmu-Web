@@ -28,6 +28,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import isBetween from 'dayjs/plugin/isBetween'
 import { StatChip } from '../../../shared/components/StatChip'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import {
   useCalendarEvents,
   useCreateCalendarEvent,
@@ -77,6 +78,8 @@ export function CalendarTab() {
       return true
     })
   }, [allEvents, categoryFilter, levelFilter, search])
+
+  const pg = useTablePagination(filteredEvents.length, { label: 'kegiatan', defaultPageSize: 10 })
 
   // Events on currently selected date
   const selectedDateEvents = useMemo(() => {
@@ -478,11 +481,7 @@ export function CalendarTab() {
             locale={{
               emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada agenda kegiatan" />,
             }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total) => `Total ${total} kegiatan`,
-            }}
+            pagination={pg.pagination}
           />
         </Card>
       )}

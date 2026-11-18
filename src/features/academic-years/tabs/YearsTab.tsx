@@ -42,6 +42,7 @@ import { Kbd, ShortcutsModal } from '../../../shared/components/ShortcutsModal'
 import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { supabase } from '../../../lib/supabase'
 import {
   useAcademicYears,
@@ -87,8 +88,6 @@ export function YearsTab({ active }: { active: boolean }) {
   const [onlyLocked, setOnlyLocked] = useState(false)
   const [sortBy, setSortBy] = useState<YearSort | undefined>()
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<AcademicYear | null>(null)
 
@@ -149,12 +148,14 @@ export function YearsTab({ active }: { active: boolean }) {
     return [...data].sort(comparators[sortBy ?? 'name_desc'])
   }, [allYears, debouncedSearch, curriculum, onlyActive, onlyLocked, sortBy])
 
+  const pg = useTablePagination(rows.length, { label: 'periode' })
+
   const paginatedRows = useMemo(
-    () => rows.slice((page - 1) * pageSize, page * pageSize),
-    [rows, page, pageSize],
+    () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
+    [rows, pg.page, pg.pageSize],
   )
 
-  const resetPage = () => setPage(1)
+  const resetPage = pg.reset
 
   const clearAllFilters = () => {
     setSearch('')
@@ -646,17 +647,7 @@ export function YearsTab({ active }: { active: boolean }) {
               />
             ),
           }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: rows.length,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} periode`,
-            onChange: (p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            },
-          }}
+          pagination={pg.pagination}
           scroll={{ x: true }}
         />
       </Card>

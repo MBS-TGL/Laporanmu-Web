@@ -34,6 +34,111 @@ export const SEMESTER_KKM = 50
 export interface Criterion {
   key: string
   label: string
+  desc?: string
+}
+
+// 9 Poin Penilaian Ujian Pondok (Lisan) dengan detail tingkatan per jenjang kelas (7-12)
+// Key menggunakan standar English naming, didukung pemetaan fallback legacy key
+export const PONDOK_ORAL_CRITERIA_BY_GRADE: Record<number, Criterion[]> = {
+  // --- KELAS 7 ---
+  7: [
+    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri' },
+    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 1 s/d 7' },
+    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 1 s/d 29' },
+    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 1 s/d 17' },
+    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
+    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
+    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Bait Mukaddimah & Hukum Nun Mati' },
+    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Rukun, sunnah, doa, dan tata cara wudhu' },
+    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Tata cara & bacaan Sujud Sahwi / Tilawah' },
+  ],
+  // --- KELAS 8 ---
+  8: [
+    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri' },
+    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 8 s/d 14' },
+    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 30 s/d 61' },
+    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 18 s/d 34' },
+    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
+    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
+    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Hukum Mim Mati & Idgham' },
+    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Pengujian rukun & sunnah wudhu sempurna' },
+    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
+  ],
+  // --- KELAS 9 ---
+  9: [
+    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri' },
+    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 15 s/d 21' },
+    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 62 s/d 88' },
+    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 35 s/d 50' },
+    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
+    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
+    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Hukum Mad dan Pembagiannya' },
+    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Praktek thaharah & tata cara sholat sunnah' },
+    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
+  ],
+  // --- KELAS 10 ---
+  10: [
+    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib tingkat lanjut' },
+    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 22 s/d 28' },
+    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 89 s/d 103' },
+    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 51 s/d 64' },
+    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
+    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
+    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Matan Tuhfatul Athfal lanjutan' },
+    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Fiqih thaharah & evaluasi wudhu' },
+    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
+  ],
+  // --- KELAS 11 ---
+  11: [
+    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib tingkat lanjut' },
+    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 29 s/d 35' },
+    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 104 s/d 121' },
+    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 65 s/d 73' },
+    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
+    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
+    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Matan Tuhfatul Athfal lanjutan' },
+    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Fiqih thaharah & evaluasi wudhu' },
+    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
+  ],
+  // --- KELAS 12 ---
+  12: [
+    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib tingkat mutqin' },
+    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 36 s/d 42' },
+    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 122 s/d 142' },
+    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 74 s/d 82' },
+    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
+    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
+    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Matan Tuhfatul Athfal tuntas' },
+    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Evaluasi praktek thaharah komprehensif' },
+    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
+  ],
+}
+
+// Peta alias legacy key -> English key untuk kompatibilitas data nilai lama
+export const ORAL_LEGACY_KEY_MAP: Record<string, string> = {
+  h_arbain: 'hadith_arbain',
+  doa: 'daily_prayers',
+  h_biru: 'daily_hadith',
+  d_sholat: 'post_prayer_dhikr',
+  pagi_petang: 'morning_evening_dhikr',
+  praktek: 'wudhu_practice',
+  praktek_wudhu: 'wudhu_practice',
+  sujud_sahwi_tilawah: 'prostration_practice',
+}
+
+/** Membaca nilai kriteria dengan fallback ke key lama jika data DB masih format legacy */
+export function getScoreWithFallback(scores: Record<string, number | null>, key: string): number | null {
+  if (typeof scores[key] === 'number') return scores[key]
+  // Coba cari via legacy key kebalikannya
+  for (const [legacy, modern] of Object.entries(ORAL_LEGACY_KEY_MAP)) {
+    if (modern === key && typeof scores[legacy] === 'number') {
+      return scores[legacy]
+    }
+    if (legacy === key && typeof scores[modern] === 'number') {
+      return scores[modern]
+    }
+  }
+  return null
 }
 
 // Kriteria raport bulanan (skala 1–9)
@@ -48,33 +153,8 @@ export const BULANAN_CRITERIA: Criterion[] = [
 // Kriteria raport semester — SMP = tingkat 7-9, SMA = 10-12
 export const SEMESTER_CRITERIA: Record<SemesterType, { smp: Criterion[]; sma: Criterion[] }> = {
   pondok_oral: {
-    smp: [
-      { key: 'doa', label: 'Doa Harian' },
-      { key: 'wafa', label: 'Wafa' },
-      { key: 'h_arbain', label: 'Hadits Arbain' },
-      { key: 'h_biru', label: 'Hadits Pilihan' },
-      { key: 'd_sholat', label: 'Doa Sholat' },
-      { key: 'pagi_petang', label: 'Pagi Petang' },
-      { key: 'juz_30', label: 'Juz 30' },
-      { key: 'juz_29', label: 'Juz 29' },
-      { key: 'juz_28', label: 'Juz 28' },
-      { key: 'juz_27', label: 'Juz 27' },
-      { key: 'juz_26', label: 'Juz 26' },
-      { key: 'praktek', label: 'Praktek Ibadah' },
-    ],
-    sma: [
-      { key: 'doa', label: 'Doa Harian' },
-      { key: 'wafa', label: 'Wafa' },
-      { key: 'h_arbain', label: 'Hadits Arbain' },
-      { key: 'h_biru', label: 'Hadits Pilihan' },
-      { key: 'd_sholat', label: 'Doa Sholat' },
-      { key: 'pagi_petang', label: 'Pagi Petang' },
-      { key: 'juz_30', label: 'Juz 30' },
-      { key: 'juz_29', label: 'Juz 29' },
-      { key: 'juz_28', label: 'Juz 28' },
-      { key: 'juz_27', label: 'Juz 27' },
-      { key: 'praktek', label: 'Praktek Ibadah' },
-    ],
+    smp: PONDOK_ORAL_CRITERIA_BY_GRADE[7],
+    sma: PONDOK_ORAL_CRITERIA_BY_GRADE[10],
   },
   pondok_subject: {
     smp: [
@@ -127,6 +207,14 @@ export const SEMESTER_CRITERIA: Record<SemesterType, { smp: Criterion[]; sma: Cr
 
 export function getCriteria(type: ReportCardType, grade: string | null): Criterion[] {
   if (type === 'monthly') return BULANAN_CRITERIA
+  if (type === 'pondok_oral') {
+    const gNum = Number(grade)
+    if (gNum in PONDOK_ORAL_CRITERIA_BY_GRADE) {
+      return PONDOK_ORAL_CRITERIA_BY_GRADE[gNum]
+    }
+    const level = isSmaClass(grade) ? 'sma' : 'smp'
+    return SEMESTER_CRITERIA.pondok_oral[level]
+  }
   const level = isSmaClass(grade) ? 'sma' : 'smp'
   return SEMESTER_CRITERIA[type as SemesterType][level]
 }
@@ -164,6 +252,12 @@ export function getCriteriaEnhanced(
   if (type === 'general' && subjectsList && subjectsList.length > 0) {
     return getGeneralCriteriaFromSubjects(subjectsList)
   }
+  if (type === 'pondok_oral') {
+    const gNum = Number(grade)
+    if (gNum in PONDOK_ORAL_CRITERIA_BY_GRADE) {
+      return PONDOK_ORAL_CRITERIA_BY_GRADE[gNum]
+    }
+  }
   const level = isSmaClass(grade) ? 'sma' : 'smp'
   return SEMESTER_CRITERIA[type as SemesterType][level]
 }
@@ -174,7 +268,13 @@ export function isSmaClass(grade: string | null): boolean {
 }
 
 // Kriteria praktik dikecualikan dari rata-rata (mengikuti V1)
-export const PRACTICAL_KEYS = new Set(['praktek'])
+export const PRACTICAL_KEYS = new Set([
+  'praktek',
+  'praktek_wudhu',
+  'wudhu_practice',
+  'sujud_sahwi_tilawah',
+  'prostration_practice',
+])
 
 export const HAFALAN_PRESETS = [
   '1/2 Halaman',

@@ -48,6 +48,7 @@ import { FilterChips, type FilterChip } from '../../shared/components/FilterChip
 import { ShortcutsModal, Kbd } from '../../shared/components/ShortcutsModal'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
+import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import {
   fetchDormResidentIds,
   downloadDormsXlsx,
@@ -115,8 +116,6 @@ export function DormsPage() {
   const [musyrifId, setMusyrifId] = useState<string | undefined>()
   const [showPenuhOnly, setShowPenuhOnly] = useState(false)
   const [showTersediaOnly, setShowTersediaOnly] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [view, setView] = useState<ViewMode>(loadView)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Dorm | null>(null)
@@ -171,16 +170,6 @@ export function DormsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allDorms, occupancyQuery.data, occupancyMap])
 
-  const resetFilters = () => {
-    setSearch('')
-    setGender(undefined)
-    setStatus(undefined)
-    setMusyrifId(undefined)
-    setShowPenuhOnly(false)
-    setShowTersediaOnly(false)
-    setPage(1)
-  }
-
   // Filter klien — instan, tanpa refetch server
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -200,6 +189,18 @@ export function DormsPage() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allDorms, search, gender, status, musyrifId, showPenuhOnly, showTersediaOnly, occupancyMap])
+
+  const pg = useTablePagination(rows.length, { label: 'kamar' })
+
+  const resetFilters = () => {
+    setSearch('')
+    setGender(undefined)
+    setStatus(undefined)
+    setMusyrifId(undefined)
+    setShowPenuhOnly(false)
+    setShowTersediaOnly(false)
+    pg.setPage(1)
+  }
 
   const filterChips = useMemo<FilterChip[]>(() => {
     const chips: FilterChip[] = []
@@ -638,7 +639,7 @@ export function DormsPage() {
           onClick={() => {
             setShowPenuhOnly((v) => !v)
             setShowTersediaOnly(false)
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -651,7 +652,7 @@ export function DormsPage() {
           onClick={() => {
             setShowTersediaOnly((v) => !v)
             setShowPenuhOnly(false)
-            setPage(1)
+            pg.setPage(1)
           }}
         />
         <StatChip
@@ -673,7 +674,7 @@ export function DormsPage() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value)
-              setPage(1)
+              pg.setPage(1)
             }}
             style={{ flex: 1, minWidth: 220 }}
           />
@@ -684,7 +685,7 @@ export function DormsPage() {
             value={gender}
             onChange={(v) => {
               setGender(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={GENDER_OPTIONS}
           />
@@ -695,7 +696,7 @@ export function DormsPage() {
             value={status}
             onChange={(v) => {
               setStatus(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             options={STATUS_OPTIONS}
           />
@@ -708,7 +709,7 @@ export function DormsPage() {
             value={musyrifId}
             onChange={(v) => {
               setMusyrifId(v)
-              setPage(1)
+              pg.setPage(1)
             }}
             loading={musyrifQuery.isLoading}
             options={(musyrifQuery.data ?? []).map((t) => ({ value: t.id, label: t.name }))}
@@ -758,17 +759,7 @@ export function DormsPage() {
                 />
               ),
             }}
-            pagination={{
-              current: page,
-              pageSize,
-              total: rows.length,
-              showSizeChanger: true,
-              showTotal: (t) => `Total ${t} kamar`,
-              onChange: (p, ps) => {
-                setPage(p)
-                setPageSize(ps)
-              },
-            }}
+            pagination={pg.pagination}
             scroll={{ x: true }}
           />
         </Card>

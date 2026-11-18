@@ -19,6 +19,7 @@ import { ShellItem } from '../../../shared/components/ShellMotion'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { usePermissions } from '../../../shared/hooks/useProfile'
+import { useTablePagination } from '../../../shared/hooks/useTablePagination'
 import { useSubjectOptions } from '../useSubjectOptions'
 import { useCbtQuestions, useBulkDeleteCbtQuestions, useCreateCbtQuestion, useDeleteCbtQuestion, useUpdateCbtQuestion } from '../hooks'
 import { QUESTION_TYPE_LABEL, type CbtQuestion, type QuestionFormValues, type QuestionType } from '../types'
@@ -155,6 +156,8 @@ export function BankTab({ active }: { active: boolean }) {
     }
     return list
   }, [allQuestions, classSubjectId, debouncedSearch])
+
+  const pg = useTablePagination(rows.length, { label: 'soal', defaultPageSize: 15, showSizeChanger: false })
 
   const filledCsCount = useMemo(
     () => new Set(allQuestions.map((q) => q.class_subject_id)).size,
@@ -356,7 +359,7 @@ export function BankTab({ active }: { active: boolean }) {
         loading={questionsQuery.isPending}
         columns={columns}
         dataSource={rows}
-        pagination={{ pageSize: 15, showSizeChanger: false, showTotal: (t) => `${t} soal` }}
+        pagination={pg.pagination}
         rowSelection={
           canWrite ? { selectedRowKeys: selected, onChange: (keys) => setSelected(keys) } : undefined
         }

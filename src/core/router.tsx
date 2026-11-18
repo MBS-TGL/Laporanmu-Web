@@ -121,8 +121,17 @@ const FinancePage = lazy(() =>
 const EvaluationPage = lazy(() =>
   import('../features/evaluation/EvaluationPage').then((m) => ({ default: m.EvaluationPage })),
 )
+const WorshipPage = lazy(() =>
+  import('../features/worship/WorshipPage').then((m) => ({ default: m.WorshipPage })),
+)
 const SurveyPage = lazy(() =>
   import('../features/public/SurveyPage').then((m) => ({ default: m.SurveyPage })),
+)
+const DocumentsPage = lazy(() =>
+  import('../features/documents/DocumentsPage').then((m) => ({ default: m.DocumentsPage })),
+)
+const PortalPage = lazy(() =>
+  import('../features/portal/PortalPage').then((m) => ({ default: m.PortalPage })),
 )
 
 function PageFallback() {
@@ -305,8 +314,22 @@ export const appRouter = createBrowserRouter([
   // Token TIDAK pernah lewat URL: santri mengetiknya di /exam, sesi disimpan
   // di sessionStorage dan di-replay lewat RPC yang sama saat refresh.
   { path: '/exam', element: <ErrorBoundary><ExamPage /></ErrorBoundary> },
-  // Angket evaluasi santri — token TIDAK lewat URL (diketik di /survey)
+  // Angket evaluasi santri — token via URL (/survey/:token) ATAU diketik
+  // di form pada /survey (modal token guru menuntun ke /survey)
+  { path: '/survey', element: <ErrorBoundary><SurveyPage /></ErrorBoundary> },
   { path: '/survey/:token', element: <ErrorBoundary><SurveyPage /></ErrorBoundary> },
+  // Portal santri (P5c) — kode registrasi + PIN; flag dicek server-side
+  // di RPC portal_login (halaman publik tak bisa membaca feature_flags)
+  {
+    path: '/portal',
+    element: (
+      <ErrorBoundary>
+        <PublicGate>
+          <PortalPage />
+        </PublicGate>
+      </ErrorBoundary>
+    ),
+  },
   {
     path: '/login',
     element: <PublicRoute />,
@@ -346,6 +369,8 @@ export const appRouter = createBrowserRouter([
           { path: 'cbt', ...guarded('cbt:read', <ModuleGuard flag="module.cbt"><CbtPage /></ModuleGuard>) },
           { path: 'finance', ...guarded('finance:read', <ModuleGuard flag="module.finance_spp"><FinancePage /></ModuleGuard>) },
           { path: 'instruments', ...guarded('evaluation:read', <ModuleGuard flag="module.evaluation"><EvaluationPage /></ModuleGuard>) },
+          { path: 'worship', ...guarded('worship:read', <ModuleGuard flag="module.spiritual"><WorshipPage /></ModuleGuard>) },
+          { path: 'documents', ...guarded('documents:read', <ModuleGuard flag="module.documents"><DocumentsPage /></ModuleGuard>) },
           { path: 'school', ...guarded('school:read', <ProfilePage />) },
           { path: 'attendance', ...guarded('attendance:read', <AttendancePage />) },
           { path: 'health', ...guarded('health:read', <ModuleGuard flag="module.health"><HealthPage /></ModuleGuard>) },

@@ -18,6 +18,7 @@ import {
   FileProtectOutlined,
   FileTextOutlined,
   FlagOutlined,
+  StarOutlined,
   GatewayOutlined,
   HomeOutlined,
   IdcardOutlined,
@@ -88,6 +89,7 @@ const ACADEMIC_ITEMS: NavItem[] = [
   { to: '/schedules', label: 'Jadwal KBM', icon: ScheduleOutlined, desc: 'Jadwal mengajar per kelas, mapel, dan guru', flag: 'module.schedules', perm: 'schedules:read' },
   { to: '/teaching-load', label: 'Beban Mengajar', icon: FieldTimeOutlined, desc: 'Distribusi jam mengajar guru dan cakupan kelas', perm: 'teaching_load:read' },
   { to: '/report-cards', label: 'Raport', icon: FileTextOutlined, desc: 'Input raport bulanan & semester per kelas', flag: 'module.report_cards', perm: 'report_cards:read' },
+  { to: '/documents', label: 'Pusat Dokumen', icon: FileProtectOutlined, desc: 'Raport Kurmer, KHS, transkrip, buku induk, dan yudisium kelulusan', flag: 'module.documents', perm: 'documents:read' },
   { to: '/library', label: 'Perpustakaan', icon: BookOutlined, desc: 'Katalog buku dan peminjaman santri', flag: 'module.library', perm: 'library:read' },
 ]
 
@@ -95,6 +97,7 @@ const ACADEMIC_ITEMS: NavItem[] = [
 const ACTIVITY_ITEMS: NavItem[] = [
   { to: '/halaqah', label: 'Halaqah', icon: DeploymentUnitOutlined, desc: 'Presensi halaqah, setoran hafalan (ziyadah & murojaah), dan kelompok', flag: 'module.halaqah', perm: 'halaqah:read' },
   { to: '/extracurricular', label: 'Ekstrakurikuler', icon: FlagOutlined, desc: 'Kegiatan ekstrakurikuler dan pembina', flag: 'module.ekskul', perm: 'ekskul:read' },
+  { to: '/worship', label: 'Ibadah', icon: StarOutlined, desc: 'Kemahiran ibadah (wudhu, sholat, hafalan hadist & doa) dan nilai bulanan per butir', flag: 'module.spiritual', perm: 'worship:read' },
 ]
 
 // ─── Keuangan & Aset ────────────────────────────────────────────────────────
@@ -109,7 +112,7 @@ const MASTER_ITEMS: NavItem[] = [
   { to: '/students', label: 'Data Siswa', icon: TeamOutlined, desc: 'Pusat database seluruh santri aktif', perm: 'students:read' },
   { to: '/teachers', label: 'Data Guru', icon: IdcardOutlined, desc: 'Data pengajar, musyrif, dan staf', perm: 'teachers:read' },
   { to: '/classes', label: 'Data Kelas', icon: BankOutlined, desc: 'Struktur kelas dan wali kelas', perm: 'classes:read' },
-  { to: '/subjects', label: 'Mata Pelajaran', icon: OrderedListOutlined, desc: 'Daftar mapel, kelompok, dan beban JP', perm: 'subjects:read' },
+  { to: '/subjects', label: 'Mata Pelajaran', icon: OrderedListOutlined, desc: 'Daftar mapel, CP/TP, kelompok, dan beban JP', perm: 'subjects:read' },
   { to: '/academic-years', label: 'Tahun Akademik', icon: CalendarOutlined, desc: 'Periode semester, slot jam KBM, dan ruang kelas', perm: 'academic_years:read' },
 ]
 

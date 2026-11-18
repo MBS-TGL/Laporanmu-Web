@@ -21,7 +21,7 @@ export function PermitLetterBody({ permit }: { permit: LeavePermit }) {
         <img src="/logo-icon.png" alt="Logo Laporanmu" width={44} height={44} />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 800, fontSize: 13, color: '#1a5c35' }}>PENGASUHAN SANTRI</div>
-          <div style={{ fontSize: 11, color: '#475569' }}>Laporanmu Boarding School · Jember</div>
+          <div style={{ fontSize: 11, color: '#475569' }}>Muhammadiyah Boarding School Tanggul · Jember</div>
         </div>
         <div className="permit-letter-qr" title="Scan untuk proses izin di gerbang">
           <QRCodeCanvas value={`permit:${permit.id}`} size={72} level="M" />
