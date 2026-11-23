@@ -209,7 +209,7 @@ export function GatePage() {
       render: (v: string) => dayjs(v).format('DD MMM YYYY HH:mm'),
     },
     {
-      title: 'Siswa',
+      title: 'Santri',
       key: 'student',
       render: (_, row) => (
         <div>
@@ -275,8 +275,8 @@ export function GatePage() {
   return (
     <div>
       <PageHeader
-        title="Laporan Gerbang"
-        subtitle="Log keluar-masuk santri di gerbang"
+        title="Gerbang"
+        subtitle="Catatan keluar-masuk santri"
         extra={
           <Space size="small" wrap>
             <Tooltip title="Perbarui otomatis tiap 30 detik">

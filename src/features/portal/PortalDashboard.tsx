@@ -38,6 +38,7 @@ import { SppPanel } from './components/SppPanel'
 import { PointsPanel } from './components/PointsPanel'
 import { TahfidzPanel } from './components/TahfidzPanel'
 import { WorshipPanel } from './components/WorshipPanel'
+import { InboxPanel } from './components/InboxPanel'
 
 const MONTHS_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 const DAYS_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
@@ -256,7 +257,12 @@ export function PortalDashboard({ session, onLogout }: { session: PortalSession;
   )
   const worshipSection = (
     <SectionCard title="Kemahiran Ibadah" icon={<StarOutlined />}>
-      <WorshipPanel studentId={data.student.id} />
+      <WorshipPanel categories={data.worship} />
+    </SectionCard>
+  )
+  const inboxSection = (
+    <SectionCard title="Notifikasi" icon={<BellOutlined />}>
+      <InboxPanel token={session.token} />
     </SectionCard>
   )
 
@@ -283,6 +289,7 @@ export function PortalDashboard({ session, onLogout }: { session: PortalSession;
               {gradesSection}
             </div>
             <div style={{ display: 'grid', gap: 14 }}>
+              {inboxSection}
               {attendanceSection}
               {worshipSection}
               {sppSection}
@@ -295,6 +302,7 @@ export function PortalDashboard({ session, onLogout }: { session: PortalSession;
         // Mobile: satu kolom, urutan prioritas santri/wali
         <>
           <motion.div variants={pageShellItemVariants} transition={pageShellItemTransition}>{scheduleSection}</motion.div>
+          <motion.div variants={pageShellItemVariants} transition={pageShellItemTransition}>{inboxSection}</motion.div>
           <motion.div variants={pageShellItemVariants} transition={pageShellItemTransition}>{attendanceSection}</motion.div>
           <motion.div variants={pageShellItemVariants} transition={pageShellItemTransition}>{worshipSection}</motion.div>
           <motion.div variants={pageShellItemVariants} transition={pageShellItemTransition}>{gradesSection}</motion.div>

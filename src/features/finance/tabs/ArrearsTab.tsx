@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Button, Input, Segmented, Select, Space, Table, Tooltip } from 'antd'
+import { App, Button, Input, Segmented, Select, Space, Table, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { ExportOutlined, MoneyCollectOutlined, ReloadOutlined, TeamOutlined } from '@ant-design/icons'
+import { BellOutlined, ExportOutlined, MoneyCollectOutlined, ReloadOutlined, TeamOutlined } from '@ant-design/icons'
 import { ShellItem } from '../../../shared/components/ShellMotion'
 import { StatChip } from '../../../shared/components/StatChip'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
@@ -13,9 +13,11 @@ import type { SppObligation } from '../types'
 import { PaymentModal } from '../components/PaymentModal'
 import { ExportModal } from '../components/ExportModal'
 import { SppStatusTag } from './ObligationsTab'
+import { sendArrearsReminders } from '../reminders'
 
 /** Tab Tunggakan: kewajiban ber-status belum bayar/kurang, bisa difilter kelas. */
 export function ArrearsTab({ active }: { active: boolean }) {
+  const { message, modal } = App.useApp()
   const { obligations, loading, isError, refetch } = useSppWithPayments()
 
   const [statusFilter, setStatusFilter] = useState<'belum' | 'kurang'>('belum')
@@ -24,6 +26,7 @@ export function ArrearsTab({ active }: { active: boolean }) {
   const debouncedSearch = useDebounce(search)
   const [payModal, setPayModal] = useState<{ open: boolean; studentId?: string; studentName?: string }>({ open: false })
   const [exportOpen, setExportOpen] = useState(false)
+  const [reminding, setReminding] = useState(false)
 
   const classOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -96,24 +99,65 @@ export function ArrearsTab({ active }: { active: boolean }) {
     {
       title: '',
       key: 'aksi',
-      width: 90,
+      width: 150,
       render: (_, o) => (
-        <Button
-          type="link"
-          size="small"
-          icon={<MoneyCollectOutlined />}
-          onClick={() => setPayModal({ open: true, studentId: o.student_id, studentName: o.student?.name })}
-        >
-          Bayar
-        </Button>
+        <Space size={0}>
+          <Button
+            type="link"
+            size="small"
+            icon={<MoneyCollectOutlined />}
+            onClick={() => setPayModal({ open: true, studentId: o.student_id, studentName: o.student?.name })}
+          >
+            Bayar
+          </Button>
+          <Tooltip title="Kirim pengingat ke wali santri ini">
+            <Button
+              type="link"
+              size="small"
+              icon={<BellOutlined />}
+              aria-label={`Kirim pengingat untuk ${o.student?.name ?? 'santri'}`}
+              onClick={async () => {
+                const [result] = await sendArrearsReminders([o])
+                if (result?.ok) message.success('Pengingat terkirim ke wali')
+                else message.warning(result?.reason ?? 'Gagal mengirim pengingat')
+              }}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ]
+
+  const handleRemindAll = () => {
+    modal.confirm({
+      title: 'Kirim pengingat tunggakan?',
+      content: `Pesan WA akan dikirim ke nomor wali dari ${perStudent.length} santri yang menunggak pada filter ini.`,
+      okText: 'Kirim',
+      cancelText: 'Batal',
+      onOk: async () => {
+        setReminding(true)
+        try {
+          const results = await sendArrearsReminders(outstanding)
+          const sent = results.filter((r) => r.ok).length
+          const failed = results.length - sent
+          if (failed === 0) message.success(`${sent} pengingat terkirim`)
+          else message.warning(`${sent} terkirim, ${failed} gagal (nomor wali belum ada atau WA mati)`)
+        } finally {
+          setReminding(false)
+        }
+      },
+    })
+  }
 
   const node = (
     <Space size={8} wrap>
       <Tooltip title="Muat ulang">
         <Button icon={<ReloadOutlined />} onClick={refetch} />
+      </Tooltip>
+      <Tooltip title="Kirim pengingat tunggakan ke wali">
+        <Button icon={<BellOutlined />} loading={reminding} onClick={handleRemindAll} disabled={perStudent.length === 0}>
+          Kirim Pengingat
+        </Button>
       </Tooltip>
       <Tooltip title="Ekspor tunggakan">
         <Button icon={<ExportOutlined />} onClick={() => setExportOpen(true)} />

@@ -384,7 +384,7 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
             <Popover
               key={group.key}
               placement="rightTop"
-              trigger="hover"
+              trigger={['hover', 'click']}
               mouseEnterDelay={0.15}
               open={railOpenKey === group.key}
               onOpenChange={(open) => setRailOpenKey(open ? group.key : null)}
@@ -422,7 +422,9 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
                 active={hasActive}
                 iconOnly
                 railId={railId}
-                onClick={() => undefined}
+                onClick={() =>
+                  setRailOpenKey(railOpenKey === group.key ? null : group.key)
+                }
               />
             </Popover>
           )

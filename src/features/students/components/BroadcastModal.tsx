@@ -5,7 +5,7 @@ import { AppModal } from '../../../shared/components/AppModal'
 import { ModalFooter } from '../../../shared/components/ModalFooter'
 import { ModalNotice } from '../../../shared/components/ModalNotice'
 import { StatusTag } from '../../../shared/components/StatusTag'
-import { useSendWaBroadcast, useWaSettingsStatus } from '../hooks'
+import { useSendWaBroadcast, useStudentPins, useWaSettingsStatus } from '../hooks'
 import { STUDENT_STATUS_META } from '../status'
 import { WA_MERGE_TAGS, WA_TEMPLATES, renderWaMessage, waLink, waPhoneDigits, type WaTemplateId } from '../wa'
 import type { Student } from '../types'
@@ -41,7 +41,14 @@ export function BroadcastModal({ open, onClose, students }: BroadcastModalProps)
   const sendMutation = useSendWaBroadcast()
   const tokenConfigured = statusQuery.data?.configured ?? false
 
-  const recipients = useMemo(() => students.filter((s) => !!s.phone), [students])
+  // Merge tag {pin} butuh tabel student_pins (0066); daftar siswa tidak membawanya.
+  const pinsQuery = useStudentPins(open ? students.map((s) => s.id) : [])
+  const pins = useMemo(() => pinsQuery.data ?? {}, [pinsQuery.data])
+  const withPins = useMemo(
+    () => students.map((s) => ({ ...s, pin: s.pin ?? pins[s.id] ?? null })),
+    [students, pins],
+  )
+  const recipients = useMemo(() => withPins.filter((s) => !!s.phone), [withPins])
   const noPhoneCount = students.length - recipients.length
 
   const template = WA_TEMPLATES.find((t) => t.id === templateId)

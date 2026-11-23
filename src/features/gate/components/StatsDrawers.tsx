@@ -32,7 +32,7 @@ export function OutsideStudentsDrawer({ open, onClose, outside }: OutsideDrawerP
     <Drawer
       open={open}
       onClose={onClose}
-      width={460}
+      size="min(460px, 94vw)"
       title={
         <Space>
           <span>Santri di Luar Gerbang</span>
@@ -190,7 +190,7 @@ export function ActivePermitsDrawer({
   onReturn,
 }: ActivePermitsDrawerProps) {
   return (
-    <Drawer open={open} onClose={onClose} width={520} title={`Izin Santri Aktif (${permits.length})`}>
+    <Drawer open={open} onClose={onClose} size="min(520px, 94vw)" title={`Izin Santri Aktif (${permits.length})`}>
       {permits.length === 0 ? (
         <Empty description="Tidak ada izin aktif" />
       ) : (

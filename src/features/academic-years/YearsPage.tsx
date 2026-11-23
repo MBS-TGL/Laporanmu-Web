@@ -12,22 +12,22 @@ import { RoomsTab } from './tabs/RoomsTab'
 const YEARS_TAB_META: Record<string, { title: string; subtitle: string }> = {
   years: {
     title: 'Tahun Akademik',
-    subtitle: 'Periode semester dan kalender akademik',
+    subtitle: 'Tahun ajaran, semester, dan periode aktif',
   },
   slots: {
     title: 'Slot Jam',
-    subtitle: 'Slot jam pelajaran per tahun ajaran — dipakai form Jadwal KBM',
+    subtitle: 'Jam pelajaran untuk menyusun jadwal',
   },
   rooms: {
-    title: 'Ruang KBM',
-    subtitle: 'Master ruangan untuk jadwal mengajar dan deteksi bentrok',
+    title: 'Ruang',
+    subtitle: 'Ruang untuk jadwal dan deteksi bentrok',
   },
 }
 
 const TAB_ITEMS = [
   { key: 'years', label: 'Tahun & Semester' },
   { key: 'slots', label: 'Slot Jam' },
-  { key: 'rooms', label: 'Ruang KBM' },
+  { key: 'rooms', label: 'Ruang' },
 ]
 
 /** Halaman Tahun Akademik: periode / slot jam / ruang KBM dalam satu route (?tab=). */

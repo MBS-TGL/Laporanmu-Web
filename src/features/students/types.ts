@@ -13,7 +13,13 @@ export type GuardianRelation = 'father' | 'mother' | 'guardian'
 export interface Student {
   id: string
   registration_code: string
-  pin: string | null
+  /**
+   * PIN tidak lagi ikut daftar siswa (tabel `student_pins`, migration 0066).
+   * Diisi hanya bila diambil lewat `fetchStudentPins` (manager ke atas).
+   */
+  pin?: string | null
+  /** kolom turunan 0066: ada PIN atau belum, aman dibaca semua staf */
+  has_pin?: boolean | null
   nisn: string | null
   nis: string | null
   nik: string | null

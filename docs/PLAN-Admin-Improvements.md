@@ -268,3 +268,38 @@ Fase 5 menambah ±14 tabel baru + modul baru. Item di bawah TIDAK ada di katalog
 Status sweep katalog lama (stale vs relevan):
 - Sudah usang/terlewati oleh batch lain: Fase 1 semua [x]; `NavItem.flag` [x]; guard router modul [x]; seed module.* [x]; audit URL persist + filter user [x]; flags CRUD [x]; maintenance kustom [x].
 - Masih relevan penuh: seluruh item Insights (limit cap, RPC agregat, top-N berisiko), Otomatisasi (task_runs, dry-run, RBAC per task), Storage (listing rekursif, orphan _trash), Database (RPC integritas — sedang dikerjakan), sebagian Pengguna & Audit (ekspor, diff JSON, user_agent).
+
+---
+
+## Ronde 2026-11-19 — Eksekusi dashboard admin (migasi 0062)
+
+Ronde eksekusi langsung atas gabungan: performa + katalog N1–N3 + fitur baru + polish. Migrasi **`0062_admin_system.sql`** dibuat (belum diterapkan — jalankan di dashboard SQL editor, BUKAN `supabase db push`).
+
+### Selesai di ronde ini
+- `[x]` **P1** RPC `admin_table_stats()` — ganti ±65 request/refresh jadi 1 call (`api.ts` merge label dari `TABLE_CONFIG`).
+- `[x]` **P1** RPC `admin_integrity_checks()` — tanpa download tabel santri penuh.
+- `[x]` **P1** RPC `admin_trash_items(p_tables)` — 13 query paralel → 1 call, judul relasional tetap jalan (injeksi FK name).
+- `[x]` **P1** Storage listing rekursif (depth 3, queue) untuk file terbesar & orphan; orphan refs via RPC `admin_storage_refs()` (base64 tidak keluar dari DB).
+- `[x]` **P1** Riwayat eksekusi task server-side (`task_runs`) + migrasi localStorage → server sekali di first load; tombol "Hapus Riwayat" dihapus (append-only).
+- `[x]` **P1** Dry-run + konfirmasi ketik "JALANKAN" untuk task destruktif (`ConfirmTaskModal`).
+- `[x]` **P1** Hapus cap limit Insights (`fetchAllPages` range 1000) — students/savings/loans.
+- `[x]` **P1** Widget "Kesehatan Sistem" di Ringkasan (latensi DB, maintenance, integritas, task terakhir).
+- `[x]` **P2** N1 `TABLE_CONFIG` 26→42; N2 `TABLE_LABELS` satu sumber (ekspor dari `api.ts`); N3 `TRASH_TABLES` +6 tabel modul baru.
+- `[x]` **P2** Audit: diff JSON per-key saat old+new ada, `user_agent` di forensik, ekspor CSV hasil filter (batch 1000), preset tanggal Hari ini/7/30, debounce search 300ms, columns `useMemo`.
+- `[x]` **P2** Pengguna: kolom "Login Terakhir" (RPC `admin_last_logins`) + ekspor XLSX daftar akun.
+- `[x]` **P2** Media: grid 60/halaman + cache signed-URL privat (TTL 55 mnt); Trash: batch restore/purge paralel chunk 8.
+- `[x]` **P2** Ringkasan: pie top-7 + "Lainnya", freshness "diperbarui x mnt lalu", QUICK_LINKS key aktif + Evaluasi/Dokumen/Ibadah, checklist setup sekolah (5 langkah).
+- `[x]` **P2** Integrasi: browser `api_request_log` 7 hari (server-paginated).
+- `[x]` **P2** Insights: riwayat snapshot `insight_logs` (10 terakhir, klik buka ulang).
+- `[x]` **P2** TrashPage: error state + retry (dulu diam-diam tampil "Sampah kosong").
+
+### Sengaja di-skip (dengan alasan)
+- Memoize columns UsersPage/TrashPage/IntegrationsPage: handler inline membuat identitas kolom tetap berubah tiap render (memo sia-sia), tabel hanya 15 baris client-paginated. Ekstraksi tabel ke komponen terpisah = refactor besar dengan gain kecil; ditunda.
+- `fetchAuditActivity` tetap client bucketing (bound 2000 baris, dampak kecil).
+
+### Deferred (kandidat ronde berikutnya)
+- `[ ]` **P1** Pusat push notification + auto-fire dari pengumuman/SPP (`push_subscriptions` sudah masuk TABLE_CONFIG; Edge `push-send` sudah ada).
+- `[ ]` **P2** Monitor `portal_sessions` / `portal_login_attempts` (tabel sudah terpantau di Database, belum ada UI detail).
+- `[x]` **P1** Insights limit cap (selesai ronde ini); `[ ]` **P2** RPC agregat poin per kelas/asrama + top-N santri berisiko + streaming.
+- `[ ]` **P2** Delta mingguan StatChip (butuh query historis); force logout sesi; bulk role change; orphan → folder `_trash`; RBAC per task; role bypass maintenance.
+- `[ ]` **P3** Onboarding checklist kaya aksi inline; sparkline pertumbuhan baris; realtime audit ticker.

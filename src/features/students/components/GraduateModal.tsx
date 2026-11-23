@@ -10,7 +10,7 @@ import type { Student } from '../types'
 interface GraduateModalProps {
   open: boolean
   onClose: () => void
-  /** Siswa terpilih yang akan diluluskan */
+  /** Santri terpilih yang akan diluluskan */
   students: Student[]
   /** Dipanggil setelah sukses — halaman membersihkan seleksi */
   onGraduated: () => void
@@ -53,7 +53,7 @@ export function GraduateModal({ open, onClose, students, onGraduated }: Graduate
       open={open}
       onCancel={onClose}
       width={520}
-      title="Luluskan Siswa"
+      title="Luluskan Santri"
       subtitle={`${students.length} siswa terpilih, status akan menjadi Lulus`}
       icon={<SafetyCertificateOutlined />}
       okText={`Luluskan (${students.length})`}
@@ -90,7 +90,7 @@ export function GraduateModal({ open, onClose, students, onGraduated }: Graduate
         </div>
 
         <ModalNotice tone="warning" title="Kelas & asrama siswa akan dikosongkan">
-          Siswa pindah ke daftar Alumni dengan kelas terakhir tercatat. Riwayat poin, raport, dan log gerbang tetap tersimpan. Arsip asrama/kelas otomatis bersih.
+          Santri pindah ke daftar Alumni dengan kelas terakhir tercatat. Riwayat poin, raport, dan log gerbang tetap tersimpan. Arsip asrama/kelas otomatis bersih.
         </ModalNotice>
 
         {alreadyGraduated > 0 && (

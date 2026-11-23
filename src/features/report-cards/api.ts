@@ -219,7 +219,7 @@ export async function fetchBehaviorForMonth(
 export async function fetchSchoolSettings(): Promise<SchoolSettings> {
   const { data, error } = await supabase
     .from('school_settings')
-    .select('school_name, school_address, headmaster_name, caretaker_name, color_primary, color_secondary')
+    .select('*')
     .eq('id', true)
     .single()
 

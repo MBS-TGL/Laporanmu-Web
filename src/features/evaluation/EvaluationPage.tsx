@@ -8,8 +8,8 @@ import { ManageTab } from './tabs/ManageTab'
 import { ResultsTab } from './tabs/ResultsTab'
 
 const TAB_META: Record<string, { subtitle: string }> = {
-  manage: { subtitle: 'Buat angket dari template, terbitkan token, dan kelola pertanyaan' },
-  results: { subtitle: 'Analisis respons: dimensi, MBTI, dan sosiogram' },
+  manage: { subtitle: 'Buat angket, terbitkan token, dan kelola pertanyaan' },
+  results: { subtitle: 'Analisis dimensi, MBTI, dan sosiogram' },
 }
 
 /** Halaman Pusat Evaluasi — 1 route bertab `?tab=`. */
@@ -22,7 +22,7 @@ export function EvaluationPage() {
       <TabActionsContext.Provider value={actionsHost}>
         <ShellItem>
           <PageHeader
-            title="Pusat Evaluasi"
+            title="Evaluasi"
             subtitle={TAB_META[tab]?.subtitle ?? TAB_META.manage.subtitle}
             extra={<div ref={setActionsHost} style={{ display: 'flex', alignItems: 'center' }} />}
           />
@@ -33,7 +33,7 @@ export function EvaluationPage() {
             onChange={setTab}
             items={[
               { key: 'manage', label: 'Kelola Angket', children: <ManageTab active={tab === 'manage'} /> },
-              { key: 'results', label: 'Hasil & Analisis', children: <ResultsTab active={tab === 'results'} /> },
+              { key: 'results', label: 'Hasil', children: <ResultsTab active={tab === 'results'} /> },
             ]}
           />
         </ShellItem>

@@ -61,20 +61,20 @@ import { WorshipImportModal } from './components/WorshipImportModal'
 
 const TAB_META: Record<WorshipCategory, { title: string; subtitle: string }> = {
   wudhu: {
-    title: 'Kemahiran Wudhu',
-    subtitle: 'Klik bintang untuk menandai santri terampil · preset dapat dimuat sekali klik',
+    title: 'Ibadah',
+    subtitle: 'Kemahiran wudhu dan nilai bulanan santri',
   },
   sholat: {
-    title: 'Kemahiran Sholat',
-    subtitle: 'Papan kemahiran sholat per santri + nilai bulanan per butir',
+    title: 'Ibadah',
+    subtitle: 'Kemahiran sholat dan nilai bulanan santri',
   },
   hafalan_hadist: {
-    title: 'Kemahiran Hafalan Hadist',
-    subtitle: 'Papan kemahiran hafalan hadist per santri + nilai bulanan per butir',
+    title: 'Ibadah',
+    subtitle: 'Kemahiran hafalan hadis dan nilai bulanan santri',
   },
   hafalan_doa: {
-    title: 'Kemahiran Hafalan Doa',
-    subtitle: 'Papan kemahiran hafalan doa per santri + nilai bulanan per butir',
+    title: 'Ibadah',
+    subtitle: 'Kemahiran hafalan doa dan nilai bulanan santri',
   },
 }
 

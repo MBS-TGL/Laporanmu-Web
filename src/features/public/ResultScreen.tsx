@@ -278,7 +278,7 @@ export function ResultScreen({
                 padding: '12px 16px',
                 borderRadius: 12,
                 background: token.colorFillQuaternary,
-                border: `1px solid \${token.colorBorderSecondary}`,
+                border: `1px solid ${token.colorBorderSecondary}`,
                 textAlign: 'left',
               }}
             >

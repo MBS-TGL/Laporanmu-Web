@@ -1,10 +1,13 @@
-import { useRef, useState } from 'react'
-import { Card, Col, Input, InputNumber, Row, Select, Space, Typography } from 'antd'
+import { useEffect, useRef, useState } from 'react'
+import { Button, Card, Col, Input, InputNumber, Row, Select, Space, Tooltip, Typography } from 'antd'
+import { UndoOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import { useReportCardClasses } from '../hooks'
 import { MONTH_NAMES, REPORT_CARD_TYPE_LABEL } from '../constants'
 import type { ReportCardType } from '../types'
 import { useAcademicYearsBrief } from '../../classes/hooks'
+
+const REPORT_CARD_TYPES = Object.keys(REPORT_CARD_TYPE_LABEL) as ReportCardType[]
 
 interface PeriodParams {
   type: ReportCardType
@@ -17,9 +20,9 @@ interface PeriodParams {
 
 function readParams(sp: URLSearchParams): PeriodParams {
   const now = new Date()
-  const typeRaw = sp.get('type') as ReportCardType | null
+  const typeRaw = sp.get('type')
   const type: ReportCardType =
-    typeRaw && typeRaw in REPORT_CARD_TYPE_LABEL ? typeRaw : 'monthly'
+    typeRaw && (REPORT_CARD_TYPES as string[]).includes(typeRaw) ? (typeRaw as ReportCardType) : 'monthly'
   const month = Number(sp.get('month')) || now.getMonth() + 1
   const year = Number(sp.get('year')) || now.getFullYear()
   const semesterRaw = Number(sp.get('semester'))
@@ -45,9 +48,17 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
   // Nama musyrif diketik ke state lokal agar input tidak lag;
   // URL baru ditulis setelah 400ms berhenti mengetik (atau saat blur),
   // sehingga halaman Input & Preview tetap berbagi nilai yang sama.
+  // Field diisi nama wali kelas sebagai nilai awal (bukan placeholder kosong),
+  // dan override dari URL selalu menang.
   const musyrifRef = useRef(params.musyrif)
-  const [musyrifValue, setMusyrifValue] = useState(params.musyrif)
+  const [musyrifValue, setMusyrifValue] = useState(params.musyrif || homeroomTeacherName || '')
   const musyrifTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Ikuti data wali kelas yang datang belakangan (query kelas), tanpa menimpa ketikan user.
+  useEffect(() => {
+    if (musyrifRef.current || !homeroomTeacherName) return
+    setMusyrifValue(homeroomTeacherName)
+  }, [homeroomTeacherName])
 
   const activeYear = (yearsQuery.data ?? []).find((y) => y.is_active)
 
@@ -89,6 +100,16 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
     }
   }
 
+  // Kembalikan ke nama wali kelas: hapus override di URL, isi field lagi.
+  const resetMusyrif = () => {
+    if (musyrifTimer.current) clearTimeout(musyrifTimer.current)
+    musyrifRef.current = ''
+    setMusyrifValue(homeroomTeacherName ?? '')
+    setSearchParams(buildSp({ musyrif: '' }), { replace: true })
+  }
+
+  const hasMusyrifOverride = Boolean(params.musyrif)
+
   const className = (classesQuery.data ?? []).find((c) => c.id === classId)?.name ?? '...'
 
   // Tahun ajaran efektif: pilihan user, atau year yang aktif
@@ -108,7 +129,7 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
         </Col>
         <Col xs={12} sm={8} md={4}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Jenis Raport
+            Jenis Rapor
           </Typography.Text>
           <Select
             style={{ width: '100%' }}
@@ -188,6 +209,14 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
               onBlur={handleMusyrifBlur}
               maxLength={80}
             />
+            <Tooltip title="Kembalikan ke wali kelas">
+              <Button
+                icon={<UndoOutlined />}
+                onClick={resetMusyrif}
+                disabled={!hasMusyrifOverride}
+                aria-label="Kembalikan nama musyrif ke wali kelas"
+              />
+            </Tooltip>
           </Space.Compact>
         </Col>
       </Row>

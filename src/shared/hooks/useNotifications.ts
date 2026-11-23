@@ -118,7 +118,7 @@ async function checkMonthlyReportCards(
       return {
         id: 'raport-missing',
         type: 'warning',
-        title: `Raport ${label} belum lengkap`,
+        title: `Rapor ${label} belum lengkap`,
         body: `${classesNotDone} kelas belum diisi sama sekali`,
         action: { label: 'Isi Sekarang', route: '/report-cards' },
         priority: 1,
@@ -128,7 +128,7 @@ async function checkMonthlyReportCards(
       return {
         id: 'raport-partial',
         type: 'info',
-        title: `Raport ${label} hampir selesai`,
+        title: `Rapor ${label} hampir selesai`,
         body: `${partialClasses} kelas baru sebagian terisi`,
         action: { label: 'Lihat', route: '/report-cards' },
         priority: 3,
@@ -204,9 +204,9 @@ export function useNotifications() {
         items.push({
           id: 'students-no-class',
           type: 'warning',
-          title: 'Siswa belum punya kelas',
-          body: `${noClassRes.count} siswa belum ditempatkan ke kelas`,
-          action: { label: 'Data Siswa', route: '/students' },
+          title: 'Santri belum punya kelas',
+          body: `${noClassRes.count} santri belum ditempatkan ke kelas`,
+          action: { label: 'Santri', route: '/students' },
           priority: 2,
         })
       }
@@ -238,7 +238,7 @@ export function useNotifications() {
           type: 'info',
           title: 'Kelas belum ada wali kelas',
           body: `${noTeacherRes.count} kelas belum memiliki wali kelas`,
-          action: { label: 'Data Kelas', route: '/classes' },
+          action: { label: 'Kelas', route: '/classes' },
           priority: 3,
         })
       }
@@ -258,9 +258,9 @@ export function useNotifications() {
         items.push({
           id: 'students-no-phone',
           type: 'info',
-          title: 'Siswa tanpa nomor WA',
-          body: `${noPhoneRes.count} siswa tidak bisa menerima raport via WhatsApp`,
-          action: { label: 'Data Siswa', route: '/students' },
+          title: 'Santri tanpa nomor WA',
+          body: `${noPhoneRes.count} santri tidak bisa menerima rapor via WhatsApp`,
+          action: { label: 'Santri', route: '/students' },
           priority: 5,
         })
       }

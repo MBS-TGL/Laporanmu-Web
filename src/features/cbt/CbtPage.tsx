@@ -8,8 +8,8 @@ import { BankTab } from './tabs/BankTab'
 import { ExamsTab } from './tabs/ExamsTab'
 
 const TAB_META: Record<string, { subtitle: string }> = {
-  bank: { subtitle: 'Bank soal pilihan ganda per kelas & mapel' },
-  ujian: { subtitle: 'Sesi ujian ber-token, pemantauan santri, dan rekap skor' },
+  bank: { subtitle: 'Bank soal per kelas dan mata pelajaran' },
+  exams: { subtitle: 'Sesi ujian, pemantauan, dan rekap nilai' },
 }
 
 /**
@@ -17,7 +17,7 @@ const TAB_META: Record<string, { subtitle: string }> = {
  * Ujian santri tanpa akun ada di route publik `/cbt/:token`.
  */
 export function CbtPage() {
-  const { tab, setTab } = useUrlTab('bank')
+  const { tab, setTab } = useUrlTab('bank', { legacy: { ujian: 'exams' } })
   const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
 
   return (
@@ -36,7 +36,7 @@ export function CbtPage() {
             onChange={setTab}
             items={[
               { key: 'bank', label: 'Bank Soal', children: <BankTab active={tab === 'bank'} /> },
-              { key: 'ujian', label: 'Sesi Ujian', children: <ExamsTab active={tab === 'ujian'} /> },
+              { key: 'exams', label: 'Sesi Ujian', children: <ExamsTab active={tab === 'exams'} /> },
             ]}
           />
         </ShellItem>

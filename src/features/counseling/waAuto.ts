@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { fetchWaSettingsStatus, sendWaBroadcast } from '../students/api'
 import { waPhoneDigits } from '../students/wa'
+import { resolveGuardianPhone } from '../../shared/utils/guardianPhone'
 import { LETTER_TYPE_META, type OfficialLetter } from './letters/types'
 
 /**
@@ -43,19 +44,20 @@ export async function maybeSendLetterWa(letter: OfficialLetter): Promise<void> {
       .maybeSingle()
     if (error) throw error
     const student = data as unknown as LetterStudent | null
-    if (!student?.phone) return // tanpa nomor — tidak ada yang bisa dikirim
+    const contact = await resolveGuardianPhone(letter.student_id)
+    if (!contact.phone) return // tanpa nomor — tidak ada yang bisa dikirim
 
     const message = renderTemplate(TEMPLATE, {
-      wali: student.guardian_name ?? 'Bpk/Ibu',
-      nama: student.name,
-      kelas: student.classes?.name ?? '—',
+      wali: contact.name ?? 'Bpk/Ibu',
+      nama: student?.name ?? 'Santri',
+      kelas: student?.classes?.name ?? '—',
       jenis_surat: LETTER_TYPE_META[letter.type]?.label ?? letter.type,
       nomor: letter.letter_no,
       perihal: letter.subject,
       verifikasi: `${window.location.origin}/verify?token=${letter.verify_token}`,
     })
 
-    const result = await sendWaBroadcast([{ target: waPhoneDigits(student.phone), message }])
+    const result = await sendWaBroadcast([{ target: waPhoneDigits(contact.phone), message }])
     if (!result.ok) console.warn('[wa-auto] kirim WA surat BK gagal:', result.reason, result.detail)
   } catch (err) {
     console.warn('[wa-auto] gagal mengirim WA surat BK:', err)

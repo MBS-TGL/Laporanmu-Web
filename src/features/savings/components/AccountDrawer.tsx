@@ -26,7 +26,7 @@ export function AccountDrawer({ open, account, onClose, onDeposit, onWithdraw }:
       title="Buku Tabungan"
       open={open}
       onClose={onClose}
-      width={460}
+      size="min(460px, 94vw)"
       destroyOnHidden
     >
       {account && (

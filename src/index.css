@@ -170,12 +170,34 @@ body {
   margin: 0 auto;
 }
 
+/* Container cetak tersembunyi di layar; hanya tampil saat print */
+.report-card-print-root--hidden {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 210mm;
+  max-width: none;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .report-card-card {
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 20px 24px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  border-radius: 4px;
+  padding: 10mm;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-family: Georgia, 'Times New Roman', serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-card-card > .report-card-footer {
+  margin-top: auto;
 }
 
 .report-card-header {
@@ -217,40 +239,48 @@ body {
 
 .report-card-scores th,
 .report-card-scores td {
-  padding: 5px 8px;
-  border: 1px solid #e2e8f0;
+  padding: 4px 7px;
+  border: 1px solid #cbd5e1;
 }
 
 .report-card-scores th {
-  font-size: 12px;
+  font-size: 11.5px;
   color: #475569;
 }
 
 .report-card-blocks {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-top: 10px;
   align-items: stretch;
 }
 
 .report-card-block {
   flex: 1;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .report-card-block-title {
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 700;
   color: #475569;
-  letter-spacing: 0.05em;
-  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  background: #f1f5f9;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 3px 8px;
 }
 
 .report-card-block-table td {
-  padding: 2px 0;
-  font-size: 12px;
+  padding: 3px 8px;
+  font-size: 11.5px;
+}
+
+.report-card-block-table tr + tr td {
+  border-top: 1px solid #e2e8f0;
 }
 
 .report-card-block-label {
@@ -294,9 +324,9 @@ body {
   justify-content: space-between;
   margin-top: 14px;
   padding-top: 8px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #e2e8f0;
   font-size: 10.5px;
-  color: #94a3b8;
+  color: #64748b;
 }
 
 /* ============================================================
@@ -400,20 +430,19 @@ body {
     top: 0;
     left: 0;
     right: 0;
+    width: auto !important;
     max-width: none;
     padding: 0 !important;
     gap: 0 !important;
+    visibility: visible !important;
   }
 
-  .report-card-card {
+  .raport-card {
     box-shadow: none !important;
-    border: none !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
     page-break-after: always;
   }
 
-  .report-card-card:last-child {
+  .raport-card:last-child {
     page-break-after: auto;
   }
 
@@ -1293,6 +1322,17 @@ body {
     width: calc(100vw - 32px);
     flex-wrap: wrap;
     overflow-x: visible;
+    bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
+  }
+}
+
+/* Form di dalam modal/bottom sheet: kolom bertumpuk di ponsel.
+   Mencegah form desktop 3 kolom dipaksakan ke layar 390px. */
+@media (max-width: 767px) {
+  .ant-drawer .ant-form .ant-col,
+  .ant-modal .ant-form .ant-col {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
   }
 }
 

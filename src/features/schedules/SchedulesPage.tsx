@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- helper jadwal dipakai lintas komponen */
 import { useMemo, useRef, useState } from 'react'
 import {
   Alert,
@@ -468,8 +469,8 @@ export function SchedulesPage() {
       <ShellStagger>
         <ShellItem>
           <PageHeader
-            title="Jadwal & Kalender Akademik"
-            subtitle="Jadwal kegiatan belajar-mengajar SMP & SMA serta kalender agenda pondok"
+            title="Jadwal & Kalender"
+            subtitle="Jadwal pelajaran, kalender akademik, dan agenda pondok"
             extra={
           activeTab !== 'calendar' && (
             <Space wrap>

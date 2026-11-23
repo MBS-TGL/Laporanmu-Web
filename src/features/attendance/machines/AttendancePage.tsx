@@ -27,13 +27,16 @@ import {
   SyncOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
+import { AppModal } from '../../../shared/components/AppModal'
 import { StatChip } from '../../../shared/components/StatChip'
 import { usePermissions } from '../../../shared/hooks/useProfile'
 import { useTablePagination } from '../../../shared/hooks/useTablePagination'
+import { StudentSelect } from '../../../shared/components/StudentSelect'
 import {
   useAttendanceMachines,
   useDeleteMachine,
   useMachineAttendanceLogs,
+  useManualMatchLog,
   useSyncMachineToAttendance,
 } from './hooks'
 import { MachineModal } from './MachineModal'
@@ -50,6 +53,8 @@ export function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
   const [modalOpen, setModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [matchingLog, setMatchingLog] = useState<MachineAttendanceLog | null>(null)
+  const [matchStudentId, setMatchStudentId] = useState<string | undefined>()
   const [editingMachine, setEditingMachine] = useState<AttendanceMachine | null>(null)
 
   const dateStr = date.format('YYYY-MM-DD')
@@ -67,6 +72,7 @@ export function AttendancePage() {
 
   const syncMutation = useSyncMachineToAttendance()
   const deleteMachineMutation = useDeleteMachine()
+  const matchMutation = useManualMatchLog()
 
   const counts = useMemo(() => {
     return {
@@ -91,6 +97,21 @@ export function AttendancePage() {
       onSuccess: () => message.success(`Mesin "${m.name}" dihapus`),
       onError: (err: Error) => message.error(err.message || 'Gagal menghapus mesin'),
     })
+  }
+
+  const submitManualMatch = () => {
+    if (!matchingLog || !matchStudentId) return
+    matchMutation.mutate(
+      { logId: matchingLog.id, studentId: matchStudentId },
+      {
+        onSuccess: () => {
+          message.success('Scan dicocokkan dengan santri')
+          setMatchingLog(null)
+          setMatchStudentId(undefined)
+        },
+        onError: (err: Error) => message.error(err.message || 'Gagal mencocokkan scan'),
+      },
+    )
   }
 
   // Kolom log scan
@@ -139,9 +160,23 @@ export function AttendancePage() {
       render: (_, r) => r.attendance_machines?.name ?? '—',
     },
     {
+      title: 'Arah',
+      key: 'scan_type',
+      width: 90,
+      align: 'center',
+      render: (_, r) =>
+        r.scan_type === 'check_out' ? (
+          <Tag color="orange">Keluar</Tag>
+        ) : r.scan_type === 'auto' ? (
+          <Tag>Otomatis</Tag>
+        ) : (
+          <Tag color="blue">Masuk</Tag>
+        ),
+    },
+    {
       title: 'Status',
       key: 'status',
-      width: 130,
+      width: 150,
       align: 'center',
       render: (_, r) => {
         if (r.matched_status === 'matched') {
@@ -150,7 +185,25 @@ export function AttendancePage() {
         if (r.matched_status === 'manual') {
           return <Tag color="processing">Manual</Tag>
         }
-        return <Tag color="error" icon={<QuestionCircleOutlined />}>Tidak Dikenal</Tag>
+        return (
+          <Space size={4}>
+            <Tag color="error" icon={<QuestionCircleOutlined />}>Tidak Dikenal</Tag>
+            {canWrite && (
+              <Tooltip title="Cocokkan scan ini dengan santri">
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => {
+                    setMatchingLog(r)
+                    setMatchStudentId(undefined)
+                  }}
+                >
+                  Cocokkan
+                </Button>
+              </Tooltip>
+            )}
+          </Space>
+        )
       },
     },
     {
@@ -293,7 +346,7 @@ export function AttendancePage() {
         />
         <StatChip
           icon={<CheckCircleOutlined />}
-          label="Cocok (Siswa)"
+          label="Cocok (Santri)"
           value={counts.matched}
           color="emerald"
           loading={logsQuery.isPending}
@@ -424,6 +477,26 @@ export function AttendancePage() {
         machines={machines}
         onClose={() => setImportOpen(false)}
       />
+
+      <AppModal
+        open={matchingLog !== null}
+        title="Cocokkan Scan dengan Santri"
+        subtitle={matchingLog ? `UID mesin: ${matchingLog.device_user_id}` : undefined}
+        icon={<QuestionCircleOutlined />}
+        onCancel={() => setMatchingLog(null)}
+        onOk={submitManualMatch}
+        confirmLoading={matchMutation.isPending}
+        okText="Cocokkan"
+        okButtonProps={{ disabled: !matchStudentId }}
+        width={480}
+        destroyOnHidden
+      >
+        <StudentSelect
+          placeholder="Cari nama atau kode registrasi santri"
+          value={matchStudentId}
+          onChange={setMatchStudentId}
+        />
+      </AppModal>
     </div>
   )
 }

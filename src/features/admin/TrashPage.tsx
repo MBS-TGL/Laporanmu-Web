@@ -8,6 +8,7 @@ import { StatChip } from '../../shared/components/StatChip'
 import { ActionBar } from '../../shared/components/ActionBar'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useTrashItems, useRestoreTrash, usePurgeTrash, TRASH_TABLES, type TrashEntry } from './trash'
+import { chunk } from './tasks'
 
 const MODULE_COLORS: Record<string, string> = {
   students: 'geekblue',
@@ -23,6 +24,12 @@ const MODULE_COLORS: Record<string, string> = {
   books: 'red',
   savings_accounts: 'lime',
   inventory_items: 'default',
+  worship_items: 'gold',
+  entities: 'geekblue',
+  instruments: 'purple',
+  curriculum_cps: 'blue',
+  curriculum_tps: 'cyan',
+  cocurricular_dims: 'green',
 }
 
 /** Sisa retensi ≤ 7 hari = merah, ≤ 14 hari = amber. */
@@ -63,31 +70,50 @@ export function TrashPage({ active }: { active: boolean }) {
 
   const pg = useTablePagination(filtered.length, { label: 'item', showSizeChanger: false, defaultPageSize: 15 })
 
+  // Batch dijalankan paralel per chunk 8 (bukan satu per satu) — puluhan
+  // item selesai jauh lebih cepat tanpa menabrak rate limit.
   const restore = async (targets: TrashEntry[]) => {
-    for (const t of targets) {
-      try {
-        await restoreMutation.mutateAsync({ table: t.table, id: t.id })
-      } catch (err) {
-        message.error(`Gagal memulihkan "${t.title}": ${err instanceof Error ? err.message : 'kesalahan tidak diketahui'}`)
-      }
+    const failures: string[] = []
+    for (const group of chunk(targets, 8)) {
+      await Promise.all(
+        group.map(async (t) => {
+          try {
+            await restoreMutation.mutateAsync({ table: t.table, id: t.id })
+          } catch {
+            failures.push(t.title)
+          }
+        }),
+      )
     }
-    if (targets.length > 1) message.success(`${targets.length} item dipulihkan`)
-    else if (targets.length === 1) message.success(`"${targets[0].title}" dipulihkan`)
+    if (failures.length === 0) {
+      message.success(
+        targets.length === 1 ? `"${targets[0].title}" dipulihkan` : `${targets.length} item dipulihkan`,
+      )
+    } else {
+      message.warning(`${targets.length - failures.length} dipulihkan, ${failures.length} gagal`)
+    }
     setSelectedKeys([])
   }
 
   const purge = async (targets: TrashEntry[]) => {
-    let failed = 0
-    for (const t of targets) {
-      try {
-        await purgeMutation.mutateAsync({ table: t.table, id: t.id })
-      } catch {
-        failed += 1
-      }
+    const failures: string[] = []
+    for (const group of chunk(targets, 8)) {
+      await Promise.all(
+        group.map(async (t) => {
+          try {
+            await purgeMutation.mutateAsync({ table: t.table, id: t.id })
+          } catch {
+            failures.push(t.title)
+          }
+        }),
+      )
     }
-    if (failed === 0) message.success(`${targets.length} item dihapus permanen`)
-    else {
-      message.warning(`${targets.length - failed} dihapus, ${failed} gagal (masih dipakai data lain atau ditolak RLS)`)
+    if (failures.length === 0) {
+      message.success(`${targets.length} item dihapus permanen`)
+    } else {
+      message.warning(
+        `${targets.length - failures.length} dihapus, ${failures.length} gagal (masih dipakai data lain atau ditolak RLS)`,
+      )
     }
     setSelectedKeys([])
   }
@@ -226,7 +252,19 @@ export function TrashPage({ active }: { active: boolean }) {
           </Space>
         </Space>
 
-        {entries.length === 0 && !trashQuery.isPending ? (
+        {trashQuery.isError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="Gagal memuat data sampah"
+            description={trashQuery.error instanceof Error ? trashQuery.error.message : 'RPC admin_trash_items tidak bisa diakses. Pastikan migrasi 0062 sudah diterapkan.'}
+            action={
+              <Button size="small" icon={<RestOutlined />} onClick={() => void trashQuery.refetch()}>
+                Coba lagi
+              </Button>
+            }
+          />
+        ) : entries.length === 0 && !trashQuery.isPending ? (
           <Alert
             type="success"
             showIcon

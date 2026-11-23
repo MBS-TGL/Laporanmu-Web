@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { fetchWaSettingsStatus, sendWaBroadcast } from '../students/api'
 import { waPhoneDigits } from '../students/wa'
+import { resolveGuardianPhone } from '../../shared/utils/guardianPhone'
 import { formatRupiah } from './api'
 import type { SavingsAccount, SavingsTxnKind } from './types'
 
@@ -46,19 +47,20 @@ export async function maybeSendSavingsWa(
       .maybeSingle()
     if (error) throw error
     const student = data as unknown as SavingsStudent | null
-    if (!student?.phone) return // tanpa nomor — tidak ada yang bisa dikirim
+    const contact = await resolveGuardianPhone(account.student_id)
+    if (!contact.phone) return // tanpa nomor — tidak ada yang bisa dikirim
 
     const message = renderTemplate(TEMPLATE, {
-      wali: student.guardian_name ?? 'Bpk/Ibu',
-      nama: student.name,
-      kelas: student.classes?.name ?? '—',
+      wali: contact.name ?? 'Bpk/Ibu',
+      nama: student?.name ?? 'Santri',
+      kelas: student?.classes?.name ?? '—',
       jenis: kind === 'deposit' ? 'Setoran' : 'Penarikan', // 'deposit' | 'withdrawal'
       nominal: formatRupiah(amount),
       saldo: formatRupiah(account.balance),
       tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     })
 
-    const result = await sendWaBroadcast([{ target: waPhoneDigits(student.phone), message }])
+    const result = await sendWaBroadcast([{ target: waPhoneDigits(contact.phone), message }])
     if (!result.ok) console.warn('[wa-auto] kirim WA tabungan gagal:', result.reason, result.detail)
   } catch (err) {
     console.warn('[wa-auto] gagal mengirim WA tabungan:', err)

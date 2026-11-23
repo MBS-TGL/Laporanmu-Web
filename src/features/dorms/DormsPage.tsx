@@ -771,7 +771,7 @@ export function DormsPage() {
     <div>
       <PageHeader
         title="Asrama"
-        subtitle="Kelola kamar, okupansi, dan penempatan santri"
+        subtitle="Kamar, keterisian, dan penempatan santri"
         extra={
           <>
             <Dropdown

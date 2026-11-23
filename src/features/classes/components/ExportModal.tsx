@@ -1,32 +1,26 @@
 import { useMemo } from 'react'
 import { ExportModal as SharedExportModal, type ExportColumn, type ExportScope } from '../../../shared/export/ExportModal'
-import { fetchAllClasses, fetchClassesByIds } from '../api'
+import { fetchClassesByIds } from '../api'
 import { useClassGenderCounts } from '../hooks'
-import type { ClassFilters, ClassRow } from '../types'
+import type { ClassRow } from '../types'
 
 type ExportScopeKey = 'filtered' | 'selected'
 
 interface ExportModalProps {
   open: boolean
   onClose: () => void
-  /** Filter aktif halaman — dipakai untuk lingkup "hasil filter" */
-  filters: Omit<ClassFilters, 'page' | 'pageSize'>
+  /**
+   * Hasil filter halaman (sudah mencakup search, tingkat, tanpa wali, kelas
+   * kosong) — satu sumber kebenaran agar jumlah di modal = baris yang diekspor.
+   */
+  filteredRows: ClassRow[]
   selectedIds: string[]
   /** Lingkup yang dipilih saat modal dibuka (dari menu / bar massal) */
   defaultScope?: ExportScopeKey
-  /** Perkiraan jumlah baris lingkup "hasil filter" */
-  filteredCount: number
 }
 
 /** Ekspor kelas — wrapper tipis di atas shared ExportModal. Angka L/P dari cache gender-counts halaman. */
-export function ExportModal({
-  open,
-  onClose,
-  filters,
-  selectedIds,
-  defaultScope = 'filtered',
-  filteredCount,
-}: ExportModalProps) {
+export function ExportModal({ open, onClose, filteredRows, selectedIds, defaultScope = 'filtered' }: ExportModalProps) {
   const countsQuery = useClassGenderCounts()
 
   const columns: ExportColumn<ClassRow>[] = useMemo(() => {
@@ -46,10 +40,10 @@ export function ExportModal({
   const scopes: ExportScope<ClassRow>[] = [
     {
       key: 'filtered',
-      label: `Hasil filter (${filteredCount})`,
+      label: `Hasil filter (${filteredRows.length})`,
       description: 'Semua kelas yang cocok dengan pencarian & filter aktif saat ini.',
-      count: filteredCount,
-      getRows: () => fetchAllClasses(filters),
+      count: filteredRows.length,
+      getRows: async () => filteredRows,
     },
     {
       key: 'selected',

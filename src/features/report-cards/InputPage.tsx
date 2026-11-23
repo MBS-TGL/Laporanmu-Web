@@ -1,44 +1,55 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   App,
-  Badge,
   Button,
   Card,
-  Empty,
-  InputNumber,
+  Grid,
+  Input,
   Popconfirm,
+  Progress,
+  Skeleton,
   Space,
-  Table,
   Tag,
   Tooltip,
   Typography,
-  type TableColumnsType,
+  theme,
 } from 'antd'
 import {
+  ArrowDownOutlined,
+  ArrowLeftOutlined,
+  CheckOutlined,
   CopyOutlined,
-  DeleteOutlined,
-  EyeOutlined,
+  FilterOutlined,
+  LoadingOutlined,
   PrinterOutlined,
+  QuestionCircleOutlined,
+  RedoOutlined,
   SaveOutlined,
+  SearchOutlined,
+  ThunderboltOutlined,
+  UndoOutlined,
 } from '@ant-design/icons'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import type { QueryKey } from '@tanstack/react-query'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../../shared/components/PageHeader'
-import { StatusTag } from '../../shared/components/StatusTag'
-import { usePermissions } from '../../shared/hooks/useProfile'
-import { useTablePagination } from '../../shared/hooks/useTablePagination'
+import { usePermissions, useSession } from '../../shared/hooks/useProfile'
+import { useDebounce } from '../../shared/hooks/useDebounce'
+import { useShortcuts } from '../../shared/hooks/useShortcuts'
+import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { SetupBar } from './components/SetupBar'
 import { ExtrasDrawer } from './components/ExtrasDrawer'
+import { EntryGrid } from './components/EntryGrid'
+import { MobileEntry } from './components/MobileEntry'
+import { BulkFillModal, type BulkFillValues } from './components/BulkFillModal'
 import {
-  MONTH_NAMES,
-  SEMESTER_MAX_SCORE,
   BULANAN_MAX_SCORE,
-  calcAverage,
   getCriteria,
   getScoreWithFallback,
-  isComplete,
+  MONTH_NAMES,
+  periodKey,
   REPORT_CARD_TYPE_LABEL,
+  SEMESTER_MAX_SCORE,
 } from './constants'
 import {
   useBehaviorForMonth,
@@ -51,38 +62,59 @@ import {
   useSaveSemester,
   useSemesterRows,
 } from './hooks'
+import { MONTHLY_SCORE_KEYS } from './savePayloads'
+import { useEntryDrafts } from './useEntryDrafts'
 import type {
   MonthlyDraft,
-  MonthlyReportPayload,
   ReportCardStudent,
   ReportCardType,
   SemesterDraft,
-  SemesterReportPayload,
   SemesterType,
 } from './types'
 
-const MONTHLY_KEYS = [
-  'character_score',
-  'worship_score',
-  'cleanliness_score',
-  'quran_score',
-  'language_score',
-] as const
+const REPORT_CARD_TYPES = Object.keys(REPORT_CARD_TYPE_LABEL) as ReportCardType[]
 
-const omitKeys = <T,>(obj: Record<string, T>, keys: string[]): Record<string, T> => {
-  const next = { ...obj }
-  for (const k of keys) delete next[k]
-  return next
+type FocusRequest = {
+  studentId: string
+  col: number
+  nonce: number
+}
+
+type ScoreEdit = {
+  studentId: string
+  key: string
+  prev: number | null
+  next: number | null
+}
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const fn = (e: MediaQueryListEvent) => setMobile(e.matches)
+    mq.addEventListener('change', fn)
+    return () => mq.removeEventListener('change', fn)
+  }, [])
+  return mobile
 }
 
 export function InputPage() {
   const { message } = App.useApp()
+  const navigate = useNavigate()
+  const { token } = theme.useToken()
+  const screens = Grid.useBreakpoint()
+  const singleRow = Boolean(screens.lg)
+  const showPrimaryLabels = Boolean(screens.xl)
+  const showAllLabels = Boolean(screens.xxl)
   const { classId = '' } = useParams()
   const [searchParams] = useSearchParams()
   const { canWrite, canDelete } = usePermissions()
+  const sessionQuery = useSession()
+  const isMobile = useIsMobile()
 
-  const typeRaw = searchParams.get('type') as ReportCardType | null
-  const type: ReportCardType = typeRaw && typeRaw in REPORT_CARD_TYPE_LABEL ? typeRaw : 'monthly'
+  const typeRaw = searchParams.get('type')
+  const type: ReportCardType =
+    typeRaw && (REPORT_CARD_TYPES as string[]).includes(typeRaw) ? (typeRaw as ReportCardType) : 'monthly'
   const month = Number(searchParams.get('month')) || new Date().getMonth() + 1
   const year = Number(searchParams.get('year')) || new Date().getFullYear()
   const semester = (searchParams.get('semester') === '2' ? 2 : 1) as 1 | 2
@@ -96,25 +128,39 @@ export function InputPage() {
   const studentsQuery = useReportCardStudents(classId || undefined)
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data])
   const studentIds = useMemo(() => students.map((s) => s.id), [students])
-  const pg = useTablePagination(students.length, { label: 'santri', defaultPageSize: 20, showSizeChanger: false })
 
   const isMonthly = type === 'monthly'
   const prevMonth = month === 1 ? 12 : month - 1
   const prevYear = month === 1 ? year - 1 : year
+  const studentCount = studentIds.length
+  const firstStudentId = studentIds[0]
+  const queryKey = useMemo<QueryKey>(
+    () =>
+      isMonthly
+        ? ['report-cards', 'monthly', year, month, studentCount, firstStudentId]
+        : ['report-cards', 'semester', type, semester, ay, studentCount, firstStudentId],
+    [isMonthly, year, month, type, semester, ay, studentCount, firstStudentId],
+  )
 
-  const monthlyQuery = useMonthlyRows(studentIds, month, year)
-  const prevMonthlyQuery = useMonthlyRows(studentIds, prevMonth, prevYear)
-  const semesterQuery = useSemesterRows(studentIds, type as SemesterType, semester, ay || undefined)
+  const monthlyQuery = useMonthlyRows(isMonthly ? studentIds : [], month, year)
+  const prevMonthlyQuery = useMonthlyRows(isMonthly ? studentIds : [], prevMonth, prevYear)
+  const semesterQuery = useSemesterRows(
+    isMonthly ? [] : studentIds,
+    type as SemesterType,
+    semester,
+    ay || undefined,
+  )
 
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01T00:00:00Z`
-  // hari terakhir bulan berjalan (31 → Nov 30, Feb 28/29, dst.)
   const lastDayOfMonth = new Date(year, month, 0).getDate()
   const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}T23:59:59Z`
   const behaviorQuery = useBehaviorForMonth(isMonthly ? studentIds : [], monthStart, monthEnd)
 
-  const [drafts, setDrafts] = useState<Record<string, MonthlyDraft>>({})
-  const [semesterDrafts, setSemesterDrafts] = useState<Record<string, SemesterDraft>>({})
   const [extrasStudent, setExtrasStudent] = useState<ReportCardStudent | null>(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
+  const [incompleteOnly, setIncompleteOnly] = useState(false)
 
   const saveMonthly = useSaveMonthly()
   const saveSemester = useSaveSemester()
@@ -145,61 +191,214 @@ export function InputPage() {
     return map
   }, [behaviorQuery.data])
 
-  const criteria = getCriteria(type, grade)
+  const criteria = useMemo(() => getCriteria(type, grade), [type, grade])
   const maxScore = isMonthly ? BULANAN_MAX_SCORE : SEMESTER_MAX_SCORE
+  const musyrifName = musyrif || classRow?.homeroom_teacher?.name || null
+  const updatedBy = sessionQuery.data?.user?.id ?? null
 
-  const getSavedScore = (studentId: string, key: string): number | null => {
-    if (isMonthly) {
-      const row = savedMonthlyById.get(studentId)
-      if (!row) return null
-      return (row as unknown as Record<string, number | null>)[key] ?? null
-    }
-    return savedSemesterById.get(studentId)?.scores?.[key] ?? null
-  }
+  const draftsEngine = useEntryDrafts({
+    storageKey: `raport-draft:${periodKey(type, isMonthly ? { month, year } : { semester, academicYearId: ay })}:${classId}`,
+    queryKey,
+    isMonthly,
+    type,
+    students,
+    month,
+    year,
+    semester,
+    ay,
+    musyrifName,
+    updatedBy,
+    savedMonthlyById,
+    savedSemesterById,
+    saveMonthly,
+    saveSemester,
+    message,
+  })
+  const {
+    drafts,
+    setDrafts,
+    semesterDrafts,
+    setSemesterDrafts,
+    dirtyCount,
+    saveState,
+    scheduleAutosaveMany,
+    saveAll,
+    clearStudentDraft,
+  } = draftsEngine
 
-  const effectiveScores = (studentId: string): Record<string, number | null> => {
-    const out: Record<string, number | null> = {}
-    for (const c of criteria) {
+  // ---------------------------------------------------------------
+  // Nilai efektif (draf ?? tersimpan) + progres
+  // ---------------------------------------------------------------
+  const getScore = useCallback(
+    (studentId: string, key: string): number | null => {
       if (isMonthly) {
         const draft = drafts[studentId]
-        out[c.key] =
-          draft && c.key in draft
-            ? ((draft as unknown as Record<string, number | null>)[c.key] ?? null)
-            : getSavedScore(studentId, c.key)
-      } else {
-        const draft = semesterDrafts[studentId]
-        out[c.key] =
-          draft && c.key in draft.scores
-            ? draft.scores[c.key] ?? null
-            : getSavedScore(studentId, c.key)
+        if (draft && key in draft) return (draft as unknown as Record<string, number | null>)[key] ?? null
+        const row = savedMonthlyById.get(studentId)
+        return row ? ((row as unknown as Record<string, number | null>)[key] ?? null) : null
+      }
+      const draft = semesterDrafts[studentId]
+      if (draft && key in draft.scores) return draft.scores[key] ?? null
+      const saved = savedSemesterById.get(studentId)
+      return saved ? getScoreWithFallback(saved.scores ?? {}, key) : null
+    },
+    [isMonthly, drafts, savedMonthlyById, semesterDrafts, savedSemesterById],
+  )
+
+  const getScoreRef = useRef(getScore)
+  useEffect(() => {
+    getScoreRef.current = getScore
+  }, [getScore])
+
+  const isStudentComplete = useCallback(
+    (studentId: string) => criteria.every((c) => typeof getScore(studentId, c.key) === 'number'),
+    [criteria, getScore],
+  )
+
+  const completeCount = useMemo(
+    () => students.reduce((count, student) => count + (isStudentComplete(student.id) ? 1 : 0), 0),
+    [students, isStudentComplete],
+  )
+  const incompleteCount = students.length - completeCount
+
+  const classAverage = useMemo(() => {
+    let sum = 0
+    let count = 0
+    for (const student of students) {
+      for (const criterion of criteria) {
+        const value = getScore(student.id, criterion.key)
+        if (typeof value === 'number') {
+          sum += value
+          count += 1
+        }
       }
     }
-    return out
-  }
+    return count > 0 ? Math.round((sum / count) * 100) / 100 : null
+  }, [students, criteria, getScore])
 
-  const completeCount = students.filter((s) => isComplete(type, effectiveScores(s.id), grade)).length
+  const undoRef = useRef<ScoreEdit[][]>([])
+  const redoRef = useRef<ScoreEdit[][]>([])
 
-  const patchDraft = (studentId: string, patch: Partial<MonthlyDraft>) => {
-    setDrafts((prev) => ({
-      ...prev,
-      [studentId]: { ...(prev[studentId] ?? {}), ...patch },
-    }))
-  }
+  const clearHistory = useCallback(() => {
+    undoRef.current = []
+    redoRef.current = []
+  }, [])
 
-  const patchSemesterDraft = (studentId: string, patch: Partial<SemesterDraft>) => {
-    setSemesterDrafts((prev) => {
-      const prevDraft = prev[studentId] ?? {}
-      const { scores: prevScores, ...prevRest } = prevDraft
-      const { scores: patchScores, ...patchRest } = patch
-      return {
-        ...prev,
-        [studentId]: {
-          ...prevRest,
-          ...patchRest,
-          scores: { ...prevScores, ...(patchScores ?? {}) },
-        },
+  useEffect(() => {
+    clearHistory()
+  }, [type, month, year, semester, ay, classId, clearHistory])
+
+  const pushHistory = useCallback((batch: ScoreEdit[]) => {
+    if (batch.length === 0) return
+    undoRef.current.push(batch)
+    if (undoRef.current.length > 50) undoRef.current.shift()
+    redoRef.current = []
+  }, [])
+
+  const applyEdits = useCallback(
+    (batch: ScoreEdit[], direction: 'prev' | 'next') => {
+      if (batch.length === 0) return
+      if (isMonthly) {
+        setDrafts((prev) => {
+          const next = { ...prev }
+          for (const edit of batch) {
+            next[edit.studentId] = {
+              ...(next[edit.studentId] ?? {}),
+              [edit.key]: edit[direction],
+            }
+          }
+          return next
+        })
+      } else {
+        setSemesterDrafts((prev) => {
+          const next = { ...prev }
+          for (const edit of batch) {
+            const draft = next[edit.studentId] ?? { scores: {} }
+            next[edit.studentId] = {
+              ...draft,
+              scores: { ...draft.scores, [edit.key]: edit[direction] },
+            }
+          }
+          return next
+        })
       }
-    })
+      scheduleAutosaveMany([...new Set(batch.map((edit) => edit.studentId))])
+    },
+    [isMonthly, setDrafts, setSemesterDrafts, scheduleAutosaveMany],
+  )
+
+  const undo = useCallback(() => {
+    const batch = undoRef.current.pop()
+    if (!batch) return
+    redoRef.current.push(batch)
+    applyEdits(batch, 'prev')
+  }, [applyEdits])
+
+  const redo = useCallback(() => {
+    const batch = redoRef.current.pop()
+    if (!batch) return
+    undoRef.current.push(batch)
+    applyEdits(batch, 'next')
+  }, [applyEdits])
+
+  const resetMonthlyRef = useRef(resetMonthly)
+  const resetSemesterRef = useRef(resetSemester)
+  useEffect(() => {
+    resetMonthlyRef.current = resetMonthly
+    resetSemesterRef.current = resetSemester
+  }, [resetMonthly, resetSemester])
+
+  // ---------------------------------------------------------------
+  // Aksi input & massal
+  // ---------------------------------------------------------------
+  const handleCommitScore = useCallback(
+    (studentId: string, key: string, value: number | null) => {
+      const prev = getScoreRef.current(studentId, key)
+      const edit = { studentId, key, prev, next: value }
+      if (prev !== value) pushHistory([edit])
+      applyEdits([edit], 'next')
+    },
+    [applyEdits, pushHistory],
+  )
+
+  const handleResetRow = useCallback(
+    (studentId: string) => {
+      const onError = (err: Error) => message.error(err.message || 'Gagal menghapus')
+      const onDone = () => {
+        message.success('Data santri ini dihapus untuk periode ini')
+        clearStudentDraft(studentId)
+        clearHistory()
+      }
+      if (isMonthly) {
+        resetMonthlyRef.current.mutate(
+          { studentIds: [studentId], month, year },
+          { onSuccess: onDone, onError },
+        )
+      } else {
+        resetSemesterRef.current.mutate(
+          { studentIds: [studentId], reportType: type as SemesterType, semester, academicYearId: ay },
+          { onSuccess: onDone, onError },
+        )
+      }
+    },
+    [isMonthly, month, year, type, semester, ay, message, clearStudentDraft, clearHistory],
+  )
+
+  const handleResetPeriod = () => {
+    const onError = (err: Error) => message.error(err.message || 'Gagal menghapus')
+    const onDone = () => {
+      message.success('Seluruh raport kelas untuk periode ini dihapus')
+      draftsEngine.discardDrafts()
+      clearHistory()
+    }
+    if (isMonthly) {
+      resetMonthly.mutate({ studentIds, month, year }, { onSuccess: onDone, onError })
+    } else {
+      resetSemester.mutate(
+        { studentIds, reportType: type as SemesterType, semester, academicYearId: ay },
+        { onSuccess: onDone, onError },
+      )
+    }
   }
 
   const handleCopyPrevMonth = () => {
@@ -208,364 +407,310 @@ export function InputPage() {
       message.info(`Tidak ada data ${MONTH_NAMES[prevMonth - 1]} ${prevYear} untuk disalin`)
       return
     }
-    let copied = 0
-    setDrafts((prev) => {
-      const next = { ...prev }
-      for (const row of prevRows) {
-        const hasCurrent = (() => {
-          const d = next[row.student_id]
-          const saved = savedMonthlyById.get(row.student_id)
-          return (
-            !!d && MONTHLY_KEYS.some((k) => typeof d[k] === 'number') ||
-            MONTHLY_KEYS.some((k) => typeof (saved as unknown as Record<string, number | null>)?.[k] === 'number')
-          )
-        })()
-        if (hasCurrent) continue
-        next[row.student_id] = {
-          ...next[row.student_id],
-          character_score: row.character_score,
-          worship_score: row.worship_score,
-          cleanliness_score: row.cleanliness_score,
-          quran_score: row.quran_score,
-          language_score: row.language_score,
-        }
-        copied += 1
+    const next = { ...drafts }
+    const copiedIds: string[] = []
+    for (const row of prevRows) {
+      const saved = savedMonthlyById.get(row.student_id)
+      const hasCurrent =
+        MONTHLY_SCORE_KEYS.some((k) => typeof next[row.student_id]?.[k] === 'number') ||
+        MONTHLY_SCORE_KEYS.some(
+          (k) => typeof (saved as unknown as Record<string, number | null> | undefined)?.[k] === 'number',
+        )
+      if (hasCurrent) continue
+      next[row.student_id] = {
+        ...next[row.student_id],
+        character_score: row.character_score,
+        worship_score: row.worship_score,
+        cleanliness_score: row.cleanliness_score,
+        quran_score: row.quran_score,
+        language_score: row.language_score,
       }
-      return next
-    })
-    message.success(`Nilai ${MONTH_NAMES[prevMonth - 1]} disalin ke ${copied} siswa (hanya yang belum terisi)`)
+      copiedIds.push(row.student_id)
+    }
+    setDrafts(next)
+    scheduleAutosaveMany(copiedIds)
+    clearHistory()
+    message.success(
+      `Nilai ${MONTH_NAMES[prevMonth - 1]} disalin ke ${copiedIds.length} santri (hanya yang belum terisi)`,
+    )
   }
 
-  const handleSaveAll = async () => {
-    // cegah klik ganda selama proses simpan
-    if (saveMonthly.isPending || saveSemester.isPending) return
+  const handleBulkApply = (values: BulkFillValues) => {
+    const touchedIds: string[] = []
+    // Nilai efektif (draf ?? tersimpan) — isi massal tidak boleh menimpa yang sudah terisi
+    const effective = (studentId: string): Record<string, unknown> => {
+      if (isMonthly) {
+        const saved = savedMonthlyById.get(studentId) as unknown as Record<string, unknown> | undefined
+        const draft = drafts[studentId] as unknown as Record<string, unknown> | undefined
+        return { ...(saved ?? {}), ...(draft ?? {}) }
+      }
+      const saved = savedSemesterById.get(studentId)
+      const draft = semesterDrafts[studentId]
+      return {
+        ...(saved?.scores ?? {}),
+        ...(saved?.extras ?? {}),
+        ...(draft?.scores ?? {}),
+        ...(draft ? ({ ...draft, scores: undefined } as unknown as Record<string, unknown>) : {}),
+      }
+    }
 
     if (isMonthly) {
-      const payloads: MonthlyReportPayload[] = []
-      const skippedIds: string[] = []
-
+      const next = { ...drafts }
       for (const student of students) {
-        const draft = drafts[student.id]
-        if (!draft || Object.keys(draft).length === 0) continue
-        const saved = savedMonthlyById.get(student.id)
-        const merged = {
-          character_score: saved?.character_score ?? null,
-          worship_score: saved?.worship_score ?? null,
-          cleanliness_score: saved?.cleanliness_score ?? null,
-          quran_score: saved?.quran_score ?? null,
-          language_score: saved?.language_score ?? null,
-          weight_kg: saved?.weight_kg ?? null,
-          height_cm: saved?.height_cm ?? null,
-          ziyadah: saved?.ziyadah ?? null,
-          murojaah: saved?.murojaah ?? null,
-          total_hafalan: saved?.total_hafalan ?? null,
-          sholat: saved?.sholat ?? null,
-          sick_days: saved?.sick_days ?? 0,
-          excused_days: saved?.excused_days ?? 0,
-          absent_days: saved?.absent_days ?? 0,
-          early_leave_days: saved?.early_leave_days ?? 0,
-          notes: saved?.notes ?? null,
-          violations: saved?.violations ?? null,
-          achievements: saved?.achievements ?? null,
+        const cur = effective(student.id)
+        const patch: Record<string, unknown> = {}
+        for (const c of criteria) {
+          const v = values.scores[c.key]
+          if (typeof v === 'number' && typeof cur[c.key] !== 'number') patch[c.key] = v
+        }
+        for (const k of ['weight_kg', 'height_cm', 'ziyadah', 'murojaah', 'sholat', 'sick_days', 'excused_days', 'absent_days', 'early_leave_days', 'notes'] as const) {
+          const v = values[k]
+          if (v === null || v === undefined || v === '') continue
+          if (cur[k] !== undefined && cur[k] !== null && cur[k] !== '') continue
+          patch[k] = v
+        }
+        if (Object.keys(patch).length === 0) continue
+        touchedIds.push(student.id)
+        next[student.id] = { ...(drafts[student.id] ?? {}), ...patch } as MonthlyDraft
+      }
+      setDrafts(next)
+    } else {
+      const next = { ...semesterDrafts }
+      for (const student of students) {
+        const d = semesterDrafts[student.id] ?? { scores: {} as Record<string, number | null> }
+        const cur = effective(student.id)
+        const newScores: Record<string, number | null> = {}
+        for (const c of criteria) {
+          const v = values.scores[c.key]
+          if (typeof v === 'number' && typeof cur[c.key] !== 'number') newScores[c.key] = v
+        }
+        const extrasPatch: Partial<SemesterDraft> = {}
+        for (const k of ['weight_kg', 'height_cm', 'sholat', 'sick_days', 'excused_days', 'absent_days', 'early_leave_days', 'notes'] as const) {
+          const v = values[k]
+          if (v === null || v === undefined || v === '') continue
+          if (cur[k] !== undefined && cur[k] !== null && cur[k] !== '') continue
+          ;(extrasPatch as Record<string, unknown>)[k] = v
+        }
+        if (Object.keys(newScores).length === 0 && Object.keys(extrasPatch).length === 0) continue
+        touchedIds.push(student.id)
+        next[student.id] = { ...d, scores: { ...d.scores, ...newScores }, ...extrasPatch }
+      }
+      setSemesterDrafts(next)
+    }
+    if (touchedIds.length > 0) {
+      scheduleAutosaveMany(touchedIds)
+      clearHistory()
+      message.success(
+        `Isi massal diterapkan ke ${touchedIds.length} santri (sel kosong saja) dan akan tersimpan otomatis.`,
+      )
+    } else {
+      message.info('Tidak ada sel kosong yang cocok dengan nilai yang diisi')
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Filter daftar santri
+  // ---------------------------------------------------------------
+  const visibleStudents = useMemo(() => {
+    let rows = students
+    const q = debouncedSearch.trim().toLowerCase()
+    if (q) rows = rows.filter((s) => s.name.toLowerCase().includes(q) || s.registration_code.toLowerCase().includes(q))
+    if (incompleteOnly) rows = rows.filter((s) => !isStudentComplete(s.id))
+    return rows
+  }, [students, debouncedSearch, incompleteOnly, isStudentComplete])
+
+  const handlePasteScores = useCallback(
+    (startStudentId: string, startCriterionKey: string, values: (number | null)[][]) => {
+      const startRow = visibleStudents.findIndex((student) => student.id === startStudentId)
+      const startCol = criteria.findIndex((criterion) => criterion.key === startCriterionKey)
+      if (startRow < 0 || startCol < 0) return
+
+      const batch: ScoreEdit[] = []
+      for (let rowOffset = 0; rowOffset < values.length; rowOffset++) {
+        const student = visibleStudents[startRow + rowOffset]
+        if (!student) break
+        for (let colOffset = 0; colOffset < values[rowOffset].length; colOffset++) {
+          const criterion = criteria[startCol + colOffset]
+          if (!criterion) break
+          const value = values[rowOffset][colOffset]
+          if (value === null) continue
+          const prev = getScoreRef.current(student.id, criterion.key)
+          if (prev === value) continue
+          batch.push({ studentId: student.id, key: criterion.key, prev, next: value })
+        }
+      }
+
+      if (batch.length === 0) {
+        message.info('Tidak ada nilai baru yang ditempelkan')
+        return
+      }
+      pushHistory(batch)
+      applyEdits(batch, 'next')
+      message.success(`${batch.length} nilai ditempelkan`)
+    },
+    [visibleStudents, criteria, pushHistory, applyEdits, message],
+  )
+
+  const shortcutsOpenRef = useRef<() => void>(() => {})
+  const jumpNextRef = useRef<() => void>(() => {})
+
+  const shortcuts = useShortcuts({
+    items: [
+      {
+        keys: ['Ctrl', 'S'],
+        label: 'Simpan Semua',
+        description: 'Simpan seluruh draf nilai kelas ini',
+        group: 'Aksi',
+        icon: <SaveOutlined />,
+        run: () => void saveAll(),
+        when: canWrite,
+      },
+      {
+        keys: ['Ctrl', 'Z'],
+        label: 'Undo',
+        description: 'Batalkan perubahan nilai terakhir',
+        group: 'Aksi',
+        icon: <UndoOutlined />,
+        run: undo,
+        when: canWrite,
+      },
+      {
+        keys: ['Ctrl', 'Shift', 'Z'],
+        label: 'Redo',
+        description: 'Ulangi perubahan nilai yang dibatalkan',
+        group: 'Aksi',
+        icon: <RedoOutlined />,
+        run: redo,
+        when: canWrite,
+      },
+      {
+        keys: ['Alt', 'ArrowDown'],
+        label: 'Lompat ke belum lengkap',
+        description: 'Fokus ke santri berikutnya yang nilainya belum lengkap',
+        group: 'Navigasi',
+        icon: <ArrowDownOutlined />,
+        run: () => jumpNextRef.current(),
+        when: canWrite,
+      },
+      {
+        keys: ['?'],
+        label: 'Bantuan shortcut',
+        description: 'Buka daftar shortcut keyboard',
+        group: 'Bantuan',
+        icon: <QuestionCircleOutlined />,
+        run: () => shortcutsOpenRef.current(),
+      },
+    ],
+    isBlocked: bulkOpen || !!extrasStudent,
+  })
+
+  useEffect(() => {
+    shortcutsOpenRef.current = shortcuts.toggle
+  }, [shortcuts.toggle])
+
+  // Guard: jangan tutup tab saat masih ada draf
+  useEffect(() => {
+    if (draftsEngine.dirtyCount === 0) return
+    const fn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', fn)
+    return () => window.removeEventListener('beforeunload', fn)
+  }, [draftsEngine.dirtyCount])
+
+  const previewPath = useMemo(() => {
+    const sp = new URLSearchParams(searchParams)
+    return `/report-cards/preview/${classId}?${sp.toString()}`
+  }, [searchParams, classId])
+
+  const backPath = useMemo(() => {
+    const sp = new URLSearchParams()
+    if (isMonthly) {
+      sp.set('mode', 'monthly')
+      sp.set('month', String(month))
+      sp.set('year', String(year))
+    } else {
+      sp.set('mode', 'semester')
+      sp.set('semesterType', type)
+      sp.set('semester', String(semester))
+      if (ay) sp.set('ay', ay)
+    }
+    return `/report-cards?${sp.toString()}`
+  }, [isMonthly, month, year, type, semester, ay])
+
+  const handleLeave = useCallback(
+    async (target: string) => {
+      if (dirtyCount > 0) {
+        const saved = await saveAll({ silent: true })
+        if (!saved) return
+      }
+      navigate(target)
+    },
+    [dirtyCount, saveAll, navigate],
+  )
+  const pct = students.length > 0 ? Math.round((completeCount / students.length) * 100) : 0
+  const saving = saveMonthly.isPending || saveSemester.isPending
+  const activeDrafts = isMonthly ? drafts : semesterDrafts
+  const dirtyIds = useMemo(() => new Set(Object.keys(activeDrafts)), [activeDrafts])
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
+  const jumpCursor = useRef<string | null>(null)
+  const focusNonce = useRef(0)
+
+  const hasIncompleteVisible = useMemo(
+    () =>
+      visibleStudents.some((student) =>
+        criteria.some((criterion) => typeof getScore(student.id, criterion.key) !== 'number'),
+      ),
+    [visibleStudents, criteria, getScore],
+  )
+
+  const jumpToNextIncomplete = useCallback(() => {
+    if (visibleStudents.length === 0) return
+    const start = jumpCursor.current
+      ? visibleStudents.findIndex((s) => s.id === jumpCursor.current) + 1
+      : 0
+    for (let i = 0; i < visibleStudents.length; i++) {
+      const student = visibleStudents[(start + i) % visibleStudents.length]
+      const col = criteria.findIndex(
+        (criterion) => typeof getScore(student.id, criterion.key) !== 'number',
+      )
+      if (col >= 0) {
+        jumpCursor.current = student.id
+        focusNonce.current += 1
+        setFocusRequest({ studentId: student.id, col, nonce: focusNonce.current })
+        return
+      }
+    }
+    message.info('Semua santri pada daftar ini sudah lengkap')
+  }, [visibleStudents, criteria, getScore, message])
+
+  useEffect(() => {
+    jumpNextRef.current = jumpToNextIncomplete
+  }, [jumpToNextIncomplete])
+
+  const clearFilters = useCallback(() => {
+    setSearch('')
+    setIncompleteOnly(false)
+  }, [])
+
+  const extrasMonthlyInitial = extrasStudent
+    ? {
+        ...(savedMonthlyById.get(extrasStudent.id) as MonthlyDraft | undefined),
+        ...drafts[extrasStudent.id],
+      }
+    : undefined
+
+  const extrasSemesterInitial = extrasStudent
+    ? (() => {
+        const saved = savedSemesterById.get(extrasStudent.id)
+        const draft = semesterDrafts[extrasStudent.id]
+        return {
+          ...(saved?.extras as SemesterDraft | undefined),
           ...draft,
+          scores: { ...(saved?.scores ?? {}), ...(draft?.scores ?? {}) },
         }
-        // data pendukung (fisik, kehadiran) juga dihitung sebagai isi
-        const hasAny =
-          MONTHLY_KEYS.some((k) => typeof merged[k] === 'number') ||
-          Boolean(
-            merged.notes ||
-              merged.ziyadah ||
-              merged.murojaah ||
-              merged.total_hafalan ||
-              merged.weight_kg ||
-              merged.height_cm ||
-              merged.sholat ||
-              merged.sick_days ||
-              merged.excused_days ||
-              merged.absent_days ||
-              merged.early_leave_days,
-          )
-        // lewati hanya jika belum ada baris tersimpan DAN memang kosong.
-        // Jika baris sudah ada, tetap disimpan agar pengosongan nilai ikut tersimpan.
-        if (!saved && !hasAny) {
-          skippedIds.push(student.id)
-          continue
-        }
-        payloads.push({
-          student_id: student.id,
-          month: month,
-          year: year,
-          musyrif_name: musyrif || classRow?.homeroom_teacher?.name || null,
-          ...merged,
-          updated_by: null,
-        })
-      }
-
-      if (payloads.length === 0) {
-        // bersihkan draf kosong agar badge "belum disimpan" tidak menggantung
-        if (skippedIds.length) setDrafts((prev) => omitKeys(prev, skippedIds))
-        message.info('Tidak ada perubahan untuk disimpan')
-        return
-      }
-
-      const incomplete = payloads.filter(
-        (p) => !MONTHLY_KEYS.every((k) => typeof p[k] === 'number'),
-      ).length
-      if (incomplete > 0) {
-        message.warning(
-          `${incomplete} siswa belum lengkap — data yang terisi saja yang tersimpan.`,
-          4,
-        )
-      }
-
-      try {
-        const { data: userData } = await supabase.auth.getUser()
-        await saveMonthly.mutateAsync(
-          payloads.map((p) => ({ ...p, updated_by: userData.user?.id ?? null })),
-        )
-        message.success(`${payloads.length} raport tersimpan`)
-        // hapus hanya draf yang benar-benar tersimpan (ketikan baru tidak ikut hilang)
-        const doneIds = [...payloads.map((p) => p.student_id), ...skippedIds]
-        setDrafts((prev) => omitKeys(prev, doneIds))
-      } catch (err) {
-        message.error((err as Error).message || 'Gagal menyimpan')
-      }
-    } else {
-      // Semester
-      if (!ay) {
-        message.warning('Pilih tahun ajaran terlebih dahulu')
-        return
-      }
-      const payloads: SemesterReportPayload[] = []
-      const skippedIds: string[] = []
-
-      for (const student of students) {
-        const draft = semesterDrafts[student.id]
-        if (!draft) continue
-        const saved = savedSemesterById.get(student.id)
-        const scores = { ...(saved?.scores ?? {}), ...draft.scores }
-        const extras = {
-          weight_kg: draft.weight_kg ?? saved?.extras?.weight_kg ?? null,
-          height_cm: draft.height_cm ?? saved?.extras?.height_cm ?? null,
-          sholat: draft.sholat ?? saved?.extras?.sholat ?? null,
-          sick_days: draft.sick_days ?? saved?.extras?.sick_days ?? 0,
-          excused_days: draft.excused_days ?? saved?.extras?.excused_days ?? 0,
-          absent_days: draft.absent_days ?? saved?.extras?.absent_days ?? 0,
-          early_leave_days: draft.early_leave_days ?? saved?.extras?.early_leave_days ?? 0,
-          notes: draft.notes ?? saved?.extras?.notes ?? null,
-        }
-        const hasAny =
-          Object.values(scores).some((v) => typeof v === 'number') ||
-          Boolean(
-            extras.notes ||
-              extras.weight_kg ||
-              extras.height_cm ||
-              extras.sholat ||
-              extras.sick_days ||
-              extras.excused_days ||
-              extras.absent_days ||
-              extras.early_leave_days,
-          )
-        if (!saved && !hasAny) {
-          skippedIds.push(student.id)
-          continue
-        }
-        payloads.push({
-          student_id: student.id,
-          report_type: type as SemesterType,
-          semester,
-          academic_year_id: ay,
-          scores,
-          extras,
-          musyrif_name: musyrif || classRow?.homeroom_teacher?.name || null,
-          updated_by: null,
-        })
-      }
-
-      if (payloads.length === 0) {
-        if (skippedIds.length) setSemesterDrafts((prev) => omitKeys(prev, skippedIds))
-        message.info('Tidak ada perubahan untuk disimpan')
-        return
-      }
-
-      try {
-        const { data: userData } = await supabase.auth.getUser()
-        await saveSemester.mutateAsync(
-          payloads.map((p) => ({ ...p, updated_by: userData.user?.id ?? null })),
-        )
-        message.success(`${payloads.length} raport tersimpan`)
-        const doneIds = [...payloads.map((p) => p.student_id), ...skippedIds]
-        setSemesterDrafts((prev) => omitKeys(prev, doneIds))
-      } catch (err) {
-        message.error((err as Error).message || 'Gagal menyimpan')
-      }
-    }
-  }
-
-  const handleResetRow = (studentId: string) => {
-    if (isMonthly) {
-      resetMonthly.mutate(
-        { studentIds: [studentId], month: month, year: year },
-        {
-          onSuccess: () => {
-            message.success('Data siswa ini dihapus untuk periode ini')
-            setDrafts((prev) => {
-              const next = { ...prev }
-              delete next[studentId]
-              return next
-            })
-          },
-          onError: (err: Error) => message.error(err.message || 'Gagal menghapus'),
-        },
-      )
-    } else {
-      resetSemester.mutate(
-        { studentIds: [studentId], reportType: type as SemesterType, semester, academicYearId: ay },
-        {
-          onSuccess: () => {
-            message.success('Data siswa ini dihapus untuk periode ini')
-            setSemesterDrafts((prev) => {
-              const next = { ...prev }
-              delete next[studentId]
-              return next
-            })
-          },
-          onError: (err: Error) => message.error(err.message || 'Gagal menghapus'),
-        },
-      )
-    }
-  }
-
-  const columns: TableColumnsType<ReportCardStudent> = [
-    {
-      title: 'Santri',
-      key: 'name',
-      fixed: 'left',
-      width: 200,
-      render: (_, row) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{row.name}</div>
-          <span style={{ fontSize: 12, color: '#888' }}>{row.registration_code}</span>
-        </div>
-      ),
-    },
-    ...criteria.map((c) => ({
-      title: (
-        <Tooltip title={c.desc ? `${c.label} · ${c.desc} (Skala 0–${maxScore})` : `Skala 0–${maxScore}`}>
-          <span style={{ cursor: 'help' }}>{c.label}</span>
-        </Tooltip>
-      ),
-      key: c.key,
-      width: 104,
-      render: (_: unknown, row: ReportCardStudent) => {
-        const scoresObj = effectiveScores(row.id)
-        const value = getScoreWithFallback(scoresObj, c.key)
-        return (
-          <InputNumber
-            size="small"
-            style={{ width: 76 }}
-            min={0}
-            max={maxScore}
-            value={value ?? undefined}
-            disabled={!canWrite}
-            onChange={(v) =>
-              isMonthly
-                ? patchDraft(row.id, { [c.key]: v ?? null } as Partial<MonthlyDraft>)
-                : patchSemesterDraft(row.id, {
-                    scores: { ...semesterDrafts[row.id]?.scores, [c.key]: v ?? null },
-                  })
-            }
-          />
-        )
-      },
-    })),
-    {
-      title: 'Rata-rata',
-      key: 'avg',
-      width: 88,
-      responsive: ['md'],
-      render: (_, row) => {
-        const avg = calcAverage(type, effectiveScores(row.id), grade)
-        return <Typography.Text strong>{avg ?? '—'}</Typography.Text>
-      },
-    },
-    {
-      title: 'Status',
-      key: 'status',
-      width: 110,
-      render: (_, row) =>
-        isComplete(type, effectiveScores(row.id), grade) ? (
-          <StatusTag color="green">Lengkap</StatusTag>
-        ) : (
-          <StatusTag color="default">Kosong</StatusTag>
-        ),
-    },
-    ...(isMonthly
-      ? [
-          {
-            title: 'Poin Bulan Ini',
-            key: 'behavior',
-            width: 110,
-            responsive: ['lg' as const],
-            render: (_: unknown, row: ReportCardStudent) => {
-              const info = behaviorByStudent.get(row.id)
-              if (!info || (info.negative === 0 && info.positive === 0)) {
-                return <span style={{ color: '#bbb' }}>—</span>
-              }
-              const badge = (
-                <Space size={4}>
-                  {info.negative > 0 && (
-                    <Badge count={info.negative} color="#ef4444" title="Pelanggaran" />
-                  )}
-                  {info.positive > 0 && (
-                    <Badge count={info.positive} color="#10b981" title="Prestasi" />
-                  )}
-                </Space>
-              )
-              return info.items.length > 0 ? (
-                <Tooltip title={<div>{info.items.map((t, i) => <div key={i}>{t}</div>)}</div>}>
-                  {badge}
-                </Tooltip>
-              ) : (
-                badge
-              )
-            },
-          },
-        ]
-      : []),
-    {
-      title: 'Aksi',
-      key: 'actions',
-      fixed: 'right',
-      width: 110,
-      render: (_, row) => (
-        <Space size="small">
-          <Tooltip title="Data pendukung (fisik, kehadiran, catatan)">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              disabled={!canWrite}
-              onClick={() => setExtrasStudent(row)}
-            />
-          </Tooltip>
-          {canDelete && (
-            <Popconfirm
-              title="Hapus data raport siswa ini?"
-              description="Baris raport periode ini akan dihapus permanen."
-              onConfirm={() => handleResetRow(row.id)}
-              okText="Hapus"
-              cancelText="Batal"
-            >
-              <Button type="text" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
-  ]
-
-  const previewSp = new URLSearchParams(searchParams)
-  const previewPath = `/report-cards/preview/${classId}?${previewSp.toString()}`
+      })()
+    : undefined
 
   return (
     <div>
@@ -574,24 +719,30 @@ export function InputPage() {
         subtitle={classRow ? `Kelas ${classRow.name}` : '...'}
         extra={
           <Space wrap>
-            <Link to={previewPath}>
-              <Button icon={<PrinterOutlined />}>Preview & Cetak</Button>
-            </Link>
-            {isMonthly && (
-              <Button icon={<CopyOutlined />} onClick={handleCopyPrevMonth} disabled={!canWrite}>
-                Salin dari {MONTH_NAMES[prevMonth - 1]}
-              </Button>
-            )}
+            <Button icon={<ArrowLeftOutlined />} onClick={() => void handleLeave(backPath)}>
+              Kembali
+            </Button>
+            <Button icon={<PrinterOutlined />} onClick={() => void handleLeave(previewPath)}>
+              Preview & Cetak
+            </Button>
             {canWrite && (
               <Button
                 type="primary"
                 icon={<SaveOutlined />}
-                loading={saveMonthly.isPending || saveSemester.isPending}
-                onClick={handleSaveAll}
+                loading={saving}
+                disabled={dirtyCount === 0}
+                onClick={() => void saveAll()}
               >
                 Simpan Semua
               </Button>
             )}
+            <Tooltip title="Shortcut keyboard (?)">
+              <Button
+                aria-label="Palet shortcut"
+                icon={<QuestionCircleOutlined />}
+                onClick={shortcuts.open}
+              />
+            </Tooltip>
           </Space>
         }
       />
@@ -607,53 +758,296 @@ export function InputPage() {
         />
       )}
 
-      <Card>
-        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-            Lengkap {completeCount}/{students.length} santri · skala 0–{maxScore}
-            {drafts && Object.keys(drafts).length > 0 && isMonthly && (
-              <Tag color="processing" style={{ marginLeft: 8 }}>
-                {Object.keys(drafts).length} draf belum disimpan
-              </Tag>
-            )}
-            {semesterDrafts && Object.keys(semesterDrafts).length > 0 && !isMonthly && (
-              <Tag color="processing" style={{ marginLeft: 8 }}>
-                {Object.keys(semesterDrafts).length} draf belum disimpan
-              </Tag>
-            )}
-          </Typography.Text>
-        </div>
-        <Table<ReportCardStudent>
-          rowKey="id"
-          columns={columns}
-          dataSource={students}
-          loading={
-            studentsQuery.isLoading ||
-            (isMonthly ? monthlyQuery.isLoading : semesterQuery.isLoading)
+      {draftsEngine.restoreBanner && draftsEngine.dirtyCount > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          closable
+          onClose={draftsEngine.dismissRestore}
+          message={
+            <span>
+              Ada draf dari sesi sebelumnya ({draftsEngine.dirtyCount} santri belum tersimpan).{' '}
+              <Button
+                type="link"
+                size="small"
+                danger
+                style={{ padding: 0 }}
+                onClick={() => {
+                  draftsEngine.discardDrafts()
+                  clearHistory()
+                }}
+              >
+                Buang draf
+              </Button>
+            </span>
           }
-          locale={{
-            emptyText: (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Kelas ini belum punya siswa" />
-            ),
-          }}
-          pagination={pg.pagination}
-          scroll={{ x: true }}
+          style={{ marginBottom: 16 }}
         />
+      )}
+
+      <Card>
+        {/* Toolbar */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: singleRow ? 'nowrap' : 'wrap',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          <Input
+            allowClear
+            prefix={<SearchOutlined style={{ color: token.colorTextQuaternary }} />}
+            placeholder="Cari nama atau kode santri"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            style={{
+              flex: '1 1 180px',
+              minWidth: 150,
+              maxWidth: showPrimaryLabels ? 320 : 240,
+            }}
+            aria-label="Cari santri"
+          />
+
+          <Button
+            type={incompleteOnly ? 'primary' : 'default'}
+            icon={incompleteOnly ? <CheckOutlined /> : <FilterOutlined />}
+            onClick={() => setIncompleteOnly((value) => !value)}
+            aria-pressed={incompleteOnly}
+            aria-label="Filter belum lengkap"
+            title={showPrimaryLabels ? undefined : 'Tampilkan santri yang belum lengkap'}
+            style={{ flexShrink: 0 }}
+          >
+            {showPrimaryLabels
+              ? `Belum lengkap${incompleteCount > 0 ? ` · ${incompleteCount}` : ''}`
+              : incompleteCount > 0
+                ? incompleteCount
+                : null}
+          </Button>
+
+          {!isMobile && (
+            <Button
+              icon={<ArrowDownOutlined />}
+              onClick={jumpToNextIncomplete}
+              disabled={!hasIncompleteVisible || students.length === 0}
+              aria-label="Santri berikutnya yang belum lengkap"
+              title="Santri berikutnya yang belum lengkap"
+              style={{ flexShrink: 0 }}
+            />
+          )}
+
+          <div
+            style={{
+              marginLeft: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              flexWrap: 'wrap',
+              gap: 8,
+              flexShrink: singleRow ? 0 : 1,
+            }}
+          >
+            <span
+              title={`${completeCount} dari ${students.length} santri lengkap${
+                classAverage !== null ? `, rata-rata ${classAverage}` : ''
+              }`}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Typography.Text
+                type="secondary"
+                style={{
+                  fontSize: 12.5,
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {showPrimaryLabels ? 'Tuntas ' : ''}
+                {completeCount}/{students.length}
+              </Typography.Text>
+              <Progress
+                percent={pct}
+                size="small"
+                style={{ width: showPrimaryLabels ? 100 : 72, marginBottom: 0 }}
+                showInfo={false}
+              />
+              <Typography.Text
+                type="secondary"
+                style={{
+                  fontSize: 12.5,
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                · {showPrimaryLabels ? 'Rata-rata ' : 'Rata '}
+                {classAverage ?? '–'}
+              </Typography.Text>
+            </span>
+
+            {saveState === 'saving' ? (
+              <Typography.Text
+                type="secondary"
+                style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}
+              >
+                <LoadingOutlined /> Menyimpan...
+              </Typography.Text>
+            ) : saveState === 'saved' && draftsEngine.dirtyCount === 0 ? (
+              <Typography.Text type="success" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                <CheckOutlined /> Tersimpan
+              </Typography.Text>
+            ) : saveState === 'error' ? (
+              <Typography.Text type="danger" style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>
+                Gagal menyimpan
+              </Typography.Text>
+            ) : null}
+
+            {draftsEngine.dirtyCount > 0 && (
+              <Tag color="processing" style={{ marginInlineEnd: 0 }}>
+                {draftsEngine.dirtyCount} draf
+              </Tag>
+            )}
+
+            {canWrite && (
+              <Tooltip title="Isi nilai yang sama ke sel kosong">
+                <Button
+                  icon={<ThunderboltOutlined />}
+                  onClick={() => setBulkOpen(true)}
+                  disabled={students.length === 0}
+                  aria-label="Isi massal"
+                  style={{ flexShrink: 0 }}
+                >
+                  {showPrimaryLabels ? 'Isi Massal' : null}
+                </Button>
+              </Tooltip>
+            )}
+
+            {isMonthly && canWrite && (
+              <Tooltip
+                title={`Salin nilai ${MONTH_NAMES[prevMonth - 1]} ${prevYear}. Hanya sel kosong yang diisi.`}
+              >
+                <Button
+                  icon={<CopyOutlined />}
+                  onClick={handleCopyPrevMonth}
+                  disabled={students.length === 0}
+                  aria-label={`Salin nilai ${MONTH_NAMES[prevMonth - 1]}`}
+                  style={{ flexShrink: 0 }}
+                >
+                  {showAllLabels ? `Salin ${MONTH_NAMES[prevMonth - 1]}` : null}
+                </Button>
+              </Tooltip>
+            )}
+
+            {canDelete && students.length > 0 && (
+              <Popconfirm
+                title="Hapus raport seluruh kelas untuk periode ini?"
+                description={`${students.length} baris raport akan dihapus permanen.`}
+                okText="Ya, hapus"
+                cancelText="Batal"
+                onConfirm={handleResetPeriod}
+              >
+                <Button
+                  danger
+                  icon={<UndoOutlined />}
+                  aria-label="Reset periode"
+                  style={{ flexShrink: 0 }}
+                >
+                  {showAllLabels ? 'Reset' : null}
+                </Button>
+              </Popconfirm>
+            )}
+          </div>
+        </div>
+
+        {studentsQuery.isError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="Gagal memuat daftar santri"
+            description={(studentsQuery.error as Error)?.message ?? 'Coba muat ulang halaman.'}
+            action={
+              <Button size="small" onClick={() => void studentsQuery.refetch()}>
+                Coba lagi
+              </Button>
+            }
+          />
+        ) : studentsQuery.isPending ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : isMobile ? (
+          <MobileEntry
+            students={visibleStudents}
+            criteria={criteria}
+            type={type}
+            maxScore={maxScore}
+            canWrite={canWrite}
+            behaviorByStudent={behaviorByStudent}
+            hasClassStudents={students.length > 0}
+            getScore={getScore}
+            onCommitScore={handleCommitScore}
+            onOpenExtras={setExtrasStudent}
+            onClearFilters={clearFilters}
+          />
+        ) : (
+          <EntryGrid
+            students={visibleStudents}
+            criteria={criteria}
+            type={type}
+            maxScore={maxScore}
+            showBehavior={isMonthly}
+            canWrite={canWrite}
+            canDelete={canDelete}
+            behaviorByStudent={behaviorByStudent}
+            dirtyIds={dirtyIds}
+            focusRequest={focusRequest}
+            hasClassStudents={students.length > 0}
+            getScore={getScore}
+            onCommitScore={handleCommitScore}
+            onOpenExtras={setExtrasStudent}
+            onResetRow={handleResetRow}
+            onClearFilters={clearFilters}
+            onUndo={undo}
+            onRedo={redo}
+            onPasteScores={handlePasteScores}
+          />
+        )}
+
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
+          {isMobile
+            ? 'Perubahan tersimpan otomatis beberapa saat setelah berhenti mengetik.'
+            : 'Tips: Enter pindah sel, panah atas/bawah pindah santri, Alt+↓ lompat ke yang belum lengkap, Ctrl+Z/Ctrl+Shift+Z undo/redo, Ctrl+S simpan semua. Tempel blok dari Excel/Sheets ke sel untuk mengisi banyak nilai. Perubahan tersimpan otomatis beberapa saat setelah berhenti mengetik.'}
+        </Typography.Paragraph>
       </Card>
 
       <ExtrasDrawer
         open={!!extrasStudent}
         student={extrasStudent}
         type={type}
-        monthlyInitial={extrasStudent ? drafts[extrasStudent.id] ?? undefined : undefined}
-        semesterInitial={extrasStudent ? semesterDrafts[extrasStudent.id] ?? undefined : undefined}
+        monthlyInitial={extrasMonthlyInitial}
+        semesterInitial={extrasSemesterInitial}
         onClose={() => setExtrasStudent(null)}
-        onSaveMonthly={(sid, draft) => patchDraft(sid, draft)}
+        onSaveMonthly={(sid, draft) => {
+          setDrafts((prev) => ({ ...prev, [sid]: { ...(prev[sid] ?? {}), ...draft } }))
+          draftsEngine.scheduleAutosave(sid)
+        }}
         onSaveSemester={(sid, draft) => {
           const { scores, ...rest } = draft
-          patchSemesterDraft(sid, { scores: { ...semesterDrafts[sid]?.scores, ...scores }, ...rest })
+          setSemesterDrafts((prev) => {
+            const d = prev[sid] ?? { scores: {} }
+            return { ...prev, [sid]: { ...d, ...rest, scores: { ...d.scores, ...scores } } }
+          })
+          draftsEngine.scheduleAutosave(sid)
         }}
       />
+
+      <BulkFillModal
+        open={bulkOpen}
+        type={type}
+        criteria={criteria}
+        maxScore={maxScore}
+        onClose={() => setBulkOpen(false)}
+        onApply={handleBulkApply}
+      />
+
+      <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>
   )
 }

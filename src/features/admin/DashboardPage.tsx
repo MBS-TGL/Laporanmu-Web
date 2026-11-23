@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Col, Empty, List, Row, Segmented, Tag, Tooltip, Typography, theme } from 'antd'
 import {
   AuditOutlined,
   CrownFilled,
   DatabaseOutlined,
+  FileDoneOutlined,
+  FileTextOutlined,
+  ReadOutlined,
   SafetyOutlined,
   TeamOutlined,
   ThunderboltOutlined,
@@ -30,8 +33,15 @@ import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useAuditActivity, useAuditLogs, useIntegrityIssues, useTableStats } from './hooks'
+import { TABLE_LABELS } from './api'
+import { SystemHealth } from './components/SystemHealth'
+import { SetupChecklist } from './components/SetupChecklist'
 
 const PIE_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#f43f5e', '#7c3aed', '#14b8a6', '#eab308']
+
+// Pie hanya menampilkan 7 tabel terbesar; sisanya digabung "Lainnya"
+// agar tabel dominan (audit_logs) tidak menenggelamkan slice lain.
+const PIE_TOP_N = 7
 
 const RANGE_OPTIONS = [
   { label: '7 hari', value: 7 },
@@ -39,15 +49,28 @@ const RANGE_OPTIONS = [
   { label: '30 hari', value: 30 },
 ]
 
-// Tab tujuan memakai key tab ?tab= AdminPage (bukan URL /admin/* legacy
-// yang hanya melewati ALIAS_REDIRECTS sebelum sampai ke tab yang sama)
-const QUICK_LINKS = [
+const TOOLTIP_CONTENT_STYLE = { borderRadius: 10, fontSize: 12.5 } as const
+
+// Tab tujuan memakai key tab ?tab= AdminPage; `href` untuk modul di luar
+// /admin. Key legacy (penyimpanan/otomatisasi/…) dihapus — langsung key aktif.
+interface QuickLink {
+  tab?: string
+  href?: string
+  label: string
+  desc: string
+  icon: React.ReactNode
+}
+
+const QUICK_LINKS: QuickLink[] = [
   { tab: 'database', label: 'Kesehatan Database', desc: 'Hitungan tabel & integritas', icon: <DatabaseOutlined /> },
-  { tab: 'penyimpanan', label: 'Penyimpanan', desc: 'Bucket & pembersihan file', icon: <DatabaseOutlined /> },
-  { tab: 'otomatisasi', label: 'Otomatisasi', desc: 'Tugas pemeliharaan manual', icon: <ThunderboltOutlined /> },
-  { tab: 'pengaturan', label: 'Pengaturan Developer', desc: 'Feature flags & maintenance', icon: <SafetyOutlined /> },
-  { tab: 'pengguna', label: 'Pengguna', desc: 'Kelola akun & role', icon: <UserOutlined /> },
+  { tab: 'storage', label: 'Penyimpanan', desc: 'Bucket & pembersihan file', icon: <DatabaseOutlined /> },
+  { tab: 'automation', label: 'Otomatisasi', desc: 'Tugas pemeliharaan manual', icon: <ThunderboltOutlined /> },
+  { tab: 'settings', label: 'Pengaturan Developer', desc: 'Feature flags & maintenance', icon: <SafetyOutlined /> },
+  { tab: 'users', label: 'Pengguna', desc: 'Kelola akun & role', icon: <UserOutlined /> },
   { tab: 'audit', label: 'Audit Log', desc: 'Jejak perubahan data', icon: <AuditOutlined /> },
+  { href: '/instruments', label: 'Evaluasi', desc: 'Angket AKPD, EDOM, sosiometri', icon: <FileDoneOutlined /> },
+  { href: '/documents', label: 'Dokumen Akademik', desc: 'Kurmer, KHS, transkrip', icon: <FileTextOutlined /> },
+  { href: '/worship', label: 'Ibadah', desc: 'Penguasaan ibadah santri', icon: <ReadOutlined /> },
 ]
 
 export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (tab: string) => void; active: boolean }) {
@@ -66,10 +89,12 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
     () => [...tableStats].sort((a, b) => b.total - a.total)[0],
     [tableStats],
   )
-  const pieData = useMemo(
-    () => tableStats.map((t) => ({ name: t.label, value: t.total })),
-    [tableStats],
-  )
+  const pieData = useMemo(() => {
+    const sorted = [...tableStats].sort((a, b) => b.total - a.total)
+    const top = sorted.slice(0, PIE_TOP_N).map((t) => ({ name: t.label, value: t.total }))
+    const restTotal = sorted.slice(PIE_TOP_N).reduce((sum, t) => sum + t.total, 0)
+    return restTotal > 0 ? [...top, { name: 'Lainnya', value: restTotal }] : top
+  }, [tableStats])
   const activityData = useMemo(
     () => (activityQuery.data ?? []).map((d) => ({ ...d, label: dayjs(d.date).format('DD/MM') })),
     [activityQuery.data],
@@ -81,6 +106,15 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
   const profilesStat = tableStats.find((t) => t.key === 'profiles')
   const auditStat = tableStats.find((t) => t.key === 'audit_logs')
 
+  // shortcutItems dibuat stabil: refetch dibungkus ref agar memo tidak
+  // ter-buang tiap transisi isFetching query
+  const refreshRef = useRef<() => void>(() => {})
+  refreshRef.current = () => {
+    void statsQuery.refetch()
+    void activityQuery.refetch()
+    void integrityQuery.refetch()
+    void recentQuery.refetch()
+  }
   const shortcutItems = useMemo<ShortcutItem[]>(
     () => [
       {
@@ -88,15 +122,11 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
         label: 'Segarkan semua data',
         group: 'Aksi',
         icon: <ThunderboltOutlined />,
-        run: () => {
-          void statsQuery.refetch()
-          void activityQuery.refetch()
-          void integrityQuery.refetch()
-          void recentQuery.refetch()
-        },
+        run: () => refreshRef.current(),
       },
     ],
-    [statsQuery, activityQuery, integrityQuery, recentQuery],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   )
   const shortcuts = useShortcuts({ items: shortcutItems })
   const isRefreshing =
@@ -114,6 +144,11 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
       </Tooltip>
     </>,
   )
+
+  // Freshness: umur cache stats (menit) — indikator data diperbarui kapan
+  const statsAgeMin = statsQuery.dataUpdatedAt
+    ? Math.max(0, Math.floor((Date.now() - statsQuery.dataUpdatedAt) / 60_000))
+    : null
 
   return (
     <div>
@@ -139,8 +174,12 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
       )}
 
       {/* Statistik — klik untuk melompat ke halaman terkait */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: openIssues.length || biggestTable ? 10 : 0 }}>
-        <StatChip
+      {statsAgeMin !== null && !statsQuery.isFetching && (
+        <Typography.Text type="secondary" style={{ fontSize: 11.5, display: 'block', marginBottom: 6 }}>
+          Data diperbarui {statsAgeMin === 0 ? 'baru saja' : `${statsAgeMin} mnt lalu`}
+        </Typography.Text>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: openIssues.length || biggestTable ? 10 : 0 }}>        <StatChip
           icon={<DatabaseOutlined />}
           label="Total Baris Data"
           value={totalRows.toLocaleString('id-ID')}
@@ -162,7 +201,7 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
           value={profilesStat?.total ?? '–'}
           color="emerald"
           loading={statsQuery.isPending}
-          onClick={() => onNavigateTab('pengguna')}
+          onClick={() => onNavigateTab('users')}
         />
         <StatChip
           icon={<AuditOutlined />}
@@ -240,11 +279,12 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
         </div>
       )}
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]} align="stretch" style={{ marginBottom: 16 }}>
         <Col xs={24} lg={14}>
           <Card
             title="Aktivitas Audit"
             size="small"
+            style={{ height: '100%' }}
             extra={
               <Segmented size="small" options={RANGE_OPTIONS} value={range} onChange={(v) => setRange(v as number)} />
             }
@@ -263,7 +303,7 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
                   <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke={token.colorTextTertiary} />
                   <RTooltip
                     formatter={(value) => [`${value} aktivitas`, 'Audit']}
-                    contentStyle={{ borderRadius: 10, border: `1px solid ${token.colorBorderSecondary}`, fontSize: 12.5 }}
+                    contentStyle={TOOLTIP_CONTENT_STYLE}
                   />
                   <Area type="monotone" dataKey="total" stroke={token.colorPrimary} strokeWidth={2} fill="url(#auditGradient)" />
                 </AreaChart>
@@ -272,31 +312,65 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
           </Card>
         </Col>
         <Col xs={24} lg={10}>
-          <Card title="Distribusi Baris per Tabel" size="small">
-            <div style={{ width: '100%', height: 240 }}>
+          <Card title="Distribusi Baris per Tabel" size="small" style={{ height: '100%' }}>
+            {/* Chart + legend lega di kotak 240px — pembaca tahu milik siapa
+                tiap slice tanpa harus hover, jumlahnya terbaca langsung */}
+            <div style={{ width: '100%', height: 176 }}>
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2}>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={54}
+                    outerRadius={84}
+                    paddingAngle={2}
+                    onClick={() => onNavigateTab('database')}
+                  >
                     {pieData.map((entry, index) => (
                       <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <RTooltip
                     formatter={(value, name) => [Number(value).toLocaleString('id-ID'), String(name)]}
-                    contentStyle={{ borderRadius: 10, border: `1px solid ${token.colorBorderSecondary}`, fontSize: 12.5 }}
+                    contentStyle={TOOLTIP_CONTENT_STYLE}
                   />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 4 }}>
+              {pieData.map((entry, index) => (
+                <span key={entry.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5 }}>
+                  <span
+                    aria-hidden="true"
+                    style={{ width: 8, height: 8, borderRadius: 3, background: PIE_COLORS[index % PIE_COLORS.length] }}
+                  />
+                  <Typography.Text type="secondary">{entry.name}</Typography.Text>
+                  <Typography.Text strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {entry.value.toLocaleString('id-ID')}
+                  </Typography.Text>
+                </span>
+              ))}
             </div>
           </Card>
         </Col>
       </Row>
 
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} align="stretch" style={{ marginBottom: 16 }}>
+        <Col xs={24} lg={12}>
+          <SystemHealth active={active} onOpenDatabase={() => onNavigateTab('database')} />
+        </Col>
+        <Col xs={24} lg={12}>
+          <SetupChecklist />
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} align="stretch">
         <Col xs={24} lg={14}>
           <Card
             title="Audit Terbaru"
             size="small"
+            style={{ height: '100%' }}
             extra={
               <Typography.Link style={{ fontSize: 12.5 }} onClick={() => onNavigateTab('audit')}>
                 Lihat semua
@@ -311,9 +385,9 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
                 <List.Item>
                   <List.Item.Meta
                     title={
-                      <span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                         <Tag
-                          style={{ borderRadius: 6, fontSize: 11.5, fontFamily: 'monospace' }}
+                          style={{ borderRadius: 6, fontSize: 11.5, fontFamily: 'monospace', marginInlineEnd: 0 }}
                           color={
                             log.action === 'DELETE'
                               ? 'red'
@@ -326,7 +400,9 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
                         >
                           {log.action}
                         </Tag>
-                        <span style={{ fontSize: 12.5, color: token.colorTextSecondary }}>{log.table_name ?? '—'}</span>
+                        <span style={{ fontSize: 12.5, color: token.colorTextSecondary }}>
+                          {log.table_name ? (TABLE_LABELS[log.table_name] ?? log.table_name) : '—'}
+                        </span>
                       </span>
                     }
                     description={
@@ -341,13 +417,13 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
           </Card>
         </Col>
         <Col xs={24} lg={10}>
-          <Card title="Akses Cepat" size="small">
+          <Card title="Akses Cepat" size="small" style={{ height: '100%' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
               {QUICK_LINKS.map((link) => (
                 <button
-                  key={link.tab}
+                  key={link.tab ?? link.href}
                   type="button"
-                  onClick={() => onNavigateTab(link.tab)}
+                  onClick={() => (link.tab ? onNavigateTab(link.tab) : navigate(link.href as string))}
                   style={{
                     textAlign: 'left',
                     padding: '12px 14px',

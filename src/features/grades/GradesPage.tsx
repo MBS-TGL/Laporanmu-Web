@@ -164,8 +164,8 @@ function GradesTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }) 
   return (
     <div>
       <PageHeader
-        title="Penilaian Akademik"
-        subtitle={`Input dan pantau nilai formatif, sumatif, PTS, dan PAS per mapel.`}
+        title="Penilaian"
+        subtitle="Nilai formatif, sumatif, PTS, dan PAS per mata pelajaran"
         extra={
           <Space wrap>
             <Select
@@ -178,7 +178,7 @@ function GradesTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }) 
                 label: `${y.name}${y.is_active ? ' (Aktif)' : ''}`,
               }))}
             />
-            <Button icon={<TableOutlined />} onClick={() => onNavigateTab('leger')}>Leger Nilai</Button>
+            <Button icon={<TableOutlined />} onClick={() => onNavigateTab('ledger')}>Leger Nilai</Button>
             {canWrite && (
               <Button
                 icon={<SettingOutlined />}
@@ -295,13 +295,13 @@ function GradesTab({ onNavigateTab }: { onNavigateTab: (tab: string) => void }) 
 
 // ─── Shell: satu halaman Penilaian bertab (pola ?tab= — SKILLS.md §Skill 2) ─
 const GRADE_TAB_ITEMS = [
-  { key: 'nilai', label: 'Nilai Kelas' },
-  { key: 'leger', label: 'Leger' },
+  { key: 'scores', label: 'Nilai Kelas' },
+  { key: 'ledger', label: 'Leger' },
 ]
 
 /** Halaman Penilaian: input nilai per kelas-mapel dan leger dalam satu route (?tab=). */
 export function GradesPage() {
-  const { tab, setTab } = useUrlTab('nilai')
+  const { tab, setTab } = useUrlTab('scores', { legacy: { nilai: 'scores', leger: 'ledger' } })
 
   return (
     <ShellStagger>
@@ -311,7 +311,7 @@ export function GradesPage() {
           onChange={setTab}
           items={GRADE_TAB_ITEMS.map((t) => ({
             ...t,
-            children: t.key === 'leger' ? <LegerPage /> : <GradesTab onNavigateTab={setTab} />,
+            children: t.key === 'ledger' ? <LegerPage /> : <GradesTab onNavigateTab={setTab} />,
           }))}
         />
       </ShellItem>

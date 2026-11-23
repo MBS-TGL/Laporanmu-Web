@@ -3,60 +3,42 @@ import {
   App,
   Button,
   Card,
-  Col,
-  Divider,
   Drawer,
-  Empty,
+  Grid,
   List,
   Popover,
   Progress,
-  Row,
-  Segmented,
   Select,
   Spin,
-  Statistic,
   Tag,
   Timeline,
-  Tooltip,
-  Typography,
-  Grid,
 } from 'antd'
 import { useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { motion } from 'motion/react'
 import { pageShellItemVariants, shellTransition } from '../../../shared/motion'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts'
 import {
   AuditOutlined,
-  BookOutlined,
-  CameraOutlined,
-  CheckOutlined,
   EditOutlined,
   FileDoneOutlined,
   HistoryOutlined,
-  HomeOutlined,
   IdcardOutlined,
   LoginOutlined,
   LogoutOutlined,
   TagsOutlined,
-  ThunderboltOutlined,
-  WhatsAppOutlined,
 } from '@ant-design/icons'
-import { StatusTag } from '../../../shared/components/StatusTag'
 import { usePermissions } from '../../../shared/hooks/useProfile'
 import { updateStudentTags } from '../api'
 import { useStudentOverview } from '../useStudentOverview'
 import { completenessPercent, missingFieldsOf } from '../completeness'
 import { useStudentGuardians, useStudentPhotos, useUpdateStudentPhoto } from '../hooks'
-import { GENDER_LABEL, STUDENT_STATUS_META } from '../status'
 import { WA_TEMPLATES, renderWaMessage, waLink } from '../wa'
-import type { GuardianRelation, Student } from '../types'
-import { StudentSubjectRecap } from './StudentSubjectRecap'
-import { StudentWorshipRecap } from './StudentWorshipRecap'
-import { StudentAttendanceRecap } from './StudentAttendanceRecap'
+import type { Student } from '../types'
 import { compressImage } from '../../../shared/utils/imageCompress'
+import { DetailHeader } from './DetailHeader'
+import { DetailInfoTab } from './DetailInfoTab'
+import { DetailBehaviorTab, TabEmpty, type PointFilter } from './DetailBehaviorTab'
 
-const MASK = '••••••'
 const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
 type ProfileTab = 'info' | 'perilaku' | 'report-card' | 'gerbang' | 'audit'
@@ -69,108 +51,12 @@ const SCORE_KEYS = [
   { key: 'language_score', label: 'Bhs', color: '#7c3aed' },
 ] as const
 
-const GUARDIAN_RELATION_LABEL: Record<GuardianRelation, string> = {
-  father: 'Ayah',
-  mother: 'Ibu',
-  guardian: 'Wali',
-}
-
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join('')
-}
-
 function auditActionMeta(action: string): { label: string; color: string; bg: string } {
   const a = action.toUpperCase()
   if (a === 'INSERT') return { label: 'Buat', color: '#059669', bg: '#ecfdf5' }
   if (a === 'UPDATE') return { label: 'Ubah', color: '#d97706', bg: '#fffbeb' }
   if (a === 'DELETE') return { label: 'Hapus', color: '#dc2626', bg: '#fef2f2' }
   return { label: a, color: '#64748b', bg: '#f1f5f9' }
-}
-
-// ------------------------------------------------------------
-// Elemen UI kecil
-// ------------------------------------------------------------
-
-/** Judul section memakai Divider bawaan AntD (orientasi kiri) */
-function SectionTitle({ children, extra }: { children: ReactNode; extra?: ReactNode }) {
-  return (
-    <Divider titlePlacement="left" orientationMargin={0} style={{ margin: '24px 0 14px', borderColor: '#eef2f7' }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 14.5, fontWeight: 700, color: '#0f172a' }}>{children}</span>
-        {extra}
-      </span>
-    </Divider>
-  )
-}
-
-function InfoRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 14.5, fontWeight: 500, color: '#0f172a' }}>{children}</div>
-    </div>
-  )
-}
-
-function StatPill({ icon, label, value, color }: { icon: ReactNode; label: string; value: ReactNode; color: string }) {
-  return (
-    <div
-      style={{
-        flex: 1,
-        minWidth: 0,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '10px 14px',
-        borderRadius: 13,
-        background: '#f8fafc',
-        border: '1px solid #eef2f7',
-      }}
-    >
-      <span
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 11,
-          background: `${color}14`,
-          color,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 16,
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {value}
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8' }}>{label}</div>
-      </div>
-    </div>
-  )
-}
-
-function TabEmpty({ title, description }: { title: string; description: string }) {
-  return (
-    <div style={{ paddingTop: 56, textAlign: 'center' }}>
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={
-          <span>
-            <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{title}</span>
-            <span style={{ display: 'block', fontSize: 13.5, color: '#94a3b8', marginTop: 3 }}>{description}</span>
-          </span>
-        }
-      />
-    </div>
-  )
 }
 
 // ------------------------------------------------------------
@@ -258,7 +144,7 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
   const { message } = App.useApp()
   const [tab, setTab] = useState<ProfileTab>('info')
   const [visibleLogs, setVisibleLogs] = useState(8)
-  const [pointFilter, setPointFilter] = useState<'all' | 'pos' | 'neg'>('all')
+  const [pointFilter, setPointFilter] = useState<PointFilter>('all')
   // override tags lokal agar header ikut berubah setelah popover Label disimpan
   const [tagsOverride, setTagsOverride] = useState<string[] | null>(null)
 
@@ -336,10 +222,6 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
 
   if (!student) return null
 
-  const mask = (value: string | null) => (isPrivacyMode && value ? MASK : (value ?? '-'))
-  const copyable = (value: string | null) =>
-    value && !isPrivacyMode ? { text: value, tooltips: ['Salin', 'Tersalin'] as [string, string] } : false
-
   const tags = tagsOverride ?? student.tags ?? []
   const points = student.total_points ?? 0
   const canEditData = canWrite && !isPrivacyMode && !!onEdit
@@ -350,14 +232,6 @@ export function DetailDrawer({ open, student, onClose, onEdit, isPrivacyMode = f
 
   const missingFields = missingFieldsOf({ ...student, photo_url: studentPhoto ?? null })
   const completeness = completenessPercent({ ...student, photo_url: studentPhoto ?? null })
-
-  const posCount = reports.filter((r) => r.points > 0).length
-  const negCount = reports.filter((r) => r.points < 0).length
-  const filteredCount = pointFilter === 'all' ? reports.length : reports.filter((r) => (pointFilter === 'pos' ? r.points > 0 : r.points < 0)).length
-  const filteredReports = (pointFilter === 'all' ? reports : reports.filter((r) => (pointFilter === 'pos' ? r.points > 0 : r.points < 0))).slice(
-    0,
-    visibleLogs,
-  )
 
   const openWa = () => {
     if (!student.phone) return
@@ -394,21 +268,22 @@ END:VCARD`
     message.success('Kontak VCF berhasil diunduh')
   }
 
+  const handlePointFilterChange = (v: PointFilter) => {
+    setPointFilter(v)
+    setVisibleLogs(8)
+  }
+
   const railItems: { id: ProfileTab; label: string; icon: ReactNode; count?: number }[] = [
     { id: 'info', label: 'Info', icon: <IdcardOutlined /> },
     { id: 'perilaku', label: 'Perilaku', icon: <HistoryOutlined />, count: reports.length },
-    { id: 'report-card', label: 'Raport', icon: <FileDoneOutlined />, count: reportCardRows.length },
+    { id: 'report-card', label: 'Rapor', icon: <FileDoneOutlined />, count: reportCardRows.length },
     { id: 'gerbang', label: 'Gerbang', icon: <LoginOutlined />, count: gateLogs.length },
     { id: 'audit', label: 'Audit', icon: <AuditOutlined />, count: auditLogs.length },
   ]
 
-  const ttl = [student.birth_place, student.birth_date ? dayjs(student.birth_date).format('DD MMM YYYY') : null]
-    .filter(Boolean)
-    .join(', ')
-
   return (
     <Drawer
-      title="Profil Siswa"
+      title="Profil Santri"
       open={open}
       onClose={onClose}
       size="min(720px, 96vw)"
@@ -438,117 +313,18 @@ END:VCARD`
       >
       {notice}
       {/* ── Header low: identitas + ring kelengkapan + ringkasan domisili ── */}
-      <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #eef2f7', background: '#fff' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div
-            style={{
-              width: 68,
-              height: 68,
-              borderRadius: 16,
-              overflow: 'hidden',
-              background: '#eef2ff',
-              color: '#4f46e5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 26,
-              fontWeight: 700,
-              flexShrink: 0,
-              cursor: canWrite && !isPrivacyMode ? 'pointer' : 'default',
-              position: 'relative',
-            }}
-            onClick={() => canWrite && !isPrivacyMode && fileInputRef.current?.click()}
-            title={canWrite && !isPrivacyMode ? 'Klik untuk mengganti foto' : undefined}
-          >
-            {studentPhoto && !isPrivacyMode ? (
-              <img src={studentPhoto} alt={student.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              isPrivacyMode ? '*' : initials(student.name)
-            )}
-            {canWrite && !isPrivacyMode && (
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'rgba(15, 23, 42, 0.45)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: 0,
-                  transition: 'opacity 0.2s',
-                  color: '#fff',
-                  fontSize: 20,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '1'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '0'
-                }}
-              >
-                <CameraOutlined />
-              </div>
-            )}
-          </div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handlePhotoUpload}
-          />
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                letterSpacing: '-0.01em',
-                color: '#0f172a',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {isPrivacyMode ? MASK : student.name}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-              <StatusTag color={STUDENT_STATUS_META[student.status].color} icon={STUDENT_STATUS_META[student.status].icon}>
-                {STUDENT_STATUS_META[student.status].label}
-              </StatusTag>
-              <Typography.Text type="secondary" copyable={copyable(student.registration_code)} style={{ fontSize: 13.5 }}>
-                {mask(student.registration_code)}
-              </Typography.Text>
-            </div>
-            {tags.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-                {tags.map((t) => (
-                    <Tag key={t} style={{ borderRadius: 7, fontSize: 11.5, lineHeight: '18px', padding: '0 8px', marginInlineEnd: 0 }}>
-                    {t}
-                  </Tag>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <Tooltip title={missingFields.length > 0 ? `Belum lengkap: ${missingFields.join(', ')}` : 'Semua data sudah lengkap'}>
-            <Progress
-              type="circle"
-              percent={completeness}
-              size={64}
-              strokeColor="#4f46e5"
-              strokeWidth={10}
-              format={(p) => (p === 100 ? <CheckOutlined style={{ color: '#16a34a' }} /> : <span style={{ fontSize: 14, fontWeight: 700 }}>{p}%</span>)}
-            />
-          </Tooltip>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-          <StatPill icon={<ThunderboltOutlined />} label="Total Poin" value={points > 0 ? `+${points}` : points} color={points < 0 ? '#ef4444' : '#10b981'} />
-          <StatPill icon={<BookOutlined />} label="Kelas" value={student.classes?.name ?? student.last_class?.name ?? '-'} color="#4f46e5" />
-          <StatPill icon={<HomeOutlined />} label="Asrama" value={student.dorms?.name ?? 'Tanpa asrama'} color="#0ea5e9" />
-        </div>
-      </div>
+      <DetailHeader
+        student={student}
+        studentPhoto={studentPhoto}
+        isPrivacyMode={isPrivacyMode}
+        tags={tags}
+        points={points}
+        canWrite={canWrite}
+        missingFields={missingFields}
+        completeness={completeness}
+        photoInputRef={fileInputRef}
+        onPhotoUpload={handlePhotoUpload}
+      />
 
        {/* ── Rail navigasi kiri + konten kanan ── */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -638,290 +414,34 @@ END:VCARD`
         >
           {/* ── INFO ── */}
           {tab === 'info' && (
-            <div>
-              <SectionTitle>Profil Pribadi</SectionTitle>
-              <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
-                <InfoRow label="NISN">
-                  <Typography.Text copyable={copyable(student.nisn)} style={{ fontSize: 14.5 }}>
-                    {mask(student.nisn)}
-                  </Typography.Text>
-                </InfoRow>
-                <InfoRow label="NIS">
-                  <Typography.Text copyable={copyable(student.nis)} style={{ fontSize: 14.5 }}>
-                    {mask(student.nis)}
-                  </Typography.Text>
-                </InfoRow>
-                <InfoRow label="NIK">
-                  <Typography.Text copyable={copyable(student.nik)} style={{ fontSize: 14.5 }}>
-                    {mask(student.nik)}
-                  </Typography.Text>
-                </InfoRow>
-                <InfoRow label="Jenis Kelamin">{student.gender ? GENDER_LABEL[student.gender] : '-'}</InfoRow>
-                <InfoRow label="Agama">{mask(student.religion)}</InfoRow>
-                <InfoRow label="Tempat, Tanggal Lahir">{mask(ttl)}</InfoRow>
-                {student.nickname && <InfoRow label="Nama Panggilan">{mask(student.nickname)}</InfoRow>}
-                {student.status === 'graduated' && (
-                  <InfoRow label="Tahun Lulus">
-                    {student.graduation_year ?? '-'}
-                    {student.last_class?.name ? ` · ${student.last_class.name}` : ''}
-                  </InfoRow>
-                )}
-                {student.promoted_at && (
-                  <InfoRow label="Riwayat Kenaikan">
-                    Dipromosikan {dayjs(student.promoted_at).format('DD MMM YYYY')}
-                  </InfoRow>
-                )}
-              </div>
-
-              <SectionTitle
-                extra={
-                  <span style={{ display: 'inline-flex', gap: 6 }}>
-                    <Tooltip
-                      title={isPrivacyMode ? 'Mode privasi aktif' : student.phone ? 'Kirim laporan via WhatsApp' : 'Nomor HP belum tersedia'}
-                    >
-                      <span>
-                        <Button
-                          icon={<WhatsAppOutlined />}
-                          disabled={!student.phone || isPrivacyMode}
-                          onClick={openWa}
-                          style={
-                            student.phone && !isPrivacyMode
-                              ? { color: '#059669', borderColor: '#a7f3d0' }
-                              : undefined
-                          }
-                        >
-                          Kirim WA
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Button icon={<IdcardOutlined />} onClick={saveVcf}>
-                      Simpan Kontak VCF
-                    </Button>
-                  </span>
-                }
-              >
-                Wali &amp; Kontak
-              </SectionTitle>
-              {student.guardian_name || student.phone ? (
-                <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
-                  <InfoRow label="Nama Wali">{mask(student.guardian_name)}</InfoRow>
-                  <InfoRow label="Hubungan">{student.guardian_relation ?? '-'}</InfoRow>
-                  <InfoRow label="No. HP / WhatsApp">
-                    <Typography.Text copyable={copyable(student.phone)} style={{ fontSize: 14.5 }}>
-                      {mask(student.phone)}
-                    </Typography.Text>
-                  </InfoRow>
-                </div>
-              ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<span style={{ fontSize: 13.5 }}>Data wali belum tersedia</span>}>
-                  {canEditData && (
-                    <Button type="primary" onClick={goEdit}>
-                      Lengkapi Data
-                    </Button>
-                  )}
-                </Empty>
-              )}
-
-              {guardiansQuery.isSuccess && guardians.length > 0 && (
-                <>
-                  <SectionTitle>Orang Tua</SectionTitle>
-                  <div style={{ display: 'grid', gap: 10 }}>
-                    {guardians.map((g) => (
-                      <div
-                        key={g.id}
-                        style={{
-                          padding: '10px 14px',
-                          borderRadius: 12,
-                          background: '#f8fafc',
-                          border: '1px solid #eef2f7',
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            color: '#64748b',
-                            marginBottom: 8,
-                          }}
-                        >
-                          {GUARDIAN_RELATION_LABEL[g.relation]}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '10px 24px' }}>
-                          <InfoRow label="Nama">{mask(g.name)}</InfoRow>
-                          <InfoRow label="No. HP">
-                            <Typography.Text copyable={copyable(g.phone)} style={{ fontSize: 14.5 }}>
-                              {mask(g.phone)}
-                            </Typography.Text>
-                          </InfoRow>
-                          <InfoRow label="Pendidikan">{g.education ?? '-'}</InfoRow>
-                          <InfoRow label="Pekerjaan">{g.occupation ?? '-'}</InfoRow>
-                          <InfoRow label="Penghasilan / bulan">{g.income_range ?? '-'}</InfoRow>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <SectionTitle>Alamat &amp; Domisili</SectionTitle>
-              {student.address || student.dorms?.name ? (
-                <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
-                  <InfoRow label="Alamat">{mask(student.address)}</InfoRow>
-                  <InfoRow label="Asrama">{student.dorms?.name ?? 'Tanpa asrama'}</InfoRow>
-                </div>
-              ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<span style={{ fontSize: 13.5 }}>Data alamat belum tersedia</span>}>
-                  {canEditData && (
-                    <Button type="primary" onClick={goEdit}>
-                      Lengkapi Data
-                    </Button>
-                  )}
-                </Empty>
-              )}
-
-              {(student.kk_number ||
-                student.child_status ||
-                student.child_number != null ||
-                student.siblings_count != null ||
-                student.home_phone ||
-                student.origin_school ||
-                student.origin_graduation_year != null ||
-                student.admitted_at ||
-                student.uniform_size) && (
-                <>
-                  <SectionTitle>Data Lainnya</SectionTitle>
-                  <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px 24px' }}>
-                    <InfoRow label="No. KK">
-                      <Typography.Text copyable={copyable(student.kk_number)} style={{ fontSize: 14.5 }}>
-                        {mask(student.kk_number)}
-                      </Typography.Text>
-                    </InfoRow>
-                    <InfoRow label="Status Anak">{student.child_status ?? '-'}</InfoRow>
-                    <InfoRow label="Anak Ke">{student.child_number ?? '-'}</InfoRow>
-                    <InfoRow label="Jumlah Saudara">{student.siblings_count ?? '-'}</InfoRow>
-                    <InfoRow label="Telepon Rumah">{mask(student.home_phone)}</InfoRow>
-                    <InfoRow label="Ukuran Seragam">{student.uniform_size ?? '-'}</InfoRow>
-                    <InfoRow label="Sekolah Asal">{student.origin_school ?? '-'}</InfoRow>
-                    <InfoRow label="Tahun Lulus Sekolah Asal">
-                      {student.origin_graduation_year ?? '-'}
-                    </InfoRow>
-                    <InfoRow label="Tanggal Diterima">
-                      {student.admitted_at ? dayjs(student.admitted_at).format('DD MMMM YYYY') : '-'}
-                    </InfoRow>
-                  </div>
-                </>
-              )}
-
-              {tags.length > 0 && (
-                <>
-                  <SectionTitle>Info Khusus</SectionTitle>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {tags.map((t) => (
-                      <Tag key={t} style={{ borderRadius: 8, padding: '2px 10px' }}>
-                        {t}
-                      </Tag>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <DetailInfoTab
+              student={student}
+              isPrivacyMode={isPrivacyMode}
+              gridCols={gridCols}
+              canEditData={canEditData}
+              goEdit={goEdit}
+              openWa={openWa}
+              saveVcf={saveVcf}
+              guardians={guardians}
+              guardiansSuccess={guardiansQuery.isSuccess}
+              tags={tags}
+            />
           )}
 
           {/* ── PERILAKU ── */}
-          {tab === 'perilaku' &&
-            (reportsQuery.isPending ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-                <Spin />
-              </div>
-            ) : reports.length === 0 ? (
-              <TabEmpty title="Belum ada Kedisiplinan & Poin" description="Siswa ini belum memiliki catatan histori perilaku di sistem." />
-            ) : (
-              <div>
-                <Card size="small" style={{ marginTop: 20, borderRadius: 13 }} styles={{ body: { padding: '12px 16px' } }}>
-                  <Row gutter={12}>
-                    <Col span={6}>
-                      <Statistic title="Total Poin" value={points > 0 ? `+${points}` : points} valueStyle={{ color: points < 0 ? '#dc2626' : '#16a34a', fontSize: 22 }} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="Total Log" value={reports.length} valueStyle={{ fontSize: 22 }} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="Positif" value={posCount} valueStyle={{ color: '#16a34a', fontSize: 22 }} />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic title="Negatif" value={negCount} valueStyle={{ color: '#dc2626', fontSize: 22 }} />
-                    </Col>
-                  </Row>
-                  <div style={{ height: 190, marginTop: 12, marginLeft: -8 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData} barCategoryGap="30%" margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-                        <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 10.5, fontWeight: 600, fill: '#94a3b8' }} />
-                        <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10.5, fill: '#cbd5e1' }} allowDecimals={false} />
-                        <RTooltip
-                          cursor={{ fill: 'rgba(79,70,229,0.06)' }}
-                          formatter={(value, name) => [`${name === 'Positif' ? '+' : '-'}${value}`, name as string]}
-                          contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 11.5, padding: '6px 10px' }}
-                        />
-                        <Bar dataKey="positif" name="Positif" stackId="p" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={26} />
-                        <Bar dataKey="negatif" name="Negatif" stackId="p" fill="#ef4444" radius={[3, 3, 0, 0]} maxBarSize={26} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-
-                <StudentAttendanceRecap studentId={student.id} />
-                <StudentSubjectRecap studentId={student.id} />
-                <StudentWorshipRecap studentId={student.id} />
-
-                <Segmented
-                  block
-                  size="small"
-                  style={{ marginTop: 16 }}
-                  value={pointFilter}
-                  onChange={(v) => {
-                    setPointFilter(v as 'all' | 'pos' | 'neg')
-                    setVisibleLogs(8)
-                  }}
-                  options={[
-                    { label: `Semua (${reports.length})`, value: 'all' },
-                    { label: `Positif (${posCount})`, value: 'pos' },
-                    { label: `Negatif (${negCount})`, value: 'neg' },
-                  ]}
-                />
-
-                <Timeline
-                  style={{ marginTop: 16 }}
-                  items={filteredReports.map((r) => ({
-                    color: r.points > 0 ? 'green' : r.points < 0 ? 'red' : 'gray',
-                    children: (
-                      <div style={{ paddingBottom: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>{r.rule?.name ?? '-'}</span>
-                          <Tag
-                            color={r.points > 0 ? 'green' : r.points < 0 ? 'red' : 'default'}
-                            style={{ marginInlineEnd: 0, borderRadius: 6, fontSize: 12, fontWeight: 700 }}
-                          >
-                            {r.points > 0 ? `+${r.points}` : r.points}
-                          </Tag>
-                        </div>
-                        {r.notes && <div style={{ fontSize: 13, color: '#475569', marginTop: 2, overflowWrap: 'anywhere' }}>{r.notes}</div>}
-                        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-                          {dayjs(r.reported_at).format('DD MMM YYYY')} · {r.reporter?.name ?? 'Admin'}
-                        </div>
-                      </div>
-                    ),
-                  }))}
-                />
-                {filteredCount > visibleLogs && (
-                  <Button type="dashed" block onClick={() => setVisibleLogs((v) => v + 8)} style={{ marginTop: 4 }}>
-                    Muat Lagi ({filteredCount - visibleLogs} lagi)
-                  </Button>
-                )}
-              </div>
-            ))}
+          {tab === 'perilaku' && (
+            <DetailBehaviorTab
+              studentId={student.id}
+              reports={reports}
+              reportsPending={reportsQuery.isPending}
+              points={points}
+              chartData={chartData}
+              pointFilter={pointFilter}
+              onPointFilterChange={handlePointFilterChange}
+              visibleLogs={visibleLogs}
+              onLoadMore={() => setVisibleLogs((v) => v + 8)}
+            />
+          )}
 
           {/* ── RAPORT ── */}
           {tab === 'report-card' &&
@@ -946,7 +466,7 @@ END:VCARD`
                         <Tag color="geekblue" style={{ borderRadius: 6, marginInlineEnd: 0 }}>
                           Bln {r.month}
                         </Tag>
-                        <span style={{ fontSize: 14.5 }}>Raport Bulanan {r.year}</span>
+                        <span style={{ fontSize: 14.5 }}>Rapor Bulanan {r.year}</span>
                         <span style={{ fontSize: 12.5, fontWeight: 400, color: '#94a3b8' }}>{r.musyrif_name ?? ''}</span>
                       </span>
                     }
@@ -984,7 +504,7 @@ END:VCARD`
                 <Spin />
               </div>
             ) : gateLogs.length === 0 ? (
-              <TabEmpty title="Belum ada aktivitas gerbang" description="Siswa ini belum memiliki catatan masuk/keluar di gerbang." />
+              <TabEmpty title="Belum ada aktivitas gerbang" description="Santri ini belum memiliki catatan masuk/keluar di gerbang." />
             ) : (
               <List
                 style={{ marginTop: 12 }}

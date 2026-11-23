@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Link, Navigate, useParams } from 'react-router-dom'
-import { motion } from 'motion/react'
-import { Button, Space, Spin, Typography } from 'antd'
+import { Button, Spin } from 'antd'
+import { StatusView } from '../shared/components/StatusView'
 import { MainLayout } from '../layouts/MainLayout'
 import { ModuleGuard } from '../shared/components/ModuleGuard'
 import { PublicGate } from '../shared/components/PublicGate'
@@ -22,6 +22,9 @@ const LandingPage = lazy(() =>
 
 const StudentsPage = lazy(() =>
   import('../features/students/StudentsPage').then((m) => ({ default: m.StudentsPage })),
+)
+const AdmissionsPage = lazy(() =>
+  import('../features/admissions/AdmissionsPage').then((m) => ({ default: m.AdmissionsPage })),
 )
 const TeachersPage = lazy(() =>
   import('../features/teachers/TeachersPage').then((m) => ({ default: m.TeachersPage })),
@@ -164,47 +167,30 @@ function guarded(
 // Redirect path lama berparam — Navigate tidak menginterpolasi :id
 function SuspensionIdRedirect() {
   const { id } = useParams()
-  return <Navigate to={`/disiplin?tab=skorsing&detail=${id}`} replace />
+  return <Navigate to={`/discipline?tab=suspension&detail=${id}`} replace />
 }
 
 function NotFoundPage() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #f8fafc 100%)',
-        padding: 24,
-        textAlign: 'center',
-      }}
-    >
-      <div style={{ fontSize: 64, fontWeight: 800, color: '#4f46e5', letterSpacing: '-0.04em', lineHeight: 1 }}>
-        404
-      </div>
-      <Typography.Title level={3} style={{ marginTop: 14, marginBottom: 4, letterSpacing: '-0.02em' }}>
-        Halaman tidak ditemukan
-      </Typography.Title>
-      <Typography.Text type="secondary" style={{ marginBottom: 24 }}>
-        Alamat yang Anda tuju tidak tersedia atau sudah dipindahkan.
-      </Typography.Text>
-      <Space wrap style={{ justifyContent: 'center' }}>
-        <Link to="/">
-          <Button type="primary">Kembali ke Beranda</Button>
-        </Link>
-        <Link to="/check">
-          <Button>Cek Wali Santri</Button>
-        </Link>
-        <Link to="/dashboard">
-          <Button type="text">Dashboard</Button>
-        </Link>
-      </Space>
-    </motion.div>
+    <StatusView
+      code="404"
+      title="Halaman tidak ditemukan"
+      description="Alamat yang Anda tuju tidak tersedia atau sudah dipindahkan."
+      fullscreen
+      actions={
+        <>
+          <Link to="/">
+            <Button type="primary">Kembali ke Beranda</Button>
+          </Link>
+          <Link to="/check">
+            <Button>Cek Wali Santri</Button>
+          </Link>
+          <Link to="/dashboard">
+            <Button type="text">Dashboard</Button>
+          </Link>
+        </>
+      }
+    />
   )
 }
 
@@ -213,7 +199,7 @@ function NotFoundPage() {
 // diaudit; alias yang perlu interpolasi :id ditulis manual di bawah.
 // (lihat SKILLS.md §Skill 5 — URL lama tidak boleh mati begitu saja)
 const ALIAS_REDIRECTS: [path: string, to: string][] = [
-  ['settings/users', '/admin?tab=pengguna'],
+  ['settings/users', '/admin?tab=users'],
   ['settings/audit-log', '/admin?tab=audit'],
   ['insights', '/admin?tab=insights'],
   ['master/students', '/students'],
@@ -249,27 +235,27 @@ const ALIAS_REDIRECTS: [path: string, to: string][] = [
   ['counseling/letters', '/counseling?tab=surat-resmi'],
   // ── hasil penggabungan page se-domain (pola ?tab=) ──
   ['admin/insights', '/admin?tab=insights'],
-  ['admin/users', '/admin?tab=pengguna'],
+  ['admin/users', '/admin?tab=users'],
   ['admin/roles', '/admin?tab=roles'],
-  ['admin/settings', '/admin?tab=pengaturan'],
-  ['admin/tasks', '/admin?tab=otomatisasi'],
+  ['admin/settings', '/admin?tab=settings'],
+  ['admin/tasks', '/admin?tab=automation'],
   ['admin/database', '/admin?tab=database'],
-  ['admin/trash', '/admin?tab=sampah'],
-  ['admin/storage', '/admin?tab=penyimpanan'],
+  ['admin/trash', '/admin?tab=trash'],
+  ['admin/storage', '/admin?tab=storage'],
   ['admin/media', '/admin?tab=media'],
   ['admin/audit-log', '/admin?tab=audit'],
-  ['students/archive', '/students?tab=arsip'],
+  ['students/archive', '/students?tab=archive'],
   ['students/alumni', '/students?tab=alumni'],
   ['students/promote', '/students'],
   ['point-rules', '/discipline?tab=rules'],
   ['point-reports', '/discipline?tab=notes'],
   ['suspensions', '/discipline?tab=suspension'],
-  ['teaching-load', '/teachers?tab=beban'],
-  ['teachers/archive', '/teachers?tab=arsip'],
+  ['teaching-load', '/teachers?tab=workload'],
+  ['teachers/archive', '/teachers?tab=archive'],
   ['teachers/attendance', '/attendance?tab=teachers'],
   ['attendance/machines', '/attendance?tab=machines'],
-  ['grades/leger', '/grades?tab=leger'],
-  ['report-cards/archive', '/report-cards?tab=arsip'],
+  ['grades/leger', '/grades?tab=ledger'],
+  ['report-cards/archive', '/report-cards?tab=archive'],
   ['official-letters', '/counseling?tab=surat-resmi'],
   // Tahfidz digabung ke Halaqah sebagai tab Setoran
   ['tahfidz', '/halaqah?tab=setoran'],
@@ -360,7 +346,8 @@ export const appRouter = createBrowserRouter([
           { path: 'library', ...guarded('library:read', <ModuleGuard flag="module.library"><LibraryPage /></ModuleGuard>) },
           { path: 'savings', ...guarded('savings:read', <ModuleGuard flag="module.savings"><SavingsPage /></ModuleGuard>) },
           { path: 'dorms', ...guarded('dorms:read', <ModuleGuard flag="module.dorms"><DormsPage /></ModuleGuard>) },
-          { path: 'gate', ...guarded('gate:read', <GatePage />) },
+          { path: 'gate', ...guarded('gate:read', <ModuleGuard flag="module.gate"><GatePage /></ModuleGuard>) },
+          { path: 'admissions', ...guarded('admissions:read', <ModuleGuard flag="module.ppdb"><AdmissionsPage /></ModuleGuard>) },
           { path: 'report-cards', ...guarded('report_cards:read', <ModuleGuard flag="module.report_cards"><CardsPage /></ModuleGuard>) },
           { path: 'report-cards/input/:classId', ...guarded('report_cards:read', <ModuleGuard flag="module.report_cards"><InputPage /></ModuleGuard>) },
           { path: 'report-cards/preview/:classId', ...guarded('report_cards:read', <ModuleGuard flag="module.report_cards"><PreviewPage /></ModuleGuard>) },

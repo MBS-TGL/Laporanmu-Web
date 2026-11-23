@@ -10,7 +10,7 @@ import {
   softDeleteBook,
   updateBook,
 } from './api'
-import type { BookFormValues, LoanFormValues } from './types'
+import type { BookFormValues, ItemCondition, LoanFormValues } from './types'
 
 export function useBooks() {
   return useQuery({
@@ -93,16 +93,18 @@ export function useCreateLoan() {
 export function useReturnLoan() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => returnLoan(id),
-    onSuccess: (_data, id) => {
+    mutationFn: (input: { id: string; condition?: ItemCondition | null; dueDate?: string | null }) =>
+      returnLoan(input.id, { condition: input.condition, dueDate: input.dueDate }),
+    onSuccess: (_data, input) => {
       void logAudit({
         action: 'UPDATE',
         source: 'OPERATIONAL',
         tableName: 'book_loans',
-        recordId: id,
-        newData: { returned: true },
+        recordId: input.id,
+        newData: { returned: true, condition: input.condition ?? null },
       })
       void qc.invalidateQueries({ queryKey: ['book-loans'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }

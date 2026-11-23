@@ -9,9 +9,9 @@ import { PaymentsTab } from './tabs/PaymentsTab'
 import { ArrearsTab } from './tabs/ArrearsTab'
 
 const TAB_META: Record<string, { subtitle: string }> = {
-  kewajiban: { subtitle: 'Komponen biaya dan kewajiban per santri' },
-  pembayaran: { subtitle: 'Riwayat pembayaran SPP yang tercatat' },
-  tunggakan: { subtitle: 'Kewajiban belum lunas per kelas dan santri' },
+  obligations: { subtitle: 'Komponen biaya dan tagihan santri' },
+  payments: { subtitle: 'Riwayat pembayaran SPP' },
+  arrears: { subtitle: 'Tagihan yang belum lunas' },
 }
 
 /** Halaman Keuangan SPP — 1 route bertab `?tab=`. */
@@ -25,7 +25,7 @@ export function FinancePage() {
         <ShellItem>
           <PageHeader
             title="Keuangan SPP"
-            subtitle={TAB_META[tab]?.subtitle ?? TAB_META.kewajiban.subtitle}
+            subtitle={TAB_META[tab]?.subtitle ?? TAB_META.obligations.subtitle}
             extra={<div ref={setActionsHost} style={{ display: 'flex', alignItems: 'center' }} />}
           />
         </ShellItem>

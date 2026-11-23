@@ -5,7 +5,10 @@ import {
   createCocurricularDim,
   deleteCocurricularDim,
   fetchCocurricularDims,
+  fetchCocurricularScores,
+  saveCocurricularScores,
   updateCocurricularDim,
+  type CocurricularScoreInput,
 } from './api'
 
 /** Tahun ajaran aktif untuk dokumen (raport, yudisium). */
@@ -122,5 +125,25 @@ export function useDeleteDim() {
   return useMutation({
     mutationFn: (id: string) => deleteCocurricularDim(id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['cocurricular-dims'] }),
+  })
+}
+
+export function useCocurricularScores(
+  classId: string | undefined,
+  academicYearId: string | undefined,
+  semester: 'Odd' | 'Even',
+) {
+  return useQuery({
+    queryKey: ['cocurricular-scores', classId, academicYearId, semester],
+    queryFn: () => fetchCocurricularScores(classId!, academicYearId!, semester),
+    enabled: Boolean(classId && academicYearId),
+  })
+}
+
+export function useSaveCocurricularScores() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (rows: CocurricularScoreInput[]) => saveCocurricularScores(rows),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['cocurricular-scores'] }),
   })
 }

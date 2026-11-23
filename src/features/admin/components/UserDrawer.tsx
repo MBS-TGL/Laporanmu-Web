@@ -60,7 +60,7 @@ export function UserDrawer({
     <Drawer
       open={profile !== null}
       onClose={onClose}
-      width={480}
+      size="min(480px, 94vw)"
       title="Detail Akun"
       destroyOnHidden
     >

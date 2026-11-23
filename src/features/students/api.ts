@@ -27,20 +27,31 @@ const RELATIONS =
  * migration 0058); isi foto diambil per-kebutuhan lewat `fetchStudentPhotos`.
  */
 const STUDENT_COLUMNS =
-  'id, registration_code, pin, nisn, nis, nik, name, gender, status, total_points, class_id, dorm_id, phone, tags, guardian_name, guardian_relation, birth_place, birth_date, religion, address, nickname, kk_number, child_status, child_number, siblings_count, home_phone, origin_school, origin_graduation_year, admitted_at, uniform_size, graduated_at, graduation_year, last_class_id, previous_class_id, promoted_at, promotion_batch_id, deleted_at, created_at, updated_at'
+  'id, registration_code, nisn, nis, nik, name, gender, status, total_points, class_id, dorm_id, phone, tags, guardian_name, guardian_relation, birth_place, birth_date, religion, address, nickname, kk_number, child_status, child_number, siblings_count, home_phone, origin_school, origin_graduation_year, admitted_at, uniform_size, graduated_at, graduation_year, last_class_id, previous_class_id, promoted_at, promotion_batch_id, deleted_at, created_at, updated_at'
 
-/** Rincian satu siswa (drawer, mutasi) — perlu `photo_url` penuh */
+/** Rincian satu siswa (drawer, mutasi) — perlu `photo_url` penuh. `*` tidak lagi
+ * memasukkan PIN karena kolom itu sudah dipindah ke `student_pins` (0066). */
 const SELECT_STR = `*, ${RELATIONS}`
 
-/** Daftar/ekspor — ringan, tanpa base64 foto */
-const LIST_SELECT = `${STUDENT_COLUMNS}, has_photo, ${RELATIONS}`
+/** Daftar/ekspor — ringan, tanpa base64 foto; has_pin hanya penanda boolean */
+const LIST_SELECT = `${STUDENT_COLUMNS}, has_photo, has_pin, ${RELATIONS}`
+
+/** Cadangan bila migration 0066 (kolom has_pin) belum dijalankan */
+const LIST_SELECT_PHOTO = `${STUDENT_COLUMNS}, has_photo, ${RELATIONS}`
 
 /** Cadangan bila migration 0058 (kolom has_photo) belum dijalankan */
 const LIST_SELECT_LEGACY = `${STUDENT_COLUMNS}, ${RELATIONS}`
 
+function isMissingColumn(
+  error: { code?: string; message?: string },
+  column: string,
+): boolean {
+  if (!new RegExp(column).test(error.message ?? '')) return false
+  return error.code === '42703' || new RegExp(`column .*${column}.* does not exist`, 'i').test(error.message ?? '')
+}
+
 function isMissingHasPhoto(error: { code?: string; message?: string }): boolean {
-  if (!/has_photo/.test(error.message ?? '')) return false
-  return error.code === '42703' || /column .*has_photo.* does not exist/i.test(error.message ?? '')
+  return isMissingColumn(error, 'has_photo')
 }
 
 /** Siswa dianggap berisiko bila poinnya mencapai batas ini */
@@ -164,6 +175,7 @@ export async function fetchStudents(filters: StudentFilters): Promise<{ data: St
     ).range(from, from + pageSize - 1)
 
   let res = await run(LIST_SELECT)
+  if (res.error && isMissingColumn(res.error, 'has_pin')) res = await run(LIST_SELECT_PHOTO)
   if (res.error && isMissingHasPhoto(res.error)) res = await run(LIST_SELECT_LEGACY)
 
   if (res.error) throw res.error
@@ -609,6 +621,7 @@ export async function fetchArchivedStudents(): Promise<Student[]> {
       .limit(1000)
 
   let res = await run(LIST_SELECT)
+  if (res.error && isMissingColumn(res.error, 'has_pin')) res = await run(LIST_SELECT_PHOTO)
   if (res.error && isMissingHasPhoto(res.error)) res = await run(LIST_SELECT_LEGACY)
   if (res.error) throw res.error
   return (res.data ?? []) as unknown as Student[]
@@ -969,8 +982,17 @@ export async function fetchStudentsByIds(ids: string[]): Promise<Student[]> {
     let rows: Student[]
     try {
       rows = await run(LIST_SELECT, chunk)
-    } catch (e: any) {
-      if (isMissingHasPhoto(e)) {
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string }
+      if (isMissingColumn(err, 'has_pin')) {
+        try {
+          rows = await run(LIST_SELECT_PHOTO, chunk)
+        } catch (e2: unknown) {
+          const err2 = e2 as { code?: string; message?: string }
+          if (!isMissingHasPhoto(err2)) throw e2
+          rows = await run(LIST_SELECT_LEGACY, chunk)
+        }
+      } else if (isMissingHasPhoto(err)) {
         rows = await run(LIST_SELECT_LEGACY, chunk)
       } else {
         throw e
@@ -999,6 +1021,37 @@ export async function generateStudentPins(ids: string[]): Promise<GeneratedPin[]
   const { data, error } = await supabase.rpc('generate_student_pins', { p_ids: ids })
   if (error) throw error
   return (data ?? []) as GeneratedPin[]
+}
+
+/**
+ * PIN santri ada di tabel terpisah `student_pins` (migration 0066) dan hanya
+ * terbaca manager ke atas. Tabel belum ada → anggap tidak ada PIN (fallback
+ * aman sebelum migrasi diterapkan).
+ */
+export async function fetchStudentPins(ids: string[]): Promise<Record<string, string>> {
+  const unique = [...new Set(ids)].filter(Boolean)
+  if (unique.length === 0) return {}
+  const { data, error } = await supabase
+    .from('student_pins')
+    .select('student_id, pin')
+    .in('student_id', unique)
+  if (error) {
+    if (error.code === '42P01' || /student_pins/.test(error.message ?? '')) return {}
+    throw error
+  }
+  const map: Record<string, string> = {}
+  for (const row of data ?? []) {
+    const r = row as { student_id: string; pin: string }
+    map[r.student_id] = r.pin
+  }
+  return map
+}
+
+/** Atur ulang PIN satu siswa; PIN baru dikembalikan sekali (tidak disimpan di cache). */
+export async function resetStudentPin(studentId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('reset_student_pin', { p_student_id: studentId })
+  if (error) throw error
+  return data as string
 }
 
 // ------------------------------------------------------------

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { App, Button, Popconfirm, Space, Table, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, ExportOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, ExportOutlined, PlusOutlined, PrinterOutlined, ReloadOutlined } from '@ant-design/icons'
 import { ShellItem } from '../../../shared/components/ShellMotion'
 import { StatChip } from '../../../shared/components/StatChip'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
@@ -12,6 +12,7 @@ import { formatRupiah, periodLabel } from '../sppUtil'
 import { METHOD_LABEL, type SppPayment } from '../types'
 import { PaymentModal } from '../components/PaymentModal'
 import { ExportModal } from '../components/ExportModal'
+import { ReceiptModal } from '../components/ReceiptModal'
 
 /** Tab Pembayaran: riwayat pembayaran SPP + input kas masuk. */
 export function PaymentsTab({ active }: { active: boolean }) {
@@ -22,9 +23,20 @@ export function PaymentsTab({ active }: { active: boolean }) {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [receiptId, setReceiptId] = useState<string | null>(null)
 
   const total = useMemo(() => payments.reduce((s, p) => s + p.amount, 0), [payments])
   const pg = useTablePagination(payments.length, { label: 'pembayaran', showSizeChanger: false, defaultPageSize: 15 })
+
+  const receiptPayment = payments.find((p) => p.id === receiptId) ?? null
+  const paidForObligation = receiptPayment
+    ? payments
+        .filter((p) => p.obligation_id === receiptPayment.obligation_id)
+        .reduce((sum, p) => sum + p.amount, 0)
+    : 0
+  const outstandingAfter = receiptPayment
+    ? (receiptPayment.obligation?.amount ?? 0) - paidForObligation
+    : null
 
   const columns: ColumnsType<SppPayment> = [
     { title: 'Tanggal', width: 110, render: (_, p) => p.paid_at },
@@ -50,6 +62,23 @@ export function PaymentsTab({ active }: { active: boolean }) {
     { title: 'Petugas', width: 130, render: (_, p) => p.creator?.name ?? '-' },
     { title: 'Catatan', render: (_, p) => p.note ?? '—' },
   ]
+
+  columns.push({
+    title: '',
+    key: 'kwitansi',
+    width: 60,
+    render: (_, p) => (
+      <Tooltip title="Kwitansi pembayaran">
+        <Button
+          type="text"
+          size="small"
+          icon={<PrinterOutlined />}
+          onClick={() => setReceiptId(p.id)}
+          aria-label={`Kwitansi pembayaran ${p.obligation?.student?.name ?? ''}`}
+        />
+      </Tooltip>
+    ),
+  })
 
   if (canDelete) {
     columns.push({
@@ -120,6 +149,12 @@ export function PaymentsTab({ active }: { active: boolean }) {
       />
 
       <PaymentModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <ReceiptModal
+        open={receiptId !== null}
+        payment={receiptPayment}
+        outstandingAfter={outstandingAfter}
+        onClose={() => setReceiptId(null)}
+      />
       <ExportModal<SppPayment>
         open={exportOpen}
         onClose={() => setExportOpen(false)}

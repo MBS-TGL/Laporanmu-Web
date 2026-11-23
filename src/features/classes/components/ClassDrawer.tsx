@@ -61,7 +61,7 @@ export function ClassDrawer({ open, cls, onClose, onEdit }: ClassDrawerProps) {
   const csCount = classSubjectsQuery.data?.length ?? 0
 
   return (
-    <Drawer open={open} onClose={onClose} width={560} title={cls ? `Detail Kelas ${cls.name}` : ''}>
+    <Drawer open={open} onClose={onClose} size="min(560px, 96vw)" title={cls ? `Detail Kelas ${cls.name}` : ''}>
       {cls && (
         <motion.div
           variants={pageShellItemVariants}
@@ -155,7 +155,7 @@ export function ClassDrawer({ open, cls, onClose, onEdit }: ClassDrawerProps) {
                           navigate(`/students?classId=${cls.id}`)
                         }}
                       >
-                        Kelola santri di Data Siswa
+                        Kelola santri
                       </Button>
                       <Button
                         type="link"

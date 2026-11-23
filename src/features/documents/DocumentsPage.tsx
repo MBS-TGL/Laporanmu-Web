@@ -8,41 +8,49 @@ import { RaporTab } from './tabs/RaporTab'
 import { BukuIndukTab, KhsTab, TranscriptTab } from './tabs/DocTabs'
 import { YudisiumTab } from './tabs/YudisiumTab'
 import { DimensionsTab } from './tabs/DimensionsTab'
+import { CocurricularTab } from './tabs/CocurricularTab'
 
-const DOC_TAB_KEYS = ['rapor', 'khs', 'transcript', 'buku-induk', 'yudisium', 'dimensions'] as const
+const DOC_TAB_KEYS = ['report-card', 'khs', 'transcript', 'register', 'clearance', 'cocurricular', 'dimensions'] as const
 
 const DOC_TAB_META: Record<string, { title: string; subtitle: string }> = {
-  rapor: {
-    title: 'Raport Kurmer',
-    subtitle: 'Nilai semester per mapel + KKM + predikat, deskripsi otomatis & polesan AI, cetak berkop',
+  'report-card': {
+    title: 'Rapor Kurikulum Merdeka',
+    subtitle: 'Nilai semester per mata pelajaran, predikat, dan cetak berkop',
   },
   khs: {
-    title: 'Kartu Hasil Studi',
-    subtitle: 'Rekap satu santri satu semester, cetak berkop',
+    title: 'KHS',
+    subtitle: 'Rekap nilai satu santri per semester',
   },
   transcript: {
-    title: 'Transkrip Nilai',
-    subtitle: 'Gabungan nilai semester per mapel lintas tahun ajaran, cetak berkop',
+    title: 'Transkrip',
+    subtitle: 'Nilai lintas tahun ajaran',
   },
-  'buku-induk': {
+  register: {
     title: 'Buku Induk',
-    subtitle: 'Biodata santri per kelas: cetak dan unduh Excel',
+    subtitle: 'Biodata santri per kelas',
   },
-  yudisium: {
-    title: 'Yudisium Kelulusan',
-    subtitle: 'Cek syarat kelulusan (nilai, tahfidz, SPP, poin) → keputusan → dokumen',
+  clearance: {
+    title: 'Yudisium',
+    subtitle: 'Pemeriksaan syarat kelulusan',
   },
   dimensions: {
     title: 'Dimensi Kokurikuler',
-    subtitle: 'Daftar dimensi penilaian kokurikuler untuk rapor',
+    subtitle: 'Dimensi penilaian kokurikuler',
+  },
+  cocurricular: {
+    title: 'Nilai Kokurikuler',
+    subtitle: 'Predikat dan deskripsi kokurikuler per santri',
   },
 }
 
 /** Pusat Dokumen (P4): rapor, KHS, transkrip, buku induk, yudisium, dan dimensi kokurikuler —
  *  satu route bertab (?tab=) sesuai playbook. */
 export function DocumentsPage() {
-  const { tab, setTab } = useUrlTab('rapor', { keys: DOC_TAB_KEYS })
-  const meta = DOC_TAB_META[tab] ?? DOC_TAB_META.rapor
+  const { tab, setTab } = useUrlTab('report-card', {
+    keys: DOC_TAB_KEYS,
+    legacy: { rapor: 'report-card', 'buku-induk': 'register', yudisium: 'clearance' },
+  })
+  const meta = DOC_TAB_META[tab] ?? DOC_TAB_META['report-card']
   const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
 
   return (
@@ -50,7 +58,7 @@ export function DocumentsPage() {
       <ShellStagger>
         <ShellItem>
           <PageHeader
-            title={meta.title}
+            title="Dokumen Akademik"
             subtitle={meta.subtitle}
             extra={<div ref={setActionsHost} style={{ display: 'flex', alignItems: 'center' }} />}
           />
@@ -63,16 +71,18 @@ export function DocumentsPage() {
               key,
               label: DOC_TAB_META[key].title,
               children:
-                key === 'rapor' ? (
+                key === 'report-card' ? (
                   <RaporTab />
                 ) : key === 'khs' ? (
                   <KhsTab />
                 ) : key === 'transcript' ? (
                   <TranscriptTab />
-                ) : key === 'buku-induk' ? (
+                ) : key === 'register' ? (
                   <BukuIndukTab />
                 ) : key === 'dimensions' ? (
                   <DimensionsTab active={tab === 'dimensions'} />
+                ) : key === 'cocurricular' ? (
+                  <CocurricularTab active={tab === 'cocurricular'} />
                 ) : (
                   <YudisiumTab />
                 ),

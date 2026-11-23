@@ -17,11 +17,11 @@ const SUBJECT_TAB_ITEMS = [
 const SUBJECT_TAB_META: Record<string, { title: string; subtitle: string }> = {
   data: {
     title: 'Mata Pelajaran',
-    subtitle: 'Kelola daftar mapel, kelompok, dan beban jam per minggu',
+    subtitle: 'Daftar mata pelajaran, kelompok, dan beban jam',
   },
   curriculum: {
-    title: 'CP/TP Kurikulum',
-    subtitle: 'Kelola capaian dan tujuan pembelajaran per mata pelajaran',
+    title: 'Mata Pelajaran',
+    subtitle: 'Capaian dan tujuan pembelajaran per mata pelajaran',
   },
 }
 

@@ -146,7 +146,7 @@ export function SavingsPage() {
           message.error('PIN Petugas salah. Transaksi ditolak demi keamanan.')
           return
         }
-      } catch (err: unknown) {
+      } catch {
         // Jika belum ada PIN atau error verifikasi
         message.warning('Verifikasi PIN dilewati atau belum dipasang.')
       }
@@ -323,8 +323,8 @@ export function SavingsPage() {
   return (
     <div>
       <PageHeader
-        title="Tabungan Santri"
-        subtitle="Rekening tabungan, setor-tarik, dan buku tabungan santri"
+        title="Tabungan"
+        subtitle="Rekening, setor-tarik, dan buku tabungan santri"
         extra={
           <Space wrap>
             <Tooltip title="Muat ulang (R)">

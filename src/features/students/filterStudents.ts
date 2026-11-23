@@ -43,7 +43,7 @@ export function matchesStudentFilters(s: Student, f: StudentCriteria): boolean {
   if (f.missing === 'photo' && (s.photo_url || s.has_photo)) return false
   if (f.missing === 'phone' && s.phone) return false
   if (f.missing === 'nisn' && s.nisn) return false
-  if (f.missing === 'pin' && s.pin) return false
+  if (f.missing === 'pin' && (s.has_pin ?? !!s.pin)) return false
   if (f.missing === 'any' && !isIncomplete(completenessOf(s))) return false
   if (f.pointMode === 'negative' && s.total_points >= 0) return false
   if (f.pointMode === 'positive' && s.total_points <= 0) return false

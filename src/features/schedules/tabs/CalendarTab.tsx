@@ -4,6 +4,7 @@ import {
   Calendar,
   Card,
   Empty,
+  Grid,
   Input,
   Popconfirm,
   Segmented,
@@ -49,6 +50,8 @@ const CATEGORY_MAP: Record<CalendarEventCategory, { label: string; color: string
 }
 
 export function CalendarTab() {
+  const screens = Grid.useBreakpoint()
+  const isMobile = screens.md === false
   const { canWrite, canDelete } = usePermissions()
 
   const [view, setView] = useState<'calendar' | 'list'>('calendar')
@@ -391,7 +394,14 @@ export function CalendarTab() {
       </Card>
 
       {view === 'calendar' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16, alignItems: 'start' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) 300px',
+            gap: 16,
+            alignItems: 'start',
+          }}
+        >
           <Card loading={eventsQuery.isPending}>
             <Calendar
               cellRender={dateCellRender}
@@ -477,6 +487,7 @@ export function CalendarTab() {
             rowKey="id"
             columns={columns}
             dataSource={filteredEvents}
+            scroll={{ x: 'max-content' }}
             loading={eventsQuery.isPending}
             locale={{
               emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada agenda kegiatan" />,

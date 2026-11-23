@@ -75,12 +75,14 @@ const PROGRESS_FIELDS = [
   'last_education',
 ] as const
 
-const GRID_2COL: React.CSSProperties = {
+// Grid alur: 3 kolom di modal lebar (lg = 680), menyusut 2 lalu 1 kolom di
+// layar sempit (auto-fit, min() agar tidak overflow di ponsel)
+const GRID_FLOW: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))',
   columnGap: 12,
 }
-const SPAN_2: React.CSSProperties = { gridColumn: 'span 2' }
+const FULL_ROW: React.CSSProperties = { gridColumn: '1 / -1' }
 
 /** Chips hari kerja — nilai Form: string[] terurut sesuai WORK_DAYS */
 function WorkDaysChips({
@@ -256,12 +258,12 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
 
         {/* ── Identitas ────────────────────────────────────── */}
         <ModalSection title="Identitas" icon={<IdcardOutlined />} />
-        <div style={{ ...GRID_2COL, marginBottom: 16 }}>
+        <div style={{ ...GRID_FLOW, marginBottom: 16 }}>
           <Form.Item
             name="name"
             label="Nama Lengkap"
             rules={[{ required: true, message: 'Nama wajib diisi' }]}
-            style={SPAN_2}
+            style={FULL_ROW}
           >
             <Input placeholder="Nama lengkap dengan gelar" maxLength={120} />
           </Form.Item>
@@ -315,8 +317,8 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
           </Form.Item>
 
           <Form.Item name="gender" label="Jenis Kelamin">
+            {/* Tanpa block: segmented berukuran konten agar label tidak terpotong di sel 1/3 */}
             <Segmented
-              block
               options={[
                 { value: 'L', label: 'Laki-laki' },
                 { value: 'P', label: 'Perempuan' },
@@ -327,7 +329,7 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
 
         {/* ── Kepegawaian ──────────────────────────────────── */}
         <ModalSection title="Kepegawaian" icon={<SolutionOutlined />} />
-        <div style={{ ...GRID_2COL, marginBottom: 16 }}>
+        <div style={{ ...GRID_FLOW, marginBottom: 16 }}>
           <Form.Item name="employment_status" label="Status Kepegawaian">
             <Select
               options={Object.entries(TEACHER_EMPLOYMENT_LABEL).map(([value, label]) => ({
@@ -337,7 +339,7 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
             />
           </Form.Item>
 
-          <Form.Item name="type" label="Tipe Tugas">
+          <Form.Item name="type" label="Tipe Tugas" style={FULL_ROW}>
             <Segmented
               block
               options={[
@@ -373,7 +375,7 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
 
         {/* ── Pendidikan Terakhir ──────────────────────────── */}
         <ModalSection title="Pendidikan Terakhir" icon={<BookOutlined />} />
-        <div style={{ ...GRID_2COL, marginBottom: 16 }}>
+        <div style={{ ...GRID_FLOW, marginBottom: 16 }}>
           <Form.Item name="last_education" label="Tingkat Pendidikan">
             <Select options={EDUCATION_OPTIONS} allowClear placeholder="Pilih tingkat" />
           </Form.Item>
@@ -389,7 +391,7 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
 
         {/* ── Kontak & Lokasi ──────────────────────────────── */}
         <ModalSection title="Kontak & Lokasi" icon={<MailOutlined />} />
-        <div style={{ ...GRID_2COL, marginBottom: 16 }}>
+        <div style={{ ...GRID_FLOW, marginBottom: 16 }}>
           <Form.Item
             name="phone"
             label="No. HP / WhatsApp"
@@ -406,14 +408,14 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
             <Input placeholder="guru@contoh.com" maxLength={120} />
           </Form.Item>
 
-          <Form.Item name="address" label="Alamat Lengkap" style={SPAN_2}>
+          <Form.Item name="address" label="Alamat Lengkap" style={FULL_ROW}>
             <Input.TextArea rows={2} placeholder="Alamat domisili saat ini" maxLength={300} />
           </Form.Item>
         </div>
 
         {/* ── Presensi ─────────────────────────────────────── */}
         <ModalSection title="Presensi" icon={<ClockCircleOutlined />} />
-        <div style={{ ...GRID_2COL, marginBottom: 16 }}>
+        <div style={{ ...GRID_FLOW, marginBottom: 16 }}>
           <Form.Item name="fingerspot_name" label="Nama di Fingerspot">
             <Input placeholder="Sesuai mesin absensi" maxLength={120} />
           </Form.Item>
@@ -421,7 +423,7 @@ export function TeacherForm({ open, teacher, submitting, onCancel, onSubmit }: T
           <Form.Item
             name="work_days"
             label="Hari Kerja Aktif"
-            style={{ ...SPAN_2, marginBottom: 0 }}
+            style={{ ...FULL_ROW, marginBottom: 0 }}
           >
             <WorkDaysChips />
           </Form.Item>

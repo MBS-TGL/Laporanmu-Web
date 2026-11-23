@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   App,
@@ -32,10 +33,13 @@ import {
   FileExcelOutlined,
   HistoryOutlined,
   IdcardOutlined,
+  AuditOutlined,
+  HeartOutlined,
   ManOutlined,
   MoreOutlined,
   PauseCircleOutlined,
   PlusOutlined,
+  ReadOutlined,
   PushpinFilled,
   PushpinOutlined,
   SearchOutlined,
@@ -78,6 +82,7 @@ import { ImportModal } from './ImportModal'
 import { WaModal } from './WaModal'
 import { ColumnSettings, type ColumnVisibility } from './ColumnSettings'
 import { waLink } from '../../students/wa'
+import { supabase } from '../../../lib/supabase'
 import { TEACHER_STATUS_META, GENDER_LABEL } from '../status'
 import type {
   Gender,
@@ -92,6 +97,35 @@ import { TEACHER_TYPE_LABEL } from '../types'
 const MASK = '••••••'
 
 const COLUMNS_STORAGE_KEY = 'teachers_columns'
+const FILTERS_STORAGE_KEY = 'teachers_filters'
+
+// Filter yang diingat antar-sesi. Nilai divalidasi agar localStorage usang
+// atau rusak tidak mengunci daftar ke status/urutan yang tak dikenal.
+interface PersistedFilters {
+  status: TeacherStatus | ''
+  gender?: Gender
+  subject?: string
+  type?: TeacherType
+  sortBy?: TeacherSort
+}
+
+function loadPersistedFilters(): PersistedFilters {
+  const fallback: PersistedFilters = { status: '' }
+  try {
+    const f = JSON.parse(localStorage.getItem(FILTERS_STORAGE_KEY) ?? '{}') as Record<string, unknown>
+    return {
+      status: ['', 'active', 'inactive', 'on_leave'].includes(f.status as string)
+        ? (f.status as TeacherStatus | '')
+        : '',
+      gender: f.gender === 'L' || f.gender === 'P' ? (f.gender as Gender) : undefined,
+      subject: typeof f.subject === 'string' && f.subject ? f.subject : undefined,
+      type: typeof f.type === 'string' && f.type in TEACHER_TYPE_LABEL ? (f.type as TeacherType) : undefined,
+      sortBy: SORT_OPTIONS.some((o) => o.value === f.sortBy) ? (f.sortBy as TeacherSort) : undefined,
+    }
+  } catch {
+    return fallback
+  }
+}
 
 // Default semua kolom opsional tampil — reset dari popover kolom juga pakai ini
 const DEFAULT_COLUMNS: ColumnVisibility = { nbm: true, subject: true, phone: true, status: true, join_date: true }
@@ -144,14 +178,16 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
   const { canWrite, canDelete } = usePermissions()
+  // Filter terakhir sesi sebelumnya — dibaca sekali saat mount (pola V1 LS_FILTERS)
+  const [persisted] = useState(loadPersistedFilters)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 350)
-  const [status, setStatus] = useState<TeacherStatus | ''>('')
-  const [gender, setGender] = useState<Gender | undefined>()
-  const [subject, setSubject] = useState<string | undefined>()
-  const [type, setType] = useState<TeacherType | undefined>()
+  const [status, setStatus] = useState<TeacherStatus | ''>(persisted.status)
+  const [gender, setGender] = useState<Gender | undefined>(persisted.gender)
+  const [subject, setSubject] = useState<string | undefined>(persisted.subject)
+  const [type, setType] = useState<TeacherType | undefined>(persisted.type)
   const [missingWa, setMissingWa] = useState(false)
-  const [sortBy, setSortBy] = useState<TeacherSort | undefined>()
+  const [sortBy, setSortBy] = useState<TeacherSort | undefined>(persisted.sortBy)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [privacy, setPrivacy] = useState(false)
@@ -261,13 +297,38 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
   }, [allTeachers, debouncedSearch, status, gender, subject, type, missingWa, sortBy])
 
   // Pagination client-side — slice dari hasil filter+sort di memori
-  const pg = useTablePagination(rows.length, { label: 'guru' })
+  const pg = useTablePagination(rows.length, { label: 'guru', storageKey: 'teachers_page_size' })
   const paginatedRows = useMemo(
     () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
     [rows, pg.page, pg.pageSize],
   )
 
   const resetPage = pg.reset
+
+  // Ingat filter antar-sesi: halaman ini dibuka harian dengan filter yang sama
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ status, gender, subject, type, sortBy }))
+    } catch {
+      // penyimpanan penuh/tidak tersedia — filter tetap berlaku untuk sesi ini
+    }
+  }, [status, gender, subject, type, sortBy])
+
+  // Realtime: perubahan guru dari pengguna lain langsung menyegarkan daftar
+  // & ringkasan (pewaris channel postgres_changes V1, kini via invalidateQueries)
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    const channel = supabase
+      .channel('teachers-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
+        void queryClient.invalidateQueries({ queryKey: ['teachers'] })
+        void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      })
+      .subscribe()
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [queryClient])
 
   const clearAllFilters = () => {
     setSearch('')
@@ -351,7 +412,7 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
         },
       })
     return chips
-  }, [debouncedSearch, status, gender, subject, type, missingWa, sortBy])
+  }, [debouncedSearch, status, gender, subject, type, missingWa, sortBy, resetPage])
 
   const toggleSelectAll = () => {
     // Memilih semua baris HASIL FILTER (lintas halaman) — bukan hanya halaman aktif
@@ -368,7 +429,7 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
     const next = !privacy
     setPrivacy(next)
     message.info(
-      next ? 'Mode privasi diaktifkan — Data sensitif disembunyikan' : 'Mode privasi dinonaktifkan',
+      next ? 'Mode privasi diaktifkan. Data sensitif disembunyikan.' : 'Mode privasi dinonaktifkan',
     )
   }
 
@@ -523,7 +584,7 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
           {
             key: 'export',
             icon: <ExportOutlined />,
-            label: actionMenuLabel('Export Data', 'Excel atau CSV sesuai filter aktif', ['Ctrl', 'E']),
+            label: actionMenuLabel('Export Data', 'Excel, PDF, atau CSV sesuai filter aktif', ['Ctrl', 'E']),
             onClick: () => openExport('filtered'),
           },
         ],
@@ -557,7 +618,19 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
       label: 'Tutup / clear / deselect',
       group: 'Navigasi',
       icon: <CloseOutlined />,
-      run: clearAllFilters,
+      // Bertahap: search, lalu seleksi, lalu filter — satu Esc tidak menghapus semuanya
+      run: () => {
+        if (search) {
+          setSearch('')
+          resetPage()
+          return
+        }
+        if (selectedIds.length) {
+          setSelectedIds([])
+          return
+        }
+        if (status || gender || subject || type || missingWa || sortBy) clearAllFilters()
+      },
     },
     {
       keys: ['N'],
@@ -594,7 +667,7 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
       label: 'Buka arsip guru',
       group: 'Aksi',
       icon: <HistoryOutlined />,
-      run: () => onNavigateTab('arsip'),
+      run: () => onNavigateTab('archive'),
     },
     {
       keys: ['P'],
@@ -817,8 +890,11 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
   ]
 
   const counts = useMemo(() => {
-    const c = { total: allTeachers.length, active: 0, inactive: 0, on_leave: 0 }
-    for (const t of allTeachers) c[t.status] += 1
+    const c = { total: allTeachers.length, active: 0, inactive: 0, on_leave: 0, guru: 0, karyawan: 0, pengabdian: 0 }
+    for (const t of allTeachers) {
+      c[t.status] += 1
+      if (t.type) c[t.type] += 1
+    }
     return c
   }, [allTeachers])
 
@@ -920,6 +996,45 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
           hideIfZero
           onClick={() => {
             setStatus('on_leave')
+            resetPage()
+          }}
+        />
+        {/* Chip per tipe tugas — pewaris kartu statistik Guru/Karyawan/Pengabdian di V1 */}
+        <StatChip
+          icon={<ReadOutlined />}
+          label="Guru"
+          value={counts.guru}
+          color="sky"
+          loading={teachersQuery.isPending}
+          active={type === 'guru'}
+          onClick={() => {
+            setType(type === 'guru' ? undefined : 'guru')
+            resetPage()
+          }}
+        />
+        <StatChip
+          icon={<AuditOutlined />}
+          label="Karyawan"
+          value={counts.karyawan}
+          color="purple"
+          loading={teachersQuery.isPending}
+          active={type === 'karyawan'}
+          hideIfZero
+          onClick={() => {
+            setType(type === 'karyawan' ? undefined : 'karyawan')
+            resetPage()
+          }}
+        />
+        <StatChip
+          icon={<HeartOutlined />}
+          label="Pengabdian"
+          value={counts.pengabdian}
+          color="slate"
+          loading={teachersQuery.isPending}
+          active={type === 'pengabdian'}
+          hideIfZero
+          onClick={() => {
+            setType(type === 'pengabdian' ? undefined : 'pengabdian')
             resetPage()
           }}
         />
@@ -1058,7 +1173,7 @@ export function DataTab({ active, onNavigateTab }: DataTabProps) {
             showIcon
             style={{ marginBottom: 12, borderRadius: 10 }}
             message={`Menampilkan ${allTeachers.length.toLocaleString('id')} dari ${totalActive.toLocaleString('id')} guru`}
-            description="Daftar dibatasi 1.000 guru — gunakan filter atau pencarian untuk melihat guru lainnya. Ekspor tetap mencakup seluruh data yang cocok."
+            description="Daftar dibatasi 1.000 guru. Gunakan filter atau pencarian untuk melihat guru lainnya. Ekspor tetap mencakup seluruh data yang cocok."
           />
         )}
 

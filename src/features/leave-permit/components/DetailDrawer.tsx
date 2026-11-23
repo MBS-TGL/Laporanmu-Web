@@ -84,7 +84,7 @@ export function DetailDrawer({
       }
       open={!!permit}
       onClose={onClose}
-      width={440}
+      size="min(440px, 94vw)"
       destroyOnHidden
     >
       <Descriptions column={1} size="small" style={{ marginBottom: 20 }}>

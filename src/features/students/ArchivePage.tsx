@@ -275,7 +275,7 @@ export function ArchivePage({ active }: { active: boolean }) {
 
   const columns: TableProps<Student>['columns'] = [
     {
-      title: 'Siswa',
+      title: 'Santri',
       key: 'name',
       sorter: true,
       sortOrder: columnSortOrder(sortBy, 'name', SORT_PAIRS),
@@ -562,7 +562,7 @@ export function ArchivePage({ active }: { active: boolean }) {
                     <div>
                       <div>Belum ada siswa di arsip</div>
                       <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
-                        Siswa yang dihapus dari tab Santri Aktif akan muncul di sini
+                        Santri yang dihapus dari tab Santri Aktif akan muncul di sini
                       </div>
                     </div>
                   )

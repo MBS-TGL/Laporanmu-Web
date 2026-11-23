@@ -1,5 +1,7 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
+  App,
+  Button,
   Card,
   Col,
   DatePicker,
@@ -13,9 +15,14 @@ import {
   Typography,
   type TableColumnsType,
 } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useAuditLogs, useProfiles } from './hooks'
+import { fetchAuditLogsForExport, TABLE_LABELS } from './api'
+import { logAudit } from '../../shared/utils/auditLogger'
+import { downloadCsv } from '../../shared/utils/csv'
+import { useDebounce } from '../../shared/hooks/useDebounce'
 import type { AuditLog } from './types'
 
 const SOURCE_OPTIONS = [
@@ -46,29 +53,12 @@ const ACTION_COLOR: Record<string, string> = {
   BROADCAST: 'cyan',
 }
 
-const TABLE_LABELS: Record<string, string> = {
-  profiles: 'Akun & Profil',
-  students: 'Data Siswa',
-  teachers: 'Data Guru',
-  classes: 'Data Kelas',
-  dorms: 'Asrama',
-  academic_years: 'Tahun Akademik',
-  reports: 'Poin Santri',
-  point_rules: 'Aturan Poin',
-  gate_logs: 'Log Gerbang',
-  student_attendance: 'Absensi',
-  student_monthly_reports: 'Rapor Bulanan',
-  student_semester_reports: 'Rapor Semester',
-  health_logs: 'Kesehatan',
-  health_medicines: 'Stok Obat',
-  counseling_logs: 'BK',
-  leave_permits: 'Izin Keluar',
-  suspensions: 'Skorsing',
-  announcements: 'Informasi',
-  feature_flags: 'Feature Flags',
-  tasks: 'Tugas Otomatisasi',
-  'storage.objects': 'Penyimpanan',
-}
+/** Preset rentang tanggal cepat di atas RangePicker. */
+const DATE_PRESETS: { label: string; days: number }[] = [
+  { label: 'Hari ini', days: 1 },
+  { label: '7 hari', days: 7 },
+  { label: '30 hari', days: 30 },
+]
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleString('id-ID', {
@@ -79,7 +69,100 @@ function fmtTime(iso: string): string {
   })
 }
 
+// ------------------------------------------------------------
+// Diff JSON terstruktur: perbandingan old vs new per key — pengganti
+// dua <pre> mentah. Nilai sensitif (password/pin/token) sudah dimasking
+// auditLogger sebelum ditulis, jadi tidak perlu masking di sini.
+// ------------------------------------------------------------
+
+interface DiffRow {
+  key: string
+  oldV: unknown
+  newV: unknown
+  status: 'changed' | 'added' | 'removed'
+}
+
+function buildDiffRows(
+  oldData: Record<string, unknown> | null,
+  newData: Record<string, unknown> | null,
+): DiffRow[] {
+  const keys = [...new Set([...Object.keys(oldData ?? {}), ...Object.keys(newData ?? {})])]
+  const rows: DiffRow[] = []
+  for (const key of keys) {
+    const inOld = oldData != null && key in oldData
+    const inNew = newData != null && key in newData
+    if (!inOld) {
+      rows.push({ key, oldV: undefined, newV: newData?.[key], status: 'added' })
+    } else if (!inNew) {
+      rows.push({ key, oldV: oldData?.[key], newV: undefined, status: 'removed' })
+    } else if (JSON.stringify(oldData?.[key]) !== JSON.stringify(newData?.[key])) {
+      rows.push({ key, oldV: oldData?.[key], newV: newData?.[key], status: 'changed' })
+    }
+  }
+  return rows
+}
+
+const fmtDiffValue = (v: unknown) =>
+  v === undefined ? '(tidak ada)' : typeof v === 'string' ? v : JSON.stringify(v)
+
+function JsonDiff({ oldData, newData }: { oldData: Record<string, unknown> | null; newData: Record<string, unknown> | null }) {
+  const rows = useMemo(() => buildDiffRows(oldData, newData), [oldData, newData])
+  if (rows.length === 0) {
+    return (
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Tidak ada perbedaan antar snapshot.
+      </Typography.Text>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {rows.map((row) => (
+        <div key={row.key} style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 12 }}>
+          <Typography.Text strong style={{ fontSize: 11.5, minWidth: 120 }}>
+            {row.key}
+          </Typography.Text>
+          {row.status === 'removed' ? (
+            <span style={{ background: '#fff1f0', padding: '1px 6px', borderRadius: 6, textDecoration: 'line-through' }}>
+              {fmtDiffValue(row.oldV)}
+            </span>
+          ) : (
+            row.status !== 'added' && (
+              <span style={{ background: '#fff1f0', padding: '1px 6px', borderRadius: 6, textDecoration: 'line-through' }}>
+                {fmtDiffValue(row.oldV)}
+              </span>
+            )
+          )}
+          {row.status !== 'removed' && (
+            <span style={{ background: row.status === 'added' ? '#f0fdf4' : '#f6fef6', padding: '1px 6px', borderRadius: 6 }}>
+              {fmtDiffValue(row.newV)}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Snapshot JSON utuh (sisi tunggal: INSERT/DELETE) — dipakai bila diff per-key tidak relevan. */
+function JsonBlock({ data, tone }: { data: Record<string, unknown>; tone: 'old' | 'new' }) {
+  return (
+    <pre
+      style={{
+        background: tone === 'old' ? '#fff1f0' : '#f0fdf4',
+        padding: 8,
+        borderRadius: 8,
+        fontSize: 11,
+        overflowX: 'auto',
+        whiteSpace: 'pre-wrap',
+      }}
+    >
+      {JSON.stringify(data, null, 2)}
+    </pre>
+  )
+}
+
 export function AuditPage() {
+  const { message } = App.useApp()
   // Filter bersumber dari URL (?tab=audit&q=&source=&…&p=2) — bertahan saat
   // refresh/ganti tab dan bisa dibagikan sebagai deep-link. Param `tab`
   // dipertahankan karena params dibangun dari yang sudah ada.
@@ -111,6 +194,19 @@ export function AuditPage() {
     setSearchParams(sp, { replace: true })
   }
 
+  // Ketikan ditahan 300ms sebelum masuk URL — query tidak refire per keystroke
+  const [searchInput, setSearchInput] = useState(search)
+  const debouncedSearch = useDebounce(searchInput)
+  useEffect(() => {
+    setSearchInput(search) // sinkron bila URL berubah dari luar (deep-link/back)
+  }, [search])
+  useEffect(() => {
+    if ((debouncedSearch || undefined) !== (search || undefined)) {
+      applyFilters({ q: debouncedSearch || undefined })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch])
+
   const profilesQuery = useProfiles()
   const profiles = useMemo(() => profilesQuery.data ?? [], [profilesQuery.data])
 
@@ -133,118 +229,167 @@ export function AuditPage() {
     pageSize,
   })
 
-  const columns: TableColumnsType<AuditLog> = [
-    {
-      title: 'Waktu',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 130,
-      render: (v: string) => fmtTime(v),
-    },
-    {
-      title: 'Aksi',
-      key: 'action',
-      width: 100,
-      render: (_, l) => <Tag color={ACTION_COLOR[l.action] ?? 'default'}>{l.action}</Tag>,
-    },
-    {
-      title: 'Subjek',
-      key: 'subject',
-      render: (_, l) => (
-        <div>
-          <Typography.Text style={{ fontSize: 13 }}>
-            {l.table_name ? (TABLE_LABELS[l.table_name] ?? l.table_name) : '—'}
-          </Typography.Text>
-          {l.record_id && (
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                {l.record_id.slice(0, 8)}…
-              </Typography.Text>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: 'Pelaku',
-      key: 'actor',
-      width: 170,
-      render: (_, l) => (
-        <div>
-          <Typography.Text style={{ fontSize: 13 }}>{l.actor_name ?? 'Sistem'}</Typography.Text>
-          {l.actor_role && (
-            <div>
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                {l.actor_role}
-              </Typography.Text>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    { title: 'Sumber', dataIndex: 'source', key: 'source', width: 110, render: (v: string) => <Tag>{v}</Tag> },
-  ]
-
-  const expandedRowRender = (l: AuditLog) => (
-    <div style={{ padding: 8 }}>
-      <Typography.Text strong style={{ fontSize: 12 }}>
-        Detail Forensik
-      </Typography.Text>
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', margin: '6px 0 10px' }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          IP: {l.ip_address ?? '—'}
-        </Typography.Text>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          URL: {l.url ?? '—'}
-        </Typography.Text>
-      </div>
-      {l.old_data && (
-        <>
-          <Typography.Text strong style={{ fontSize: 12 }}>
-            Data Lama
-          </Typography.Text>
-          <pre
-            style={{
-              background: '#fff1f0',
-              padding: 8,
-              borderRadius: 8,
-              fontSize: 11,
-              overflowX: 'auto',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {JSON.stringify(l.old_data, null, 2)}
-          </pre>
-        </>
-      )}
-      {l.new_data && (
-        <>
-          <Typography.Text strong style={{ fontSize: 12 }}>
-            Data Baru
-          </Typography.Text>
-          <pre
-            style={{
-              background: '#f0fdf4',
-              padding: 8,
-              borderRadius: 8,
-              fontSize: 11,
-              overflowX: 'auto',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {JSON.stringify(l.new_data, null, 2)}
-          </pre>
-        </>
-      )}
-      {!l.old_data && !l.new_data && (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Tidak ada snapshot data untuk entri ini.
-        </Typography.Text>
-      )}
-    </div>
+  const columns: TableColumnsType<AuditLog> = useMemo(
+    () => [
+      {
+        title: 'Waktu',
+        dataIndex: 'created_at',
+        key: 'created_at',
+        width: 130,
+        render: (v: string) => fmtTime(v),
+      },
+      {
+        title: 'Aksi',
+        key: 'action',
+        width: 100,
+        render: (_, l) => <Tag color={ACTION_COLOR[l.action] ?? 'default'}>{l.action}</Tag>,
+      },
+      {
+        title: 'Subjek',
+        key: 'subject',
+        render: (_, l) => (
+          <div>
+            <Typography.Text style={{ fontSize: 13 }}>
+              {l.table_name ? (TABLE_LABELS[l.table_name] ?? l.table_name) : '—'}
+            </Typography.Text>
+            {l.record_id && (
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  {l.record_id.slice(0, 8)}…
+                </Typography.Text>
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        title: 'Pelaku',
+        key: 'actor',
+        width: 170,
+        render: (_, l) => (
+          <div>
+            <Typography.Text style={{ fontSize: 13 }}>{l.actor_name ?? 'Sistem'}</Typography.Text>
+            {l.actor_role && (
+              <div>
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  {l.actor_role}
+                </Typography.Text>
+              </div>
+            )}
+          </div>
+        ),
+      },
+      { title: 'Sumber', dataIndex: 'source', key: 'source', width: 110, render: (v: string) => <Tag>{v}</Tag> },
+    ],
+    [],
   )
 
+  const expandedRowRender = (l: AuditLog) => {
+    const isPairUpdate = l.old_data != null && l.new_data != null
+    return (
+      <div style={{ padding: 8 }}>
+        <Typography.Text strong style={{ fontSize: 12 }}>
+          Detail Forensik
+        </Typography.Text>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', margin: '6px 0 10px' }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            IP: {l.ip_address ?? '—'}
+          </Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            URL: {l.url ?? '—'}
+          </Typography.Text>
+        </div>
+        {l.user_agent && (
+          <div style={{ marginBottom: 10 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+              User Agent
+            </Typography.Text>
+            <Typography.Paragraph style={{ fontSize: 11.5, marginBottom: 0, maxWidth: 640 }}>
+              {l.user_agent}
+            </Typography.Paragraph>
+          </div>
+        )}
+        {isPairUpdate ? (
+          <>
+            <Typography.Text strong style={{ fontSize: 12 }}>
+              Perubahan Data
+            </Typography.Text>
+            <div style={{ marginTop: 6 }}>
+              <JsonDiff oldData={l.old_data} newData={l.new_data} />
+            </div>
+          </>
+        ) : (
+          <>
+            {l.old_data && (
+              <>
+                <Typography.Text strong style={{ fontSize: 12 }}>
+                  Data Lama
+                </Typography.Text>
+                <JsonBlock data={l.old_data} tone="old" />
+              </>
+            )}
+            {l.new_data && (
+              <>
+                <Typography.Text strong style={{ fontSize: 12 }}>
+                  Data Baru
+                </Typography.Text>
+                <JsonBlock data={l.new_data} tone="new" />
+              </>
+            )}
+          </>
+        )}
+        {!l.old_data && !l.new_data && (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Tidak ada snapshot data untuk entri ini.
+          </Typography.Text>
+        )}
+      </div>
+    )
+  }
+
   const total = logsQuery.data?.total ?? 0
+  const [exporting, setExporting] = useState(false)
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const rows = await fetchAuditLogsForExport({
+        source,
+        action,
+        tableName,
+        userId,
+        search: search || undefined,
+        from: fromDate,
+        to: toDate,
+      })
+      downloadCsv(
+        `audit-log-${dayjs().format('YYYY-MM-DD')}.csv`,
+        ['Waktu', 'Aksi', 'Sumber', 'Tabel', 'Record ID', 'Pelaku', 'Role', 'IP', 'URL'],
+        rows.map((l) => [
+          fmtTime(l.created_at),
+          l.action,
+          l.source,
+          l.table_name ? (TABLE_LABELS[l.table_name] ?? l.table_name) : '',
+          l.record_id,
+          l.actor_name,
+          l.actor_role,
+          l.ip_address,
+          l.url,
+        ]),
+      )
+      void logAudit({
+        action: 'EXPORT',
+        source: 'SECURITY',
+        tableName: 'audit_logs',
+        newData: { rows: rows.length, format: 'csv' },
+      })
+      message.success(`${rows.length} entri diekspor ke CSV`)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal mengekspor audit log')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div>
@@ -254,8 +399,8 @@ export function AuditPage() {
             <Input
               placeholder="Cari pelaku / tabel / aksi"
               allowClear
-              value={search}
-              onChange={(e) => applyFilters({ q: e.target.value || undefined })}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
             />
           </Col>
           <Col xs={12} sm={6} lg={4}>
@@ -283,6 +428,7 @@ export function AuditPage() {
               placeholder="Tabel"
               allowClear
               showSearch
+              optionFilterProp="label"
               style={{ width: '100%' }}
               value={tableName}
               onChange={(v) => applyFilters({ table: v ?? undefined })}
@@ -303,23 +449,50 @@ export function AuditPage() {
             />
           </Col>
           <Col xs={24} sm={12} lg={12}>
-            <DatePicker.RangePicker
-              style={{ width: '100%' }}
-              value={dateRange}
-              onChange={(v) =>
-                applyFilters({
-                  from: v?.[0]?.format('YYYY-MM-DD'),
-                  to: v?.[1]?.format('YYYY-MM-DD'),
-                })
-              }
-            />
+            <Space wrap style={{ width: '100%' }}>
+              {DATE_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  size="small"
+                  onClick={() =>
+                    applyFilters({
+                      from: dayjs().subtract(preset.days - 1, 'day').format('YYYY-MM-DD'),
+                      to: dayjs().format('YYYY-MM-DD'),
+                    })
+                  }
+                >
+                  {preset.label}
+                </Button>
+              ))}
+              <DatePicker.RangePicker
+                style={{ flex: 1, minWidth: 220 }}
+                value={dateRange}
+                onChange={(v) =>
+                  applyFilters({
+                    from: v?.[0]?.format('YYYY-MM-DD'),
+                    to: v?.[1]?.format('YYYY-MM-DD'),
+                  })
+                }
+              />
+            </Space>
           </Col>
         </Row>
 
         <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 16 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
-            Total {total} entri
-          </Typography.Text>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
+              Total {total} entri
+            </Typography.Text>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              loading={exporting}
+              disabled={total === 0}
+              onClick={() => void handleExport()}
+            >
+              Ekspor CSV
+            </Button>
+          </div>
           <Table<AuditLog>
             rowKey="id"
             columns={columns}
@@ -346,4 +519,3 @@ export function AuditPage() {
     </div>
   )
 }
-

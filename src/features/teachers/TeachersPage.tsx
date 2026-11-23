@@ -12,29 +12,31 @@ import { ArchivePage } from './ArchivePage'
 // ─── Shell: satu halaman Guru bertab (pola ?tab= — SKILLS.md §Skill 2) ──────
 const TEACHER_TAB_ITEMS = [
   { key: 'data', label: 'Data Guru' },
-  { key: 'beban', label: 'Beban Mengajar' },
-  { key: 'arsip', label: 'Arsip' },
+  { key: 'workload', label: 'Beban Mengajar' },
+  { key: 'archive', label: 'Arsip' },
 ]
 
 /** Judul & subtitle per tab — dirender shell di ATAS tab bar (pola AttendancePage). */
 const TEACHER_TAB_META: Record<string, { title: string; subtitle: (total?: number) => string }> = {
   data: {
-    title: 'Data Guru',
-    subtitle: (total) => `Kelola ${total ?? '…'} pengajar, musyrif, dan staf.`,
+    title: 'Guru',
+    subtitle: (total) => `Kelola ${total ?? '…'} guru, musyrif, dan tenaga kependidikan`,
   },
-  beban: {
+  workload: {
     title: 'Beban Mengajar',
-    subtitle: () => 'Distribusi jam mengajar guru dan cakupan mapel kelas.',
+    subtitle: () => 'Sebaran jam mengajar dan cakupan mapel',
   },
-  arsip: {
+  archive: {
     title: 'Arsip Guru',
-    subtitle: () => 'Lihat & pulihkan data guru yang sudah dihapus',
+    subtitle: () => 'Pulihkan guru yang sudah diarsipkan',
   },
 }
 
-/** Halaman Guru: data, beban mengajar, dan arsip dalam satu route (?tab=). */
+/** Halaman Guru: data, workload, dan archive dalam satu route (?tab=). */
 export function TeachersPage() {
-  const { tab, setTab } = useUrlTab('data')
+  const { tab, setTab } = useUrlTab('data', {
+    legacy: { beban: 'workload', arsip: 'archive' },
+  })
   // Cache dibagi dengan useTeachers di tab data — tanpa fetch ganda
   const teachersQuery = useTeachers({ page: 1, pageSize: 1000 })
   const meta = TEACHER_TAB_META[tab] ?? TEACHER_TAB_META.data
@@ -58,9 +60,9 @@ export function TeachersPage() {
             items={TEACHER_TAB_ITEMS.map((t) => ({
               ...t,
               children:
-                t.key === 'beban' ? (
-                  <LoadPage active={tab === 'beban'} />
-                ) : t.key === 'arsip' ? (
+                t.key === 'workload' ? (
+                  <LoadPage active={tab === 'workload'} />
+                ) : t.key === 'archive' ? (
                   <ArchivePage />
                 ) : (
                   <DataTab active={tab === 'data'} onNavigateTab={setTab} />

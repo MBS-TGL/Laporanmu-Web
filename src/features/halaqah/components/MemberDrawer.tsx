@@ -71,7 +71,7 @@ export function MemberDrawer({ open, group, canManage = false, onClose }: Member
       }
       open={open}
       onClose={onClose}
-      width={440}
+      size="min(440px, 94vw)"
       destroyOnHidden
     >
       {group?.musyrif_id && (

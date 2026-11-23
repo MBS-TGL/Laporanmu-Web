@@ -226,7 +226,7 @@ export function MemberDrawer({ open, activity, onClose }: MemberDrawerProps) {
           setSelectedIds([])
         }
       }}
-      width={480}
+      size="min(480px, 94vw)"
       destroyOnHidden
     >
       {activity?.teachers && (

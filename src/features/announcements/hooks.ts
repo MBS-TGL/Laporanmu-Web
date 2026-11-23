@@ -9,6 +9,7 @@ import {
   type AnnouncementFilters,
 } from './api'
 import type { AnnouncementPatch } from './types'
+import { sendAnnouncementPush } from './push'
 
 export function useAnnouncements(filters: AnnouncementFilters) {
   return useQuery({
@@ -30,6 +31,7 @@ export function useCreateAnnouncement() {
         newData: { title: created.title, category: created.category, is_published: created.is_published },
       })
       void qc.invalidateQueries({ queryKey: ['announcements'] })
+      void sendAnnouncementPush(created)
     },
   })
 }
@@ -54,6 +56,10 @@ export function useUpdateAnnouncement() {
         },
       })
       void qc.invalidateQueries({ queryKey: ['announcements'] })
+      // Kirim hanya saat aksi eksplisit menerbitkan (hindari push ganda saat edit)
+      if (updated.is_published && variables.patch.is_published === true) {
+        void sendAnnouncementPush(updated)
+      }
     },
   })
 }

@@ -30,18 +30,29 @@ function isTypingTarget(el: EventTarget | null): boolean {
 
 function matchBinding(e: KeyboardEvent, keys: string[]): boolean {
   const needsCtrl = keys.includes('Ctrl')
+  const needsShift = keys.includes('Shift')
+  const needsAlt = keys.includes('Alt')
   const main = keys[keys.length - 1]
 
   if (needsCtrl) {
     if (!(e.ctrlKey || e.metaKey)) return false
-  } else if (e.ctrlKey || e.metaKey || e.altKey) {
+  } else if (e.ctrlKey || e.metaKey) {
+    return false
+  }
+  if (needsAlt) {
+    if (!e.altKey) return false
+  } else if (e.altKey) {
     return false
   }
 
   if (main === 'Esc') return e.key === 'Escape'
-  // Huruf/angka dengan Shift hampir selalu salah tekan ('?' memang pakai Shift,
-  // tapi bukan alfanumerik sehingga lolos dari pengecualian ini)
-  if (e.shiftKey && /^[a-z0-9]$/i.test(main)) return false
+  if (needsShift) {
+    if (!e.shiftKey) return false
+  } else if (e.shiftKey && /^[a-z0-9]$/i.test(main)) {
+    // Huruf/angka dengan Shift hampir selalu salah tekan. '?' memang butuh
+    // Shift, tapi bukan alfanumerik sehingga tetap lolos.
+    return false
+  }
   return e.key.toLowerCase() === main.toLowerCase()
 }
 

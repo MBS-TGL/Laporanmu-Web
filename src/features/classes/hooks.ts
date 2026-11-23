@@ -3,12 +3,16 @@ import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../shared/utils/auditLogger'
 import {
   createClass,
+  createClassesBulk,
+  fetchArchivedClasses,
+  fetchAllClasses,
   fetchClassSubjects,
   fetchClassSubjectsByYear,
   saveClassSubjects,
   saveTeacherAssignments,
   fetchClasses,
   fetchClassGenderCounts,
+  restoreClass,
   setClassesHomeroomBulk,
   softDeleteClass,
   softDeleteClassesBulk,
@@ -85,6 +89,63 @@ export function useClasses(filters: ClassFilters) {
   return useQuery({
     queryKey: ['classes', filters],
     queryFn: () => fetchClasses(filters),
+  })
+}
+
+/**
+ * Muat-semua kelas aktif tanpa pagination (kelas belasan — filter & sort di
+ * memori). Tanpa `count: 'exact'`, jadi lebih ringan dari useClasses 1×1000.
+ */
+export function useAllClasses() {
+  return useQuery({
+    queryKey: ['classes', 'all'],
+    queryFn: () => fetchAllClasses({}),
+  })
+}
+
+/** Kelas terarsip — hanya diambil saat tab Arsip aktif. */
+export function useArchivedClasses(enabled = true) {
+  return useQuery({
+    queryKey: ['classes', 'archived'],
+    queryFn: fetchArchivedClasses,
+    enabled,
+  })
+}
+
+export function useRestoreClass() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => restoreClass(id),
+    onSuccess: (_void, id) => {
+      void qc.invalidateQueries({ queryKey: ['classes'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'classes',
+        recordId: id,
+        newData: { restored: true },
+      })
+    },
+  })
+}
+
+/** Impor batch kelas — invalidasi & audit dijalankan per pemanggilan mutateAsync */
+export function useImportClasses() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: createClassesBulk,
+    onSuccess: (count) => {
+      void qc.invalidateQueries({ queryKey: ['classes'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
+      void logAudit({
+        action: 'INSERT',
+        source: 'MASTER',
+        tableName: 'classes',
+        recordId: null,
+        newData: { bulk_import: true, count },
+      })
+    },
   })
 }
 
@@ -222,6 +283,8 @@ export function useClassGenderCounts() {
         return new Map<string, { total: number; male: number; female: number }>()
       }
     },
-    staleTime: 60_000,
+    // Cache 5 menit: angka hanya berubah lewat mutasi kelas/santri, dan semua
+    // mutasi tersebut sudah invalidateQueries eksplisit — jadi staleTime panjang aman.
+    staleTime: 300_000,
   })
 }

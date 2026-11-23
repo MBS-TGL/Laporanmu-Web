@@ -36,9 +36,9 @@ export function ArchiveExport({ open, onClose, filteredRows, selectedRows }: Arc
     <ExportModal<Student>
       open={open}
       onClose={onClose}
-      title="Ekspor Arsip Siswa"
-      filename="arsip-siswa"
-      sheetName="Arsip Siswa"
+      title="Ekspor Arsip Santri"
+      filename="arsip-santri"
+      sheetName="Arsip Santri"
       columns={COLUMNS}
       auditTable="students"
       defaultScopeKey={hasSelection ? 'selected' : 'filtered'}

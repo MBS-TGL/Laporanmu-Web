@@ -129,7 +129,7 @@ function PortalShell({ children, wide }: { children: React.ReactNode; wide?: boo
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         background: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #f8fafc 100%)',
         padding: isDesktop ? '28px 24px' : '16px 12px',
       }}

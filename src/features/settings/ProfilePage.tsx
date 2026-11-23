@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
-import { App, Button, Card, ColorPicker, Form, Input } from 'antd'
-import { SaveOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import { App, Button, Card, ColorPicker, Form, Input, Typography } from 'antd'
+import { KeyOutlined, SaveOutlined } from '@ant-design/icons'
 import { supabase } from '../../lib/supabase'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { useSaveSchoolSettings, useSchoolSettings } from '../report-cards/hooks'
+import { setStaffPin } from '../savings/api'
 import type { SchoolSettings } from '../report-cards/types'
 
 interface SchoolSettingsFormValues {
@@ -20,6 +21,25 @@ export function ProfilePage() {
   const settingsQuery = useSchoolSettings()
   const saveMutation = useSaveSchoolSettings()
   const [form] = Form.useForm<SchoolSettingsFormValues>()
+  const [pinForm] = Form.useForm<{ pin: string; confirm: string }>()
+  const [savingPin, setSavingPin] = useState(false)
+
+  const handleSavePin = async (values: { pin: string; confirm: string }) => {
+    if (values.pin !== values.confirm) {
+      message.error('Konfirmasi PIN tidak sama')
+      return
+    }
+    setSavingPin(true)
+    try {
+      await setStaffPin(values.pin)
+      message.success('PIN otorisasi kas tersimpan')
+      pinForm.resetFields()
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal menyimpan PIN')
+    } finally {
+      setSavingPin(false)
+    }
+  }
 
   useEffect(() => {
     if (!settingsQuery.data) return
@@ -56,7 +76,7 @@ export function ProfilePage() {
     <div>
       <PageHeader
         title="Profil Sekolah"
-        subtitle="Identitas yang tampil di kop kartu raport saat dicetak"
+        subtitle="Identitas sekolah pada kop rapor"
       />
 
       <Card style={{ maxWidth: 640 }}>
@@ -106,6 +126,49 @@ export function ProfilePage() {
 
           <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saveMutation.isPending}>
             Simpan
+          </Button>
+        </Form>
+      </Card>
+
+      <Card style={{ maxWidth: 640, marginTop: 16 }} title="PIN Otorisasi Kas">
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+          PIN ini dipakai petugas untuk mengesahkan transaksi tabungan. Simpan PIN pribadi,
+          jangan dibagikan.
+        </Typography.Paragraph>
+        <Form
+          form={pinForm}
+          layout="vertical"
+          onFinish={(values) => void handleSavePin(values)}
+          disabled={savingPin}
+        >
+          <Form.Item
+            name="pin"
+            label="PIN Baru"
+            rules={[
+              { required: true, message: 'PIN wajib diisi' },
+              { pattern: /^\d{4,8}$/, message: 'PIN harus 4 sampai 8 digit angka' },
+            ]}
+          >
+            <Input.Password maxLength={8} inputMode="numeric" placeholder="4-8 digit" />
+          </Form.Item>
+          <Form.Item
+            name="confirm"
+            label="Ulangi PIN Baru"
+            dependencies={['pin']}
+            rules={[
+              { required: true, message: 'Ulangi PIN baru' },
+              ({ getFieldValue }) => ({
+                validator: (_rule, value) =>
+                  !value || value === getFieldValue('pin')
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('Konfirmasi PIN tidak sama')),
+              }),
+            ]}
+          >
+            <Input.Password maxLength={8} inputMode="numeric" placeholder="Ulangi PIN" />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" icon={<KeyOutlined />} loading={savingPin}>
+            Simpan PIN
           </Button>
         </Form>
       </Card>

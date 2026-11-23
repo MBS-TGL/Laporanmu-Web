@@ -1,9 +1,12 @@
-// Klien AI untuk Asisten AI topbar & modul AI — Groq (OpenAI-compatible) tanpa SDK.
-// Butuh VITE_GROQ_API_KEY di .env.local; tanpa key, fitur AI memberi pesan ramah.
+// Klien AI untuk Asisten AI topbar & modul AI.
+// Panggilan diteruskan ke Edge Function `ai-proxy` supaya API key provider
+// TIDAK pernah ikut terkompilasi ke bundle browser.
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+import { FunctionsHttpError } from '@supabase/supabase-js'
+import { supabase } from '../../lib/supabase'
+
 // Model free-tier Groq (aktif Nov 2026): 30 RPM, 1K RPD, 8K TPM, 200K TPD.
-const MODEL = 'openai/gpt-oss-120b'
+export const MODEL = 'openai/gpt-oss-120b'
 
 const APP_CONTEXT = `
 IDENTITAS:
@@ -39,50 +42,34 @@ export async function callAi(options: {
   history?: AiChatMessage[]
   maxOutputTokens?: number
 }): Promise<string> {
-  const apiKey = (import.meta.env as Record<string, string | undefined>).VITE_GROQ_API_KEY
-  if (!apiKey) {
-    return 'API Key AI belum diatur. Tambahkan **VITE_GROQ_API_KEY** di file .env.local lalu muat ulang aplikasi.'
-  }
-
-  // Format OpenAI chat: system dulu, lalu history, lalu prompt baru.
-  const messages = [
-    { role: 'system', content: options.system },
-    ...(options.history ?? []).map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
-    { role: 'user', content: options.prompt },
-  ]
-
   try {
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const { data, error } = await supabase.functions.invoke('ai-proxy', {
+      body: {
+        system: options.system,
+        prompt: options.prompt,
+        history: options.history ?? [],
+        maxOutputTokens: options.maxOutputTokens ?? 512,
         model: MODEL,
-        messages,
-        temperature: 0.4,
-        max_tokens: options.maxOutputTokens ?? 512,
-      }),
+      },
     })
-    if (!response.ok) {
+
+    if (error) {
       let detail = ''
-      try {
-        const err = await response.json()
-        detail = err?.error?.message ? ` — ${err.error.message}` : ''
-      } catch {
-        /* body bukan JSON */
+      if (error instanceof FunctionsHttpError && error.context instanceof Response) {
+        try {
+          const body = (await error.context.json()) as { error?: string }
+          detail = body.error ?? ''
+        } catch {
+          /* body bukan JSON */
+        }
       }
-      if (response.status === 429) {
-        return 'Layanan AI sedang membatasi permintaan (kuota free tier). Coba lagi beberapa menit.'
+      if (!detail && /failed to send|network|fetch/i.test(error.message ?? '')) {
+        return 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
       }
-      return `Maaf, terjadi kesalahan saat menghubungi layanan AI (kode ${response.status})${detail}`
+      return `Maaf, layanan AI tidak dapat diakses${detail ? `: ${detail}` : ''}.`
     }
-    const data = await response.json()
-    const text: string = data?.choices?.[0]?.message?.content ?? ''
+
+    const text = (data as { text?: string } | null)?.text ?? ''
     return text || 'Maaf, saya belum menemukan jawabannya. Coba tanyakan dengan kalimat lain.'
   } catch {
     return 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'

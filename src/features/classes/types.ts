@@ -1,3 +1,6 @@
+/** Urutan sort halaman kelas — pasangan [asc, desc] di components/ClassColumns SORT_PAIRS */
+export type ClassSort = 'name_asc' | 'name_desc' | 'grade_asc' | 'grade_desc' | 'count_desc' | 'count_asc'
+
 export interface ClassRow {
   id: string
   name: string
@@ -6,6 +9,7 @@ export interface ClassRow {
   homeroom_teacher_id: string | null
   academic_year_id: string | null
   created_at?: string
+  deleted_at?: string | null
   students?: { count: number }[] | { count: number } | null
   homeroom_teacher?: { name: string } | null
   academic_year?: { name: string } | null

@@ -43,11 +43,13 @@ src/
 8. **Penamaan maksimal 2 kata**. Komponen, file/folder, dan type pakai **PascalCase** (`ImportModal`, `StudentsPage`); fungsi/hook/variabel pakai **camelCase** (`useUrlTab`, `createActivity`; untuk hook nama file ikut nama hook-nya: `useUrlTab.ts`). Suffix type tetap: `Page`, `Form`, `Modal`, `Drawer`, `Tab`, `Icon`. Prefix domain di-drop bila folder feature sudah memberi konteks (`gate/components/ExportModal`, bukan `GateExportModal`). Dua modal serumpun dalam satu feature dibedakan entity: `AlumniImport`, `ArchiveExport`. Parser murni = `importParse.ts` di folder feature masing-masing. **Nama file/folder/komponen/hook/type & nilai route (`/finance`, `?tab=obligations`) wajib English** — copy UI tetap Indonesia, kecuali: (a) istilah domain pesantren tanpa padanan English (`tahfidz`, `halaqah`, `setoran`), (b) nilai yang tersimpan di DB (permission key `keuangan:read`, flag `module.ekskul`, tabel/kolom `ekskul_attendance.ekskul_id`) — jangan direname tanpa migrasi.
 9. Keunikan nama komponen berlaku **per folder**, bukan global: dua `ImportModal` di folder feature berbeda sah (folder = konteks). Dilarang ada dua nama sama di SATU file/import — kalau perlu, pakai alias import (`ExportModal as SharedExportModal`).
 10. Setelah perubahan signifikan (refactor, pola baru, gotcha baru), **update `MEMORY.md`**.
+11. **Mobile view wajib ikut `antislop-layoutmobile`** (`.opencode/skills/antislop-layoutmobile/SKILL.md`). Layout desktop tidak boleh dipaksakan ke mobile: ukuran, grid, navigasi, dan modal harus punya state mobile sendiri. Verifikasi minimal 390px dan 768px sebelum selesai.
 
 ## Referensi
 - `SKILLS.md` — playbook + snippet siap-copy untuk tugas umum.
 - `MEMORY.md` — log keputusan, gotcha, utang teknis. Baca dulu sebelum kerja besar.
 - `DESIGN.md` — arah desain (identitas, palet, tipografi, dial motion). **Untuk kerja UI: baca `DESIGN.md` dulu untuk arah, lalu skill `antislop` sebagai filter.**
+- `docs/GLOSSARY.md` — istilah baku UI (Santri, Rapor, Absensi, dan seterusnya). Wajib dipakai sebelum menulis label, judul, atau copy baru.
 - `docs/PRD-Sidikmu-Replacement.md` — PRD penggantian sistem lama.
 
 <!-- antislop:start -->

@@ -82,8 +82,8 @@ export function ReportForm({ open, submitting, onCancel, onSubmit }: ReportFormP
       <Form<ReportFormShape> form={form} layout="vertical" onFinish={handleFinish} disabled={submitting}>
         <Form.Item
           name="student_id"
-          label="Siswa"
-          rules={[{ required: true, message: 'Siswa wajib dipilih' }]}
+          label="Santri"
+          rules={[{ required: true, message: 'Santri wajib dipilih' }]}
         >
           <StudentSelect />
         </Form.Item>

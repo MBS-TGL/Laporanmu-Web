@@ -81,6 +81,7 @@ export function ArchivePage() {
           rowKey="id"
           loading={archivedQuery.isPending}
           dataSource={archivedQuery.data ?? []}
+          scroll={{ x: 'max-content' }}
           locale={{ emptyText: 'Tidak ada guru di arsip' }}
           pagination={pg.pagination}
           rowSelection={

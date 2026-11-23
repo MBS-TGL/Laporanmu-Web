@@ -3,6 +3,7 @@ import {
   createCounselingLog,
   deleteCounselingLog,
   fetchCounselingLogs,
+  fetchCounselingParticipants,
   fetchCounselingStatList,
   fetchCounselingStats,
   fetchStudentCounseling,
@@ -57,6 +58,16 @@ export function useStudentCounseling(studentId: string | null) {
     queryKey: ['counseling', 'history', studentId],
     queryFn: () => fetchStudentCounseling(studentId as string),
     enabled: Boolean(studentId),
+    staleTime: 30_000,
+  })
+}
+
+/** Peserta sesi kelompok untuk drawer detail (ditulis sejak 0032, baru dibaca). */
+export function useCounselingParticipants(counselingId: string | null) {
+  return useQuery({
+    queryKey: ['counseling', 'participants', counselingId],
+    queryFn: () => fetchCounselingParticipants(counselingId as string),
+    enabled: Boolean(counselingId),
     staleTime: 30_000,
   })
 }

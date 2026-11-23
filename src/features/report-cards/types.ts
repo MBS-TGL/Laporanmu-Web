@@ -127,6 +127,22 @@ export interface SchoolSettings {
   caretaker_name: string | null
   color_primary: string
   color_secondary: string
+  /** Kolom opsional untuk kop raport (migrasi 0062). */
+  school_name_ar?: string | null
+  school_subtitle_ar?: string | null
+  school_address_line1?: string | null
+  school_address_line2?: string | null
+  logo_url?: string | null
+  headmaster_name_id?: string | null
+  headmaster_name_ar?: string | null
+  headmaster_title_id?: string | null
+  headmaster_title_ar?: string | null
+  pengasuh_name_id?: string | null
+  pengasuh_name_ar?: string | null
+  report_color_primary?: string | null
+  report_color_secondary?: string | null
+  report_labels?: Record<string, unknown> | null
+  app_domain?: string | null
 }
 
 // Baris raport yang sedang diedit di tabel input (gabungan skor + extras)

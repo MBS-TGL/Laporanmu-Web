@@ -243,7 +243,7 @@ export function LegerPage() {
     <div>
       <PageHeader
         title="Leger Nilai"
-        subtitle={`Matriks nilai seluruh mapel kelas ${selectedClassName} — Semester ${selectedSemester}.`}
+        subtitle={`Nilai seluruh mapel kelas ${selectedClassName}, semester ${selectedSemester}`}
         extra={
           <Space wrap>
             <Tooltip title="Ekspor leger (CSV)">

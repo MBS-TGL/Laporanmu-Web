@@ -10,10 +10,12 @@ import {
   fetchExistingAlumniKeys,
   fetchExistingStudentCodes,
   fetchStudentGuardians,
+  fetchStudentPins,
   fetchStudentStats,
   fetchStudents,
   fetchWaSettingsStatus,
   generateStudentPins,
+  resetStudentPin,
   graduateStudentsBulk,
   hardDeleteStudent,
   hardDeleteStudentsBulk,
@@ -181,6 +183,38 @@ export function useStudentPhotos(ids: string[]) {
     queryFn: () => fetchStudentPhotos(sortedIds),
     enabled,
     staleTime: 1000 * 60 * 60, // 1 jam, foto jarang berubah
+  })
+}
+
+/**
+ * PIN santri on-demand (tabel `student_pins`, hanya manager ke atas).
+ * Dipakai kartu portal & broadcast WA yang butuh merge tag {pin}.
+ */
+export function useStudentPins(ids: string[]) {
+  const sortedIds = [...new Set(ids)].sort()
+  return useQuery({
+    queryKey: ['students', 'pins', sortedIds],
+    queryFn: () => fetchStudentPins(sortedIds),
+    enabled: sortedIds.length > 0,
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+export function useResetStudentPin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (studentId: string) => resetStudentPin(studentId),
+    onSuccess: (_pin, studentId) => {
+      void logAudit({
+        action: 'UPDATE',
+        source: 'MASTER',
+        tableName: 'student_pins',
+        recordId: studentId,
+        newData: { pin_reset: true },
+      })
+      void qc.invalidateQueries({ queryKey: ['students', 'pins'] })
+      invalidateStudents(qc, { list: true, detailId: studentId })
+    },
   })
 }
 
@@ -508,6 +542,7 @@ export function useGenerateStudentPins() {
         tableName: 'students',
         newData: { pins_generated: results.length },
       })
+      void qc.invalidateQueries({ queryKey: ['students', 'pins'] })
       invalidateStudents(qc, { list: true, detailId: results.length === 1 ? results[0].student_id : undefined })
     },
   })

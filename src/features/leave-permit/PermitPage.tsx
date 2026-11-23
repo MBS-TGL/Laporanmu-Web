@@ -378,8 +378,8 @@ export function PermitPage() {
   return (
     <div>
       <PageHeader
-        title="Izin Keluar Pondok"
-        subtitle="Terbitkan surat izin keluar, proses gerbang, dan pantau statusnya"
+        title="Izin Keluar"
+        subtitle="Surat izin keluar dan pemantauan status"
         extra={
           <Space wrap size={6}>
             <Tooltip title="Bantuan shortcut (?)">

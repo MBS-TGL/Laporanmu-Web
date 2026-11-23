@@ -137,6 +137,25 @@ export async function fetchStudentCounseling(studentId: string): Promise<Counsel
   return (data ?? []) as CounselingLog[]
 }
 
+/** Peserta sesi kelompok — sebelumnya ditulis tapi tidak pernah dibaca UI. */
+export async function fetchCounselingParticipants(
+  counselingId: string,
+): Promise<{ student_id: string; name: string; class_name: string | null }[]> {
+  const { data, error } = await supabase
+    .from('counseling_participants')
+    .select('student_id, students!counseling_participants_student_id_fkey(name, classes!students_class_id_fkey(name))')
+    .eq('counseling_id', counselingId)
+  if (error) throw error
+  return ((data ?? []) as unknown as Array<{
+    student_id: string
+    students?: { name: string; classes?: { name: string } | null } | null
+  }>).map((row) => ({
+    student_id: row.student_id,
+    name: row.students?.name ?? 'Santri',
+    class_name: row.students?.classes?.name ?? null,
+  }))
+}
+
 // ------------------------------------------------------------
 // Mutasi
 // ------------------------------------------------------------
@@ -168,6 +187,7 @@ export async function createCounselingLog(input: CreateCounselingInput): Promise
       action_plan: values.action_plan || null,
       urgency: values.urgency,
       status: values.status,
+      next_session_date: values.next_session_date ?? null,
       created_by: createdBy,
     })
     .select('*')
@@ -196,13 +216,15 @@ export interface UpdateCounselingInput {
 
 export async function updateCounselingLog(input: UpdateCounselingInput): Promise<CounselingLog> {
   const { id, values, studentName, className } = input
+  const additionalCount = values.additional_student_ids?.length ?? 0
+  const displayName = additionalCount > 0 ? `${studentName} (+${additionalCount} santri)` : studentName
   const { data, error } = await supabase
     .from('counseling_logs')
     .update({
       date: values.date,
       time: values.time,
       student_id: values.student_id,
-      student_name: studentName,
+      student_name: displayName,
       class_name: className,
       counselor_name: values.counselor_name || 'Konselor',
       category: values.category,
@@ -211,11 +233,22 @@ export async function updateCounselingLog(input: UpdateCounselingInput): Promise
       action_plan: values.action_plan || null,
       urgency: values.urgency,
       status: values.status,
+      next_session_date: values.next_session_date ?? null,
     })
     .eq('id', id)
     .select('*')
     .single()
   if (error) throw error
+
+  // Ganti baris peserta agar edit tidak meninggalkan partisipan basi.
+  await supabase.from('counseling_participants').delete().eq('counseling_id', id)
+  if (additionalCount > 0 && values.additional_student_ids) {
+    const allIds = Array.from(new Set([values.student_id, ...values.additional_student_ids]))
+    await supabase.from('counseling_participants').insert(
+      allIds.map((sId) => ({ counseling_id: id, student_id: sId })),
+    )
+  }
+
   return data as CounselingLog
 }
 

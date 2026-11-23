@@ -119,7 +119,7 @@ function StatListDrawer({ kind, open, onClose, onOpenDetail }: StatListDrawerPro
     <Drawer
       open={open}
       onClose={onClose}
-      width={520}
+      size="min(520px, 94vw)"
       title={
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {meta.title} {countTag}

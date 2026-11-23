@@ -30,7 +30,7 @@ export function PendingGate({ email }: { email?: string | null }) {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        minHeight: '100vh',
+        minHeight: '100dvh',
         padding: 24,
         background: 'var(--bg-layout, #f5f6f8)',
       }}

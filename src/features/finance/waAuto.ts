@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { fetchWaSettingsStatus, sendWaBroadcast } from '../students/api'
 import { waPhoneDigits } from '../students/wa'
+import { resolveGuardianPhone } from '../../shared/utils/guardianPhone'
 import { formatRupiah } from './sppUtil'
 import type { SppPayment } from './types'
 
@@ -44,18 +45,20 @@ export async function maybeSendSppWa(payment: SppPayment, sisaSetelahBayar: numb
       .maybeSingle()
     if (error) throw error
     const student = data as unknown as SppStudent | null
-    if (!student?.phone) return // tanpa nomor — tidak ada yang bisa dikirim
+    // Nomor wali (student_guardians) lebih tepat daripada nomor santri
+    const contact = await resolveGuardianPhone(studentId)
+    if (!contact.phone) return // tanpa nomor — tidak ada yang bisa dikirim
 
     const message = renderTemplate(TEMPLATE, {
-      wali: student.guardian_name ?? 'Bpk/Ibu',
-      nama: student.name,
-      kelas: student.classes?.name ?? '—',
+      wali: contact.name ?? 'Bpk/Ibu',
+      nama: student?.name ?? 'Santri',
+      kelas: student?.classes?.name ?? '—',
       komponen: payment.obligation?.component?.name ?? 'SPP',
       nominal: formatRupiah(payment.amount),
       sisa: formatRupiah(Math.max(0, sisaSetelahBayar)),
     })
 
-    const result = await sendWaBroadcast([{ target: waPhoneDigits(student.phone), message }])
+    const result = await sendWaBroadcast([{ target: waPhoneDigits(contact.phone), message }])
     if (!result.ok) console.warn('[wa-auto] kirim WA SPP gagal:', result.reason, result.detail)
   } catch (err) {
     console.warn('[wa-auto] gagal mengirim WA SPP:', err)

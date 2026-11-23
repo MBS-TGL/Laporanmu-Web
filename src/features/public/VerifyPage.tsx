@@ -20,6 +20,26 @@ interface LetterVerifyResult {
   error?: string
 }
 
+interface VerifySemesterResult {
+  student: {
+    name: string
+    registration_code: string
+    nisn: string | null
+    gender: 'L' | 'P' | null
+    class_name: string | null
+  }
+  report: {
+    semester: 1 | 2
+    report_type: string
+    academic_year_id: string
+    scores: Record<string, number | null>
+    extras: Record<string, unknown> | null
+    musyrif_name: string | null
+  }
+  academic_year: string | null
+  error?: string
+}
+
 interface VerifyResult {
   student: {
     name: string
@@ -77,11 +97,16 @@ export function VerifyPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<VerifyResult | null>(null)
+  const [semesterResult, setSemesterResult] = useState<VerifySemesterResult | null>(null)
   const [letterResult, setLetterResult] = useState<LetterVerifyResult | null>(null)
 
   const paramStudent = searchParams.get('s') ?? searchParams.get('id') ?? ''
   const paramNo = searchParams.get('no') ?? ''
   const paramToken = searchParams.get('token') ?? ''
+  const paramType = searchParams.get('type') ?? ''
+  const paramSemester = searchParams.get('semester') ?? ''
+  const paramAy = searchParams.get('ay') ?? ''
+  const isSemesterLink = Boolean(paramType && paramType !== 'monthly')
 
   useEffect(() => {
     document.title = 'Verifikasi Dokumen · Laporanmu'
@@ -132,6 +157,29 @@ export function VerifyPage() {
     setResult(res)
   }, [])
 
+  const verifySemester = useCallback(
+    async (studentId: string) => {
+      if (!studentId) return
+      setLoading(true)
+      setError(null)
+      const { data, error: rpcError } = await supabase.rpc('verify_semester_report', {
+        p_student_id: studentId,
+        p_report_type: paramType,
+        p_semester: Number(paramSemester) === 2 ? 2 : 1,
+        p_academic_year_id: paramAy || null,
+      })
+      setLoading(false)
+      const res = data as unknown as VerifySemesterResult | null
+      if (rpcError || !res || res.error) {
+        setError(res?.error ?? rpcError?.message ?? 'Gagal memverifikasi dokumen')
+        setSemesterResult(null)
+        return
+      }
+      setSemesterResult(res)
+    },
+    [paramType, paramSemester, paramAy],
+  )
+
   // Deep-link: ?s=<studentId>&no=<nomor raport> — dikirim lewat form
   // agar setState terjadi di callback handler (bukan di effect)
   useEffect(() => {
@@ -141,7 +189,12 @@ export function VerifyPage() {
   }, [paramStudent, form])
 
   const handleSubmit = async (values: { studentId: string }) => {
-    await verify(values.studentId.trim(), deepPeriod?.month ?? null, deepPeriod?.year ?? null)
+    const studentId = values.studentId.trim()
+    if (isSemesterLink) {
+      await verifySemester(studentId)
+      return
+    }
+    await verify(studentId, deepPeriod?.month ?? null, deepPeriod?.year ?? null)
   }
 
   return (
@@ -158,7 +211,7 @@ export function VerifyPage() {
           </div>
 
           <div style={{ background: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', fontSize: 13 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(88px, auto) 1fr', gap: '8px 12px', fontSize: 13 }}>
               <span style={{ color: '#64748b' }}>Nomor Surat:</span>
               <b>{letterResult.letter_no}</b>
               <span style={{ color: '#64748b' }}>Jenis Surat:</span>
@@ -188,7 +241,7 @@ export function VerifyPage() {
       )}
 
       {/* Form tetap ter-mount saat loading agar tidak ada layout jump */}
-      {!result && !letterResult && (
+      {!result && !semesterResult && !letterResult && (
         <PortalCard
           tint="green"
           icon={<SafetyCertificateOutlined />}
@@ -241,7 +294,7 @@ export function VerifyPage() {
       )}
 
       {/* Panduan 3 langkah — hanya pada tampilan form */}
-      {!result && (
+      {!result && !semesterResult && (
         <Card size="small" style={{ marginTop: 16, borderRadius: 14, border: '1px solid #eef2f7' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
             {(
@@ -285,11 +338,59 @@ export function VerifyPage() {
         </Card>
       )}
 
+      {semesterResult && (
+        <Card style={{ borderRadius: 16 }}>
+          <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
+            <Tag color="green" style={{ fontSize: 13, padding: '4px 14px', borderRadius: 999 }}>
+              ✓ Dokumen Rapor Semester Sah & Terdaftar
+            </Tag>
+            <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
+              Data berikut sesuai dengan arsip resmi sekolah
+            </Typography.Paragraph>
+          </div>
+
+          <Typography.Title level={4} style={{ textAlign: 'center', margin: 0 }}>
+            {semesterResult.student.name}
+          </Typography.Title>
+          <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
+            {semesterResult.student.class_name ?? '—'} · {semesterResult.student.registration_code}
+            {semesterResult.student.nisn ? ` · NISN ${semesterResult.student.nisn}` : ''}
+          </Typography.Paragraph>
+          <Typography.Paragraph type="secondary" style={{ textAlign: 'center', fontSize: 12.5 }}>
+            Semester {semesterResult.report.semester}
+            {semesterResult.academic_year ? ` · ${semesterResult.academic_year}` : ''}
+          </Typography.Paragraph>
+
+          <Typography.Text strong style={{ display: 'block', margin: '16px 0 4px' }}>
+            Nilai Rapor
+          </Typography.Text>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <tbody>
+              {Object.entries(semesterResult.report.scores ?? {}).map(([key, value]) => (
+                <tr key={key} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '6px 4px', color: '#64748b' }}>{key}</td>
+                  <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 600 }}>
+                    {value ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Musyrif: {semesterResult.report.musyrif_name ?? '—'}
+            </Typography.Text>
+            <Button onClick={() => window.print()}>Cetak Halaman Ini</Button>
+          </div>
+        </Card>
+      )}
+
       {result && (
         <Card style={{ borderRadius: 16 }}>
           <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
             <Tag color="green" style={{ fontSize: 13, padding: '4px 14px', borderRadius: 999 }}>
-              ✓ Dokumen Raport Sah & Terdaftar
+              ✓ Dokumen Rapor Sah & Terdaftar
             </Tag>
             <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
               Data berikut sesuai dengan arsip resmi sekolah

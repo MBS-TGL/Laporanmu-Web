@@ -5,6 +5,28 @@ import type { DailyReportCount, DormNegative, InsightsSnapshot, InsightPreset, R
 /** Ambang santri berisiko di halaman Insights (konsisten dengan chip "Poin Berisiko") */
 const RISK = -25
 
+const PAGE_SIZE = 1000
+const MAX_PAGES = 20 // pengaman 20k baris
+
+/**
+ * Ambil SELURUH baris hasil query dalam halaman 1000 (range) — pengganti
+ * cap limit(1000)/limit(500) yang memotong data sekolah besar.
+ */
+async function fetchAllPages<T>(
+  makeQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const out: T[] = []
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const from = page * PAGE_SIZE
+    const { data, error } = await makeQuery(from, from + PAGE_SIZE - 1)
+    if (error) throw new Error(error.message)
+    const rows = data ?? []
+    out.push(...rows)
+    if (rows.length < PAGE_SIZE) break
+  }
+  return out
+}
+
 /** Ambil angka-angka terkini dari berbagai modul (query ringan, field minim). */
 export async function fetchSnapshot(): Promise<InsightsSnapshot> {
   const today = new Date()
@@ -15,12 +37,15 @@ export async function fetchSnapshot(): Promise<InsightsSnapshot> {
 
   const [studentsRes, classesRes, dormsRes, reportsRes, tahfidzRes, savingsRes, loansRes, suspensionsRes] =
     await Promise.all([
-      supabase
-        .from('students')
-        .select('id, class_id, dorm_id, total_points, nisn, phone')
-        .is('deleted_at', null)
-        .eq('status', 'active')
-        .limit(1000),
+      fetchAllPages<{ id: string; class_id: string | null; dorm_id: string | null; total_points: number | null; nisn: string | null; phone: string | null }>(
+        (from, to) =>
+          supabase
+            .from('students')
+            .select('id, class_id, dorm_id, total_points, nisn, phone')
+            .is('deleted_at', null)
+            .eq('status', 'active')
+            .range(from, to),
+      ),
       supabase.from('classes').select('id, name').is('deleted_at', null),
       supabase.from('dorms').select('id, name, capacity').is('deleted_at', null),
       supabase
@@ -33,34 +58,28 @@ export async function fetchSnapshot(): Promise<InsightsSnapshot> {
         .from('tahfidz_records')
         .select('id', { count: 'exact', head: true })
         .gte('recorded_at', weekAgo.toISOString().slice(0, 10)),
-      supabase
-        .from('savings_accounts')
-        .select('balance, status')
-        .is('deleted_at', null)
-        .limit(1000),
-      supabase
-        .from('book_loans')
-        .select('due_date, returned_at')
-        .limit(500),
+      fetchAllPages<{ balance: number | string | null; status: string | null }>((from, to) =>
+        supabase.from('savings_accounts').select('balance, status').is('deleted_at', null).range(from, to),
+      ),
+      fetchAllPages<{ due_date: string; returned_at: string | null }>((from, to) =>
+        supabase.from('book_loans').select('due_date, returned_at').range(from, to),
+      ),
       supabase
         .from('suspensions')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'active'),
     ])
 
-  if (studentsRes.error) throw studentsRes.error
   if (classesRes.error) throw classesRes.error
   if (dormsRes.error) throw dormsRes.error
   if (reportsRes.error) throw reportsRes.error
   if (tahfidzRes.error) throw tahfidzRes.error
-  if (savingsRes.error) throw savingsRes.error
-  if (loansRes.error) throw loansRes.error
   if (suspensionsRes.error) throw suspensionsRes.error
 
-  const students = studentsRes.data ?? []
+  const students = studentsRes
   const classes = classesRes.data ?? []
   const dorms = dormsRes.data ?? []
-  const accounts = savingsRes.data ?? []
+  const accounts = savingsRes
   const reportRows = (reportsRes.data ?? []) as { points: number; reported_at: string }[]
   const todayStr = today.toISOString().slice(0, 10)
 
@@ -162,7 +181,7 @@ export async function fetchSnapshot(): Promise<InsightsSnapshot> {
     tahfidz7d: tahfidzRes.count ?? 0,
     savingsBalance,
     savingsAccounts: accounts.filter((a) => a.status === 'active').length,
-    booksOverdue: (loansRes.data ?? []).filter((l) => !l.returned_at && l.due_date && l.due_date < todayStr).length,
+    booksOverdue: loansRes.filter((l) => !l.returned_at && l.due_date && l.due_date < todayStr).length,
     suspensionsActive: suspensionsRes.count ?? 0,
   }
 }
@@ -247,7 +266,7 @@ ATURAN KETAT:
 4. Struktur: ## Ringkasan, ## Temuan Penting, ## Tindak Lanjut yang Disarankan.
 5. Angka yang kamu sebut HARUS persis dari data yang diberikan.`
 
-/** Minta Gemini menafsirkan snapshot data. */
+/** Minta model AI menafsirkan snapshot data. */
 export async function generateInsight(
   snapshot: InsightsSnapshot,
   preset: InsightPreset,
@@ -257,4 +276,46 @@ export async function generateInsight(
     prompt: buildInsightPrompt(snapshot, preset),
     maxOutputTokens: 1024,
   })
+}
+
+// ------------------------------------------------------------
+// Riwayat snapshot (tabel insight_logs, migrasi 0062) — persist
+// lintas perangkat, 10 entri terakhir.
+// ------------------------------------------------------------
+
+export interface InsightLogEntry {
+  id: string
+  prompt: string
+  result: string
+  model: string | null
+  createdAt: string
+}
+
+export async function saveInsightLog(input: { prompt: string; result: string; model: string | null }): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { error } = await supabase.from('insight_logs').insert({
+    prompt: input.prompt,
+    result: { text: input.result },
+    model: input.model,
+    created_by: user?.id ?? null,
+  })
+  if (error) throw error
+}
+
+export async function fetchInsightLogs(): Promise<InsightLogEntry[]> {
+  const { data, error } = await supabase
+    .from('insight_logs')
+    .select('id, prompt, result, model, created_at')
+    .order('created_at', { ascending: false })
+    .limit(10)
+  if (error) throw error
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    prompt: String(row.prompt ?? ''),
+    result: String((row.result as { text?: string } | null)?.text ?? ''),
+    model: (row.model as string | null) ?? null,
+    createdAt: String(row.created_at),
+  }))
 }

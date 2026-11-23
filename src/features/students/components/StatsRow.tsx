@@ -56,7 +56,7 @@ export const StatsRow = memo(function StatsRow({
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         <StatChip
           icon={<TeamOutlined />}
-          label="Total Siswa"
+          label="Total Santri"
           value={stats?.total ?? '–'}
           color="indigo"
           loading={loading}
@@ -180,11 +180,18 @@ export const StatsRow = memo(function StatsRow({
           // Popover, bukan Tooltip — isi berupa daftar per kelas butuh judul proper,
           // padding lega, dan lebar terkontrol (Tooltip menyebabkan wrap per kata).
           <Popover
-            trigger="hover"
+            trigger={['hover', 'click']}
             placement="bottomLeft"
             title="Kelengkapan data per kelas"
             content={
-              <div style={{ width: 330, maxHeight: 280, overflowY: 'auto', marginInline: -4 }}>
+              <div
+                style={{
+                  width: 'min(330px, calc(100vw - 48px))',
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                  marginInline: -4,
+                }}
+              >
                 {[...(stats?.classCompleteness ?? [])]
                   .sort((a, b) => a.percent - b.percent || a.name.localeCompare(b.name, 'id'))
                   .map((c) => {

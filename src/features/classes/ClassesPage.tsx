@@ -1,6 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Alert,
   App,
   Badge,
   Button,
@@ -8,51 +7,48 @@ import {
   Dropdown,
   Empty,
   Input,
-  Popconfirm,
   Select,
   Space,
   Table,
-  Tag,
+  Tabs,
   Tooltip,
   theme,
   type InputRef,
-  type TableColumnsType,
+  type MenuProps,
   type TableProps,
 } from 'antd'
 import {
   CheckSquareOutlined,
   CloseOutlined,
   DeleteOutlined,
-  EditOutlined,
   ExportOutlined,
-  IdcardOutlined,
+  FileAddOutlined,
   MoreOutlined,
   PlusOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   SearchOutlined,
   SlidersOutlined,
   TeamOutlined,
   ThunderboltOutlined,
   UserOutlined,
-  WarningOutlined,
-  QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatChip } from '../../shared/components/StatChip'
 import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
 import { ActionBar } from '../../shared/components/ActionBar'
-import { SortIcon } from '../../shared/components/SortIcon'
-import { columnSortOrder, sortByFromTableChange } from '../../shared/utils/tableSort'
 import { Kbd, ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { useTablePagination } from '../../shared/hooks/useTablePagination'
+import { useUrlTab } from '../../shared/hooks/useUrlTab'
+import { sortByFromTableChange } from '../../shared/utils/tableSort'
 import {
   useAcademicYearsBrief,
+  useAllClasses,
   useBulkDeleteClasses,
   useClassGenderCounts,
-  useClasses,
   useCreateClass,
   useDeleteClass,
   useSetClassesHomeroomBulk,
@@ -60,26 +56,55 @@ import {
 } from './hooks'
 import { ClassForm } from './components/ClassForm'
 import { ClassDrawer } from './components/ClassDrawer'
+import { useClassColumns, SORT_PAIRS } from './components/ClassColumns'
 import { ExportModal } from './components/ExportModal'
 import { HomeroomModal } from './components/HomeroomModal'
-import type { ClassFormValues, ClassRow } from './types'
-
-type ClassSort = 'name_asc' | 'name_desc' | 'grade_asc' | 'grade_desc' | 'count_desc' | 'count_asc'
+import { ImportModal } from './components/ImportModal'
+import { ArchiveTab } from './tabs/ArchiveTab'
+import type { ClassFormValues, ClassRow, ClassSort } from './types'
 
 const SORT_OPTIONS: { value: ClassSort; label: string }[] = [
   { value: 'name_asc', label: 'Nama A–Z' },
   { value: 'name_desc', label: 'Nama Z–A' },
   { value: 'grade_asc', label: 'Tingkat rendah–tinggi' },
   { value: 'grade_desc', label: 'Tingkat tinggi–rendah' },
-  { value: 'count_desc', label: 'Siswa terbanyak' },
-  { value: 'count_asc', label: 'Siswa tersedikit' },
+  { value: 'count_desc', label: 'Santri terbanyak' },
+  { value: 'count_asc', label: 'Santri tersedikit' },
 ]
 
-const SORT_PAIRS = {
-  name: ['name_asc', 'name_desc'],
-  grade: ['grade_asc', 'grade_desc'],
-  count: ['count_asc', 'count_desc'],
-} as const
+// Persistensi filter aktif — kelas dibiarkan tersaring saat kembali ke halaman ini
+// (ukuran halaman dipersist useTablePagination via storageKey)
+const LS_FILTERS = 'classes_filters'
+
+type StoredFilters = {
+  academicYearId?: string
+  grade?: string
+  noHomeroom?: boolean
+  emptyClass?: boolean
+  sortBy?: ClassSort
+}
+
+function loadStoredFilters(): StoredFilters {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_FILTERS) ?? '{}') as StoredFilters
+    // sortBy lama/rusak diabaikan agar comparator tidak crash
+    return { ...raw, sortBy: SORT_OPTIONS.some((o) => o.value === raw.sortBy) ? raw.sortBy : undefined }
+  } catch {
+    return {}
+  }
+}
+
+// ─── Shell: satu halaman Kelas bertab (pola ?tab= — SKILLS.md §Skill 2) ─────
+const CLASS_TAB_ITEMS = [
+  { key: 'active', label: 'Kelas Aktif' },
+  { key: 'archive', label: 'Arsip' },
+]
+
+/** Judul & subtitle per tab — dirender shell di ATAS tab bar (pola StudentsPage). */
+const CLASS_TAB_META: Record<string, { title: string; subtitle: string }> = {
+  active: { title: 'Kelas', subtitle: '' },
+  archive: { title: 'Arsip Kelas', subtitle: 'Pulihkan kelas yang sudah diarsipkan' },
+}
 
 export function ClassesPage() {
   const { message, modal } = App.useApp()
@@ -87,19 +112,25 @@ export function ClassesPage() {
   const { canWrite, canDelete } = usePermissions()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 350)
-  const [academicYearId, setAcademicYearId] = useState<string | undefined>()
-  const [grade, setGrade] = useState<string | undefined>()
-  const [noHomeroom, setNoHomeroom] = useState(false)
-  const [emptyClass, setEmptyClass] = useState(false)
-  const [sortBy, setSortBy] = useState<ClassSort | undefined>()
+  const [stored] = useState(loadStoredFilters)
+  const [academicYearId, setAcademicYearId] = useState<string | undefined>(stored.academicYearId)
+  const [grade, setGrade] = useState<string | undefined>(stored.grade)
+  const [noHomeroom, setNoHomeroom] = useState(stored.noHomeroom ?? false)
+  const [emptyClass, setEmptyClass] = useState(stored.emptyClass ?? false)
+  const [sortBy, setSortBy] = useState<ClassSort | undefined>(stored.sortBy)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<ClassRow | null>(null)
-  const [detail, setDetail] = useState<ClassRow | null>(null)
+  // Detail disimpan sebagai id lalu di-derive dari cache — setelah edit, drawer
+  // otomatis menampilkan data terbaru (bukan snapshot basi)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [exportScope, setExportScope] = useState<'filtered' | 'selected'>('filtered')
   const [homeroomOpen, setHomeroomOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+
+  const { tab, setTab } = useUrlTab('active', { keys: CLASS_TAB_ITEMS.map((t) => t.key) })
 
   const searchInputRef = useRef<InputRef>(null)
 
@@ -111,17 +142,20 @@ export function ClassesPage() {
     [genderCountsQuery.data],
   )
 
-  // Pola StudentsPage: fetch sekali (kelas belasan), filter+sort di memori
-  const classesQuery = useClasses({ page: 1, pageSize: 1000 })
+  // Pola StudentsPage: muat-semua tanpa pagination (kelas belasan), filter+sort di memori
+  const classesQuery = useAllClasses()
   const createMutation = useCreateClass()
   const updateMutation = useUpdateClass()
   const deleteMutation = useDeleteClass()
   const bulkDeleteMutation = useBulkDeleteClasses()
   const homeroomBulkMutation = useSetClassesHomeroomBulk()
 
-  const allClasses = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data])
-  const totalAll = classesQuery.data?.total ?? 0
-  const isTruncated = totalAll > allClasses.length
+  const allClasses = useMemo(() => classesQuery.data ?? [], [classesQuery.data])
+
+  const detail = useMemo(
+    () => allClasses.find((c) => c.id === detailId) ?? null,
+    [allClasses, detailId],
+  )
 
   const gradeOptions = useMemo(
     () =>
@@ -161,7 +195,7 @@ export function ClassesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allClasses, debouncedSearch, academicYearId, grade, noHomeroom, emptyClass, sortBy, countsMap])
 
-  const pg = useTablePagination(rows.length, { label: 'kelas' })
+  const pg = useTablePagination(rows.length, { label: 'kelas', storageKey: 'classes_page_size' })
 
   const paginatedRows = useMemo(
     () => rows.slice((pg.page - 1) * pg.pageSize, pg.page * pg.pageSize),
@@ -169,6 +203,18 @@ export function ClassesPage() {
   )
 
   const resetPage = pg.reset
+
+  // Persistensi filter aktif + ukuran halaman (write error tidak fatal)
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        LS_FILTERS,
+        JSON.stringify({ academicYearId, grade, noHomeroom, emptyClass, sortBy }),
+      )
+    } catch {
+      /* kuota penuh — abaikan */
+    }
+  }, [academicYearId, grade, noHomeroom, emptyClass, sortBy])
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
@@ -256,7 +302,7 @@ export function ClassesPage() {
         },
       })
     return chips
-  }, [debouncedSearch, academicYearId, grade, noHomeroom, emptyClass, sortBy, yearsQuery.data])
+  }, [debouncedSearch, academicYearId, grade, noHomeroom, emptyClass, sortBy, yearsQuery.data, resetPage])
 
   const openCreate = () => {
     setEditing(null)
@@ -292,14 +338,23 @@ export function ClassesPage() {
     }
   }
 
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id, {
+  // Guard sama dengan arsip massal: kelas berisi santri tidak boleh diarsipkan
+  const handleDelete = (row: ClassRow) => {
+    if (countOf(row) > 0) {
+      modal.warning({
+        title: 'Kelas masih berisi santri',
+        content: `${row.name} masih memiliki ${countOf(row)} santri aktif. Pindahkan santrinya dulu, lalu arsipkan.`,
+        okText: 'Mengerti',
+      })
+      return
+    }
+    deleteMutation.mutate(row.id, {
       onSuccess: () => {
-        message.success('Kelas dihapus')
-        setSelectedIds((prev) => prev.filter((sid) => sid !== id))
-        setDetail((current) => (current?.id === id ? null : current))
+        message.success('Kelas diarsipkan — bisa dipulihkan lewat tab Arsip')
+        setSelectedIds((prev) => prev.filter((sid) => sid !== row.id))
+        setDetailId((current) => (current === row.id ? null : current))
       },
-      onError: (err: Error) => message.error(err.message || 'Gagal menghapus kelas'),
+      onError: (err: Error) => message.error(err.message || 'Gagal mengarsipkan kelas'),
     })
   }
 
@@ -347,7 +402,7 @@ export function ClassesPage() {
   }
 
   const isRefreshing = classesQuery.isFetching || genderCountsQuery.isFetching
-  const isBlocked = formOpen || detail !== null || exportOpen || homeroomOpen
+  const isBlocked = formOpen || detail !== null || exportOpen || homeroomOpen || importOpen
 
   const shortcutItems: ShortcutItem[] = [
     {
@@ -369,7 +424,19 @@ export function ClassesPage() {
       label: 'Tutup / clear / deselect',
       group: 'Navigasi',
       icon: <CloseOutlined />,
-      run: clearAllFilters,
+      run: () => {
+        // Progresif: seleksi → pencarian → semua filter (sekali tekan tidak menghapus semuanya)
+        if (selectedIds.length > 0) {
+          setSelectedIds([])
+          return
+        }
+        if (search) {
+          setSearch('')
+          resetPage()
+          return
+        }
+        clearAllFilters()
+      },
     },
     {
       keys: ['N'],
@@ -414,25 +481,42 @@ export function ClassesPage() {
 
   const shortcuts = useShortcuts({ items: shortcutItems, isBlocked })
 
-  const headerMenu = {
+  const headerMenu: MenuProps = {
     items: [
-      {
-        key: 'export',
-        icon: <ExportOutlined />,
-        label: (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>
-              <div style={{ fontWeight: 600 }}>Export Data</div>
-              <div style={{ fontSize: 12, opacity: 0.65 }}>Excel / CSV — hasil filter atau terpilih</div>
-            </span>
-            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
-              <Kbd>Ctrl</Kbd>
-              <Kbd>E</Kbd>
-            </span>
-          </div>
-        ),
-        onClick: () => openExport(selectedIds.length > 0 ? 'selected' : 'filtered'),
-      },
+    {
+      key: 'export',
+      icon: <ExportOutlined />,
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>
+            <div style={{ fontWeight: 600 }}>Export Data</div>
+            <div style={{ fontSize: 12, opacity: 0.65 }}>Excel / CSV — hasil filter atau terpilih</div>
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+            <Kbd>Ctrl</Kbd>
+            <Kbd>E</Kbd>
+          </span>
+        </div>
+      ),
+      onClick: () => openExport(selectedIds.length > 0 ? 'selected' : 'filtered'),
+    },
+    ...(canWrite
+      ? [
+          {
+            key: 'import',
+            icon: <FileAddOutlined />,
+            label: (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>
+                  <div style={{ fontWeight: 600 }}>Impor Excel</div>
+                  <div style={{ fontSize: 12, opacity: 0.65 }}>Unggah daftar kelas dari Excel/CSV</div>
+                </span>
+              </div>
+            ),
+            onClick: () => setImportOpen(true),
+          },
+        ]
+      : []),
     ],
   }
 
@@ -443,117 +527,15 @@ export function ClassesPage() {
     resetPage()
   }
 
-  // Ikon sorter gaya Esceha.id — template di shared/components/SortIcon.
-  // Dibungkus fungsi: antd memanggil sortIcon sebagai fungsi biasa, jadi komponen
-  // harus dirender sebagai elemen agar hooks-nya legal.
-  const sortIcon = ({ sortOrder }: { sortOrder?: 'ascend' | 'descend' | null }) => (
-    <SortIcon sortOrder={sortOrder} />
-  )
-
-  const columns: TableColumnsType<ClassRow> = [
-    {
-      title: 'Kelas',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: true,
-      sortIcon,
-      sortOrder: columnSortOrder(sortBy, 'name', SORT_PAIRS),
-      render: (_, row) => (
-        <div>
-          <Space size={4}>
-            <Button
-              type="link"
-              style={{ padding: 0, height: 'auto', fontWeight: 600, fontSize: 14 }}
-              onClick={() => setDetail(row)}
-            >
-              {row.name}
-            </Button>
-            {!row.homeroom_teacher_id && (
-              <Tooltip title="Tanpa wali kelas">
-                <WarningOutlined style={{ color: token.colorWarning }} />
-              </Tooltip>
-            )}
-          </Space>
-          {row.major && (
-            <div style={{ fontSize: 12, color: token.colorTextTertiary }}>{row.major}</div>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: 'Tingkat',
-      dataIndex: 'grade',
-      key: 'grade',
-      width: 110,
-      sorter: true,
-      sortIcon,
-      sortOrder: columnSortOrder(sortBy, 'grade', SORT_PAIRS),
-      render: (v: string | null) => (v ? <Tag>{v}</Tag> : '-'),
-    },
-    {
-      title: 'Tahun Akademik',
-      key: 'year',
-      responsive: ['md'],
-      render: (_, row) => row.academic_year?.name || '-',
-    },
-    {
-      title: 'Wali Kelas',
-      key: 'homeroom',
-      render: (_, row) => row.homeroom_teacher?.name || <Tag color="warning">Belum ada</Tag>,
-    },
-    {
-      title: 'Jumlah Siswa',
-      key: 'count',
-      width: 130,
-      sorter: true,
-      sortIcon,
-      sortOrder: columnSortOrder(sortBy, 'count', SORT_PAIRS),
-      responsive: ['md'],
-      render: (_, row) => {
-        const g = countsMap.get(row.id)
-        return (
-          <div>
-            <strong>{g?.total ?? 0}</strong>
-            {g && g.total > 0 && (
-              <div style={{ fontSize: 11.5, color: token.colorTextTertiary }}>
-                L {g.male} · P {g.female}
-              </div>
-            )}
-          </div>
-        )
-      },
-    },
-    {
-      title: 'Aksi',
-      key: 'actions',
-      width: 140,
-      render: (_, row) => (
-        <Space size={0}>
-          <Tooltip title="Lihat detail">
-            <Button type="text" icon={<IdcardOutlined />} onClick={() => setDetail(row)} />
-          </Tooltip>
-          {canWrite && (
-            <Tooltip title="Edit">
-              <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(row)} />
-            </Tooltip>
-          )}
-          {canDelete && (
-            <Popconfirm
-              title="Hapus kelas ini?"
-              description="Data akan ditandai terhapus (soft delete)."
-              onConfirm={() => handleDelete(row.id)}
-              okText="Hapus"
-              cancelText="Batal"
-            >
-              <Tooltip title="Hapus">
-                <Button type="text" danger icon={<DeleteOutlined />} />
-              </Tooltip>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
-  ]
+  const columns = useClassColumns({
+    sortBy,
+    canWrite,
+    canDelete,
+    countsMap,
+    onDetail: (row) => setDetailId(row.id),
+    onEdit: openEdit,
+    onDelete: handleDelete,
+  })
 
   const stats = useMemo(() => {
     const noHomeroomCount = allClasses.filter((c) => !c.homeroom_teacher_id).length
@@ -565,15 +547,22 @@ export function ClassesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allClasses, countsMap])
 
+  const meta = CLASS_TAB_META[tab] ?? CLASS_TAB_META.active
+
   return (
     <div>
       <PageHeader
-        title="Data Kelas"
-        subtitle={`Struktur ${allClasses.length} kelas · ${stats.totalStudents} santri aktif.`}
+        title={meta.title}
+        subtitle={
+          tab === 'active'
+            ? `Struktur ${allClasses.length} kelas · ${stats.totalStudents} santri aktif`
+            : meta.subtitle
+        }
         extra={
           <Space wrap>
             <Tooltip title="Muat ulang (R)">
               <Button
+                aria-label="Muat ulang data"
                 icon={<ReloadOutlined spin={isRefreshing} />}
                 onClick={() => {
                   void classesQuery.refetch()
@@ -583,11 +572,11 @@ export function ClassesPage() {
             </Tooltip>
             <Dropdown menu={headerMenu} trigger={['click']} placement="bottomRight" overlayStyle={{ minWidth: 240 }}>
               <Tooltip title="Menu lainnya">
-                <Button icon={<MoreOutlined />} />
+                <Button aria-label="Menu lainnya" icon={<MoreOutlined />} />
               </Tooltip>
             </Dropdown>
             <Tooltip title="Shortcut keyboard (?)">
-              <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+              <Button aria-label="Palet shortcut" icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
             </Tooltip>
             {canWrite && (
               <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
@@ -598,6 +587,10 @@ export function ClassesPage() {
         }
       />
 
+      <Tabs activeKey={tab} onChange={setTab} items={CLASS_TAB_ITEMS} />
+
+      {tab === 'active' && (
+      <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <StatChip
           icon={<TeamOutlined />}
@@ -737,16 +730,6 @@ export function ClassesPage() {
 
         <FilterChips chips={filterChips} marginTop={showAdvanced ? 0 : 12} />
 
-        {isTruncated && (
-          <Alert
-            type="warning"
-            showIcon
-            style={{ marginTop: 12 }}
-            message={`Menampilkan ${allClasses.length.toLocaleString('id')} dari ${totalAll.toLocaleString('id')} kelas`}
-            description="Data melebihi batas muat sekali. Persempit filter agar kelas lain ikut tampil."
-          />
-        )}
-
         <Table<ClassRow>
           rowKey="id"
           columns={columns}
@@ -755,16 +738,24 @@ export function ClassesPage() {
           onChange={handleTableChange}
           showSorterTooltip={false}
           locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  allClasses.length > 0
-                    ? 'Tidak ada kelas yang cocok dengan filter'
-                    : 'Belum ada kelas — tambahkan kelas pertama'
-                }
-              />
-            ),
+            emptyText:
+              allClasses.length === 0 ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Belum ada kelas — mulai dari kelas pertama"
+                >
+                  {canWrite && (
+                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                      Tambah Kelas Pertama
+                    </Button>
+                  )}
+                </Empty>
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Tidak ada kelas yang cocok dengan filter"
+                />
+              ),
           }}
           rowSelection={{
             selectedRowKeys: selectedIds,
@@ -803,13 +794,17 @@ export function ClassesPage() {
             loading: bulkDeleteMutation.isPending,
             confirm: {
               title: `Arsipkan ${selectedIds.length} kelas terpilih?`,
-              description: 'Data akan ditandai terhapus (soft delete).',
+              description: 'Data ditandai terhapus dan bisa dipulihkan lewat tab Arsip.',
               okText: 'Ya, Arsipkan',
             },
             onClick: () => bulkArchive(selectedIds),
           },
         ]}
       />
+      </>
+      )}
+
+      {tab === 'archive' && <ArchiveTab active />}
 
       <ClassForm
         open={formOpen}
@@ -822,17 +817,16 @@ export function ClassesPage() {
       <ClassDrawer
         open={!!detail}
         cls={detail}
-        onClose={() => setDetail(null)}
+        onClose={() => setDetailId(null)}
         onEdit={canWrite ? openEdit : undefined}
       />
 
       <ExportModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
-        filters={{ search: debouncedSearch || undefined, academicYearId }}
+        filteredRows={rows}
         selectedIds={selectedIds}
         defaultScope={exportScope}
-        filteredCount={rows.length}
       />
 
       <HomeroomModal
@@ -842,6 +836,14 @@ export function ClassesPage() {
         onCancel={() => setHomeroomOpen(false)}
         onSubmit={handleBulkHomeroom}
       />
+
+      {canWrite && (
+        <ImportModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          existingClasses={allClasses}
+        />
+      )}
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>

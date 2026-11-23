@@ -38,38 +38,39 @@ export const MODULE_REGISTRY: RbacModuleMeta[] = [
   { key: 'dorms', label: 'Asrama', actions: CRUD },
   { key: 'health', label: 'Kesehatan', actions: CRUD },
   { key: 'counseling', label: 'Bimbingan Konseling', actions: CRUD },
+  { key: 'admissions', label: 'PPDB', actions: CRUD },
   { key: 'discipline', label: 'Poin & Disiplin', actions: CRUD },
   // Akademik
   { key: 'grades', label: 'Penilaian', actions: CRUD },
   { key: 'cbt', label: 'CBT', actions: CRUD },
-  { key: 'evaluation', label: 'Pusat Evaluasi', actions: CRUD },
-  { key: 'schedules', label: 'Jadwal KBM', actions: CRUD },
+  { key: 'evaluation', label: 'Evaluasi', actions: CRUD },
+  { key: 'schedules', label: 'Jadwal & Kalender', actions: CRUD },
   { key: 'teaching_load', label: 'Beban Mengajar', actions: [{ key: 'read', label: 'Lihat' }] },
-  { key: 'report_cards', label: 'Raport', actions: CRUD },
+  { key: 'report_cards', label: 'Rapor', actions: CRUD },
   { key: 'library', label: 'Perpustakaan', actions: CRUD },
   // Kegiatan Santri
   { key: 'tahfidz', label: 'Tahfidz', actions: CRUD },
   { key: 'halaqah', label: 'Halaqah', actions: CRUD },
   { key: 'ekskul', label: 'Ekstrakurikuler', actions: CRUD },
   { key: 'worship', label: 'Ibadah', actions: CRUD },
-  { key: 'documents', label: 'Pusat Dokumen', actions: CRUD },
+  { key: 'documents', label: 'Dokumen Akademik', actions: CRUD },
   // Keuangan & Aset
   { key: 'finance', label: 'Keuangan SPP', actions: CRUD },
   { key: 'savings', label: 'Tabungan', actions: CRUD },
   { key: 'inventory', label: 'Inventaris', actions: CRUD },
   // Master Data
-  { key: 'students', label: 'Data Siswa', actions: CRUD },
-  { key: 'teachers', label: 'Data Guru', actions: CRUD },
-  { key: 'classes', label: 'Data Kelas', actions: CRUD },
+  { key: 'students', label: 'Santri', actions: CRUD },
+  { key: 'teachers', label: 'Guru', actions: CRUD },
+  { key: 'classes', label: 'Kelas', actions: CRUD },
   { key: 'subjects', label: 'Mata Pelajaran', actions: CRUD },
   { key: 'academic_years', label: 'Tahun Akademik', actions: CRUD },
   // Sistem umum
-  { key: 'announcements', label: 'Informasi', actions: CRUD },
+  { key: 'announcements', label: 'Pengumuman', actions: CRUD },
   { key: 'school', label: 'Profil Sekolah', actions: CRUD },
   // Admin & developer tools (aksi = sub-halaman admin)
   {
     key: 'admin',
-    label: 'Admin & Developer Tools',
+    label: 'Administrasi',
     actions: [
       { key: 'access', label: 'Akses area admin' },
       { key: 'users', label: 'Pengguna' },
@@ -113,7 +114,7 @@ function operationalPermissions(): string[] {
  * modul lain hanya lihat. Sinkron dengan matrix di MEMORY.md.
  */
 const TEACHING_MODULES = ['attendance', 'grades', 'cbt', 'tahfidz', 'halaqah', 'report_cards']
-const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'discipline', 'leave_permit', 'gate', 'library', 'ekskul', 'finance', 'savings', 'inventory', 'academic_years', 'announcements', 'evaluation', 'worship', 'documents']
+const READ_ONLY_MODULES = ['dashboard', 'students', 'classes', 'schedules', 'subjects', 'teaching_load', 'dorms', 'health', 'counseling', 'admissions', 'discipline', 'leave_permit', 'gate', 'library', 'ekskul', 'finance', 'savings', 'inventory', 'academic_years', 'announcements', 'evaluation', 'worship', 'documents']
 
 function teacherPermissions(): string[] {
   const perms: string[] = []

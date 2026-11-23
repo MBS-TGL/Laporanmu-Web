@@ -15,6 +15,8 @@ export interface UseTablePaginationOptions {
   hideOnSinglePage?: boolean
   /** Tampilkan pemilih ukuran halaman. Default true; false untuk tabel kecil/modal. */
   showSizeChanger?: boolean
+  /** Kunci localStorage untuk mengingat ukuran halaman antar-sesi (mis. 'teachers_page_size'). */
+  storageKey?: string
 }
 
 /**
@@ -24,9 +26,27 @@ export interface UseTablePaginationOptions {
  * terakhir, kembali ke halaman valid terakhir agar tabel tidak kosong.
  */
 export function useTablePagination(total: number, options: UseTablePaginationOptions = {}) {
-  const { label, defaultPageSize = 10, pageSizeOptions = [10, 25, 50], hideOnSinglePage = false, showSizeChanger = true } = options
+  const { label, defaultPageSize = 10, pageSizeOptions = [10, 25, 50], hideOnSinglePage = false, showSizeChanger = true, storageKey } = options
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(defaultPageSize)
+  const [pageSize, setPageSize] = useState(() => {
+    if (!storageKey) return defaultPageSize
+    try {
+      const saved = Number(localStorage.getItem(storageKey))
+      return pageSizeOptions.includes(saved) ? saved : defaultPageSize
+    } catch {
+      return defaultPageSize
+    }
+  })
+
+  // Ingat ukuran halaman antar-sesi bila storageKey diberikan
+  useEffect(() => {
+    if (!storageKey) return
+    try {
+      localStorage.setItem(storageKey, String(pageSize))
+    } catch {
+      // penyimpanan penuh/tidak tersedia — ukuran tetap berlaku untuk sesi ini
+    }
+  }, [storageKey, pageSize])
 
   // Halaman valid terakhir — penyangga auto-clamp saat data menyusut.
   // Guard total > 0: tabel server-paginated mem-pass 0 sebelum data datang

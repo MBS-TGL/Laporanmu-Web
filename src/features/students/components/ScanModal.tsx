@@ -60,7 +60,7 @@ export function ScanModal({ open, onClose, allStudents, onSelectStudent }: ScanM
     } else {
       scannerBeepFail()
       setFlash({ ok: false, text: 'Tidak ditemukan', key: Date.now() })
-      message.error(`Siswa dengan kode "${code}" tidak ditemukan`)
+      message.error(`Santri dengan kode "${code}" tidak ditemukan`)
     }
   }
 

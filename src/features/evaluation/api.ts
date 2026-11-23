@@ -110,7 +110,7 @@ export async function fetchInstrumentResponses(instrumentId: string): Promise<In
 // Publik: isian santri
 // ------------------------------------------------------------
 export async function rpcEvalStart(token: string, studentCode: string) {
-  const { data, error } = await supabase.rpc('eval_start', {
+  const { data, error } = await supabase.rpc('eval_start_checked', {
     p_token: token,
     p_student_code: studentCode,
   })
@@ -119,7 +119,7 @@ export async function rpcEvalStart(token: string, studentCode: string) {
 }
 
 export async function rpcEvalSubmit(token: string, studentCode: string, answers: Record<string, unknown>) {
-  const { data, error } = await supabase.rpc('eval_submit', {
+  const { data, error } = await supabase.rpc('eval_submit_checked', {
     p_token: token,
     p_student_code: studentCode,
     p_answers: answers,

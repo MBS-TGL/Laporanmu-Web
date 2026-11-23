@@ -295,3 +295,16 @@ import { routeEnter, routeExit, shellVariants, shellTransition, bulkBarVariants,
 - Query keys konvensional: `['<domain>']`, `['<domain>', 'detail', id]`, `['<domain>', filters]`.
 - TS strict + `noUnusedLocals`: hapus import yang tidak terpakai, jangan biarkan `_var` kecuali parameter.
 - Test vitest hanya untuk logika murni (parser, distribusi, validasi) — colocated `<nama>.test.ts`.
+
+## Skill 9 — Mobile & responsif (WAJIB untuk kerja layout)
+
+**Baca `.opencode/skills/antislop-layoutmobile/SKILL.md` sebelum menyentuh layout, grid, tabel, modal, navigasi, atau halaman baru.** Prinsipnya: mobile adalah layout berbeda, bukan desktop yang diperkecil.
+
+Aturan singkat:
+- Breakpoint mengikuti konten, bukan daftar perangkat. Sediakan minimal tiga keadaan: ponsel, tablet, desktop.
+- Skala mobile sendiri: font, padding, gap, dan tinggi section lebih kecil. Jangan bawa ukuran desktop apa adanya.
+- Grid dan tabel turun menjadi satu kolom. Tabel lebar pakai `scroll.x` atau layout kartu. Wajib nol overflow horizontal.
+- Tap target minimal 44 x 44 px dan berjarak. Semua interaksi hover wajib punya padanan tap.
+- Navigasi memakai pola mobile: `BottomNav` + drawer "Lainnya" di bawah 768px. Modal otomatis bottom sheet lewat `AppModal`.
+- Hindari `100vh`; gunakan `auto` atau `dvh`. Sisakan padding bawah untuk bottom nav.
+- Verifikasi wajib di 390px, 768px, dan desktop. Cek `scrollWidth === clientWidth`, tombol bisa ditekan, dan konten terakhir tidak tertutup bottom nav.

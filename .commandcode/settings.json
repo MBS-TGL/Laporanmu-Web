@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(npx tsc --noEmit -p tsconfig.app.json)",
+      "Shell(npm:*)",
+      "Shell(npx eslint src/features/report-cards/CardsPage.tsx)",
+      "Shell(npx eslint src/features/report-cards)",
+      "powershell"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

@@ -61,6 +61,19 @@ export const TRASH_TABLES: TrashTableDef[] = [
     },
   },
   { table: 'inventory_items', label: 'Inventaris', select: 'name', title: (r) => String(r.name ?? '') },
+  { table: 'admissions', label: 'Pendaftar PPDB', select: 'full_name', title: (r) => String(r.full_name ?? '') },
+  // ── Tabel modul 0049–0056 (RPC 0062 me-resolve FK name yang dibutuhkan) ──
+  { table: 'worship_items', label: 'Materi Ibadah', select: 'label', title: (r) => String(r.label ?? '') },
+  { table: 'entities', label: 'Entitas', select: 'name', title: (r) => String(r.name ?? '') },
+  { table: 'instruments', label: 'Instrumen Evaluasi', select: 'title', title: (r) => String(r.title ?? '') },
+  {
+    table: 'curriculum_cps',
+    label: 'CP Kurikulum',
+    select: 'subject, description',
+    title: (r) => [String(r.subject ?? ''), String(r.description ?? '')].filter(Boolean).join(' · '),
+  },
+  { table: 'curriculum_tps', label: 'TP Kurikulum', select: 'description', title: (r) => String(r.description ?? '') },
+  { table: 'cocurricular_dims', label: 'Dimensi Kokurikuler', select: 'name', title: (r) => String(r.name ?? '') },
 ]
 
 export interface TrashEntry {
@@ -75,33 +88,42 @@ export interface TrashEntry {
 
 const RETENTION_DAYS = 30
 
-/** Ambil baris soft-deleted dari semua tabel registry (paralel, limit 200/tabel). */
+/**
+ * Ambil baris soft-deleted dari semua tabel registry dalam SATU call RPC
+ * (migrasi 0062, sebelumnya 13 query paralel limit 200/tabel). Payload =
+ * seluruh baris (to_jsonb); nama FK untuk judul (classes/subjects/students)
+ * di-resolve server-side sehingga pembentuk judul di bawah tetap bekerja.
+ */
 export async function fetchTrashItems(): Promise<TrashEntry[]> {
-  const results = await Promise.all(
-    TRASH_TABLES.map(async (def) => {
-      const { data, error } = await supabase
-        .from(def.table)
-        .select(`id, deleted_at, ${def.select}`)
-        .not('deleted_at', 'is', null)
-        .order('deleted_at', { ascending: false })
-        .limit(200)
-      // Tabel yang ditolak RLS/tidak ada dilewati — sampah modul lain tetap tampil
-      if (error) return []
-      return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => {
-        const deletedAt = String(row.deleted_at)
-        const days = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86_400_000)
-        return {
-          table: def.table,
-          label: def.label,
-          id: String(row.id),
-          title: def.title(row) || '(tanpa judul)',
-          deletedAt,
-          daysLeft: RETENTION_DAYS - days,
-        }
-      })
-    }),
-  )
-  return results.flat().sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
+  const { data, error } = await supabase.rpc('admin_trash_items', {
+    p_tables: TRASH_TABLES.map((def) => def.table),
+  })
+  if (error) throw error
+
+  const defsByTable = new Map(TRASH_TABLES.map((def) => [def.table, def]))
+  const rows = (data ?? []) as {
+    table_name: string
+    id: string
+    deleted_at: string
+    payload: Record<string, unknown>
+  }[]
+  return rows
+    .map((row) => {
+      const def = defsByTable.get(row.table_name)
+      if (!def) return null
+      const deletedAt = String(row.deleted_at)
+      const days = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86_400_000)
+      return {
+        table: row.table_name,
+        label: def.label,
+        id: String(row.id),
+        title: def.title(row.payload) || '(tanpa judul)',
+        deletedAt,
+        daysLeft: RETENTION_DAYS - days,
+      }
+    })
+    .filter((entry): entry is TrashEntry => entry !== null)
+    .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
 }
 
 export async function restoreTrashItem(table: string, id: string): Promise<void> {

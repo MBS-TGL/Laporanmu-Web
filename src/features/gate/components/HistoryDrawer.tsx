@@ -31,7 +31,7 @@ export function HistoryDrawer({ open, onClose, student }: HistoryDrawerProps) {
     <Drawer
       open={open}
       onClose={onClose}
-      width={440}
+      size="min(440px, 94vw)"
       title={
         <Space size={8}>
           <HistoryOutlined />

@@ -312,6 +312,39 @@ export async function fetchCocurricularScores(
   return (data ?? []) as unknown as CocurricularScoreRow[]
 }
 
+export interface CocurricularScoreInput {
+  student_id: string
+  dim_id: string
+  academic_year_id: string
+  semester: 'Odd' | 'Even'
+  predicate: CocurricularPredicate
+  description?: string | null
+}
+
+export type CocurricularPredicate = 'Sangat Baik' | 'Baik' | 'Cukup' | 'Perlu Bimbingan'
+
+export const COCURRICULAR_PREDICATES: CocurricularPredicate[] = [
+  'Sangat Baik',
+  'Baik',
+  'Cukup',
+  'Perlu Bimbingan',
+]
+
+/** Simpan nilai kokurikuler batch (unique per santri x dimensi x tahun x semester). */
+export async function saveCocurricularScores(rows: CocurricularScoreInput[]): Promise<void> {
+  if (rows.length === 0) return
+  const { error } = await supabase
+    .from('cocurricular_scores')
+    .upsert(rows, { onConflict: 'student_id,dim_id,academic_year_id,semester' })
+  if (error) throw error
+  await logAudit({
+    action: 'UPDATE',
+    source: 'MASTER',
+    tableName: 'cocurricular_scores',
+    newData: { count: rows.length },
+  })
+}
+
 // ─── Yudisium ────────────────────────────────────────────────────────────────
 
 export interface GraduationCheckRow {

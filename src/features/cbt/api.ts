@@ -205,14 +205,14 @@ export async function fetchCbtAttempts(examId: string): Promise<CbtAttempt[]> {
 }
 
 export async function forceSubmitAttempt(attemptId: string): Promise<number | null> {
-  const { data, error } = await supabase.rpc('cbt_force_submit', { p_attempt_id: attemptId })
+  const { data, error } = await supabase.rpc('cbt_force_submit_checked', { p_attempt_id: attemptId })
   if (error) throw error
   return (data as number | null) ?? null
 }
 
 /** Nilai essay attempt (staf) — finalisasi skor saat semua essay ternilai. */
 export async function gradeEssays(attemptId: string, scores: Record<string, number>): Promise<number | null> {
-  const { data, error } = await supabase.rpc('cbt_grade_essays', {
+  const { data, error } = await supabase.rpc('cbt_grade_essays_checked', {
     p_attempt_id: attemptId,
     p_scores: scores,
   })

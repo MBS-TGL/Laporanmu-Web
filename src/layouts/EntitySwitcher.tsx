@@ -36,7 +36,13 @@ export function EntitySwitcher({ isMobile }: { isMobile: boolean }) {
         }}
         options={switchable.map((e) => ({ value: e.id, label: e.name }))}
         prefix={<AppstoreOutlined style={{ color: '#64748b', fontSize: 12 }} />}
-        style={{ width: isMobile ? 120 : 180, flexShrink: 0 }}
+        // Mobile: menyusut saat ruang mepet (nama terpotong elipsis) —
+        // mencegah klaster kanan topbar menimpa tombol pencarian di 390px.
+        style={
+          isMobile
+            ? { width: 84, minWidth: 64, flexShrink: 1 }
+            : { width: 180, flexShrink: 0 }
+        }
         aria-label="Pilih entity lembaga"
       />
       {isAdmin && (

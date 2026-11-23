@@ -30,7 +30,7 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import Papa from 'papaparse'
-import { PageHeader } from '../../shared/components/PageHeader'
+import { useTabActions } from '../../shared/components/ActionsSlot'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { StatChip } from '../../shared/components/StatChip'
 import { StatusTag } from '../../shared/components/StatusTag'
@@ -68,7 +68,7 @@ function pointTagColor(points: number): string {
   return 'gold'
 }
 
-export function RulesPage() {
+export function RulesPage({ active = true }: { active?: boolean }) {
   const { message } = App.useApp()
   const { canWrite, canDelete } = usePermissions()
 
@@ -340,27 +340,26 @@ export function RulesPage() {
     },
   ]
 
+  const actions = useTabActions(
+    active,
+    <>
+      <Tooltip title="Palet shortcut (?)">
+        <Button type="text" icon={<QuestionCircleOutlined />} onClick={() => toggle()} />
+      </Tooltip>
+      <Tooltip title="Ekspor data aturan (CSV)">
+        <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport} />
+      </Tooltip>
+      {canWrite && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          Tambah Aturan
+        </Button>
+      )}
+    </>,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Aturan Poin"
-        subtitle="Daftar pelanggaran dan prestasi beserta bobot poinnya"
-        extra={[
-          <Tooltip key="shortcuts" title="Palet shortcut (?)">
-            <Button type="text" icon={<QuestionCircleOutlined />} onClick={() => toggle()} />
-          </Tooltip>,
-          <Tooltip key="export" title="Ekspor data aturan (CSV)">
-            <Button icon={<DownloadOutlined />} loading={exporting} onClick={handleExport} />
-          </Tooltip>,
-          ...(canWrite
-            ? [
-                <Button key="add" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-                  Tambah Aturan
-                </Button>,
-              ]
-            : []),
-        ]}
-      />
+      {actions}
 
       {/* Chip statistik — klik untuk memfilter tipe */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>

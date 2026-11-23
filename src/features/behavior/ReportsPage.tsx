@@ -23,7 +23,7 @@ import {
   SearchOutlined,
 } from '@ant-design/icons'
 import type { Dayjs } from 'dayjs'
-import { PageHeader } from '../../shared/components/PageHeader'
+import { useTabActions } from '../../shared/components/ActionsSlot'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { usePermissions } from '../../shared/hooks/useProfile'
 import { useTablePagination } from '../../shared/hooks/useTablePagination'
@@ -48,7 +48,7 @@ function formatDateTime(iso: string): string {
   })
 }
 
-export function ReportsPage() {
+export function ReportsPage({ active = true }: { active?: boolean }) {
   const { message } = App.useApp()
   const { canDelete } = usePermissions()
   const { open: openStudentDetail } = useStudentDetail()
@@ -104,7 +104,7 @@ export function ReportsPage() {
       render: (v: string) => formatDateTime(v),
     },
     {
-      title: 'Siswa',
+      title: 'Santri',
       key: 'student',
       render: (_, row) => (
         <div>
@@ -183,22 +183,21 @@ export function ReportsPage() {
     },
   ]
 
+  const actions = useTabActions(
+    active,
+    <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
+      Catat Poin
+    </Button>,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Catatan Poin"
-        subtitle="Riwayat pelanggaran dan prestasi santri"
-        extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-            Catat Poin
-          </Button>
-        }
-      />
+      {actions}
 
       <Card style={{ marginBottom: 16 }}>
         <Space wrap size="middle">
           <Input
-            placeholder="Cari nama siswa"
+            placeholder="Cari nama santri"
             prefix={<SearchOutlined />}
             allowClear
             value={search}

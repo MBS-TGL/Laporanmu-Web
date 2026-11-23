@@ -17,6 +17,11 @@ import {
 } from './api'
 import type { Teacher, TeacherFilters, TeacherFormValues, TeacherStatus } from './types'
 
+/** Data guru untuk audit — photo_url dibuang: tidak informatif & tadinya base64 membengkakkan log */
+function auditTeacherData(teacher: Teacher) {
+  return { ...teacher, photo_url: undefined }
+}
+
 export function useTeachers(filters: TeacherFilters) {
   return useQuery({
     queryKey: ['teachers', filters],
@@ -134,7 +139,7 @@ export function useCreateTeacher() {
         source: 'MASTER',
         tableName: 'teachers',
         recordId: created.id,
-        newData: created,
+        newData: auditTeacherData(created),
       })
     },
   })
@@ -153,7 +158,7 @@ export function useUpdateTeacher() {
         source: 'MASTER',
         tableName: 'teachers',
         recordId: updated.id,
-        newData: updated,
+        newData: auditTeacherData(updated),
       })
     },
   })

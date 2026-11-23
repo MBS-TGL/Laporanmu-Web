@@ -215,8 +215,8 @@ export function StudentForm({ open, student, submitting, onCancel, onSubmit }: S
 
   return (
     <AppModal
-      title={student ? 'Edit Siswa' : 'Tambah Siswa'}
-      subtitle={student ? 'Perbarui data siswa' : 'Data lengkap siswa baru'}
+      title={student ? 'Edit Santri' : 'Tambah Santri'}
+      subtitle={student ? 'Perbarui data santri' : 'Data lengkap santri baru'}
       icon={<UserOutlined />}
       open={open}
       onCancel={onCancel}

@@ -16,6 +16,7 @@ import {
   CheckOutlined,
   ExportOutlined,
   FileExcelOutlined,
+  FilePdfOutlined,
   FileTextOutlined,
   HistoryOutlined,
 } from '@ant-design/icons'
@@ -33,7 +34,7 @@ import {
 } from '../motion'
 import { logAudit } from '../utils/auditLogger'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { downloadCsv, downloadXlsx, type ExportCell } from './download'
+import { downloadCsv, downloadPdf, downloadXlsx, type ExportCell } from './download'
 import { useLastExport } from './useLastExport'
 
 export interface ExportColumn<T> {
@@ -64,7 +65,7 @@ export interface ExportColumnPreset {
   columnKeys: string[]
 }
 
-export type ExportFormat = 'csv' | 'xlsx'
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf'
 
 interface ExportModalProps<T> {
   open: boolean
@@ -106,6 +107,7 @@ function formatDateId(iso: string): string {
 function formatLabel(format: string | null): string {
   if (format === 'xlsx') return 'Excel'
   if (format === 'csv') return 'CSV'
+  if (format === 'pdf') return 'PDF'
   return format ?? ''
 }
 
@@ -204,6 +206,7 @@ export function ExportModal<T>({
         const headers = selectedCols.map((col) => col.header)
         const cells: ExportCell[][] = sourceRows.map((row) => selectedCols.map((col) => col.value(row)))
         if (format === 'csv') downloadCsv(`${resolvedName}.csv`, headers, cells)
+        else if (format === 'pdf') await downloadPdf(resolvedName, sheetName, headers, cells)
         else await downloadXlsx(resolvedName, sheetName, headers, cells)
         if (auditTable) {
           void logAudit({
@@ -214,7 +217,9 @@ export function ExportModal<T>({
           })
         }
       }
-      message.success(`${sourceRows.length} baris diekspor (${format === 'csv' ? 'CSV' : 'Excel'})`)
+      message.success(
+        `${sourceRows.length} baris diekspor (${format === 'csv' ? 'CSV' : format === 'pdf' ? 'PDF' : 'Excel'})`,
+      )
       if (auditTable) {
         void queryClient.invalidateQueries({ queryKey: ['audit', 'last-export', auditTable] })
       }
@@ -331,6 +336,7 @@ export function ExportModal<T>({
                 buttonStyle="solid"
                 options={[
                   { value: 'xlsx', label: <span><FileExcelOutlined /> Excel</span> },
+                  { value: 'pdf', label: <span><FilePdfOutlined /> PDF</span> },
                   { value: 'csv', label: <span><FileTextOutlined /> CSV</span> },
                 ]}
               />

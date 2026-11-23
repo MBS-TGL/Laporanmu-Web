@@ -522,7 +522,7 @@ export function InputPage() {
           </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
             Nilai mapel lain di rapor semester tidak akan tersentuh. Nilai yang di-generate tetap bisa
-            di-edit manual di halaman Raport.
+            di-edit manual di halaman Rapor.
           </Typography.Text>
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>Pilih Semester:</div>

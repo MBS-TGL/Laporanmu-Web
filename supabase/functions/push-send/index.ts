@@ -49,8 +49,8 @@ Deno.serve(async (req) => {
     .select('role')
     .eq('id', user.id)
     .maybeSingle()
-  if (!profile || !['developer', 'admin'].includes(profile.role)) {
-    return json({ ok: false, reason: 'Hanya developer atau admin yang boleh mengirim push' }, 403)
+  if (!profile || !['developer', 'admin', 'manager'].includes(profile.role)) {
+    return json({ ok: false, reason: 'Hanya developer, admin, atau manager yang boleh mengirim push' }, 403)
   }
 
   // ---- Konfigurasi VAPID dari secrets ----
@@ -61,8 +61,8 @@ Deno.serve(async (req) => {
   }
   webpush.setVapidDetails(subject, Deno.env.get('VAPID_PUBLIC_KEY') ?? '', privateKey)
 
-  // ---- Body: { studentIds?: string[], title, body, url? } ----
-  let payload: { studentIds?: string[]; title?: string; body?: string; url?: string }
+  // ---- Body: { studentIds?: string[], title, body, url?, kind? } ----
+  let payload: { studentIds?: string[]; title?: string; body?: string; url?: string; kind?: string }
   try {
     payload = await req.json()
   } catch {
@@ -73,11 +73,11 @@ Deno.serve(async (req) => {
   if (!title || !body) {
     return json({ ok: false, reason: 'title dan body wajib diisi' }, 400)
   }
-  const notification = JSON.stringify({
-    title,
-    body,
-    url: payload.url ?? '/portal',
-  })
+  const kind = ['announcement', 'spp', 'report', 'general'].includes(payload.kind ?? '')
+    ? (payload.kind as string)
+    : 'general'
+  const url = payload.url ?? '/portal'
+  const notification = JSON.stringify({ title, body, url })
 
   // ---- Kumpulkan subscription (service client) ----
   const admin = createClient(
@@ -91,6 +91,26 @@ Deno.serve(async (req) => {
   const { data: subs, error } = await query
   if (error) {
     return json({ ok: false, reason: error.message }, 500)
+  }
+
+  // ---- Tulis kotak masuk server-side (portal_notifications) ----
+  // Ditulis sekali per santri penerima, tidak peduli push perangkat
+  // berhasil atau ditolak. Kegagalan insert tidak boleh menggagalkan push.
+  const recipients = Array.from(
+    new Set((subs ?? []).map((s) => s.student_id).filter((id): id is string => Boolean(id))),
+  )
+  if (recipients.length > 0) {
+    const rows = recipients.map((studentId) => ({
+      student_id: studentId,
+      title,
+      body,
+      url,
+      kind,
+    }))
+    const { error: inboxError } = await admin.from('portal_notifications').insert(rows)
+    if (inboxError) {
+      console.error('[push-send] gagal menulis portal_notifications:', inboxError.message)
+    }
   }
 
   const staleIds: string[] = []

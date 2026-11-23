@@ -23,7 +23,7 @@ export function PublicGate({ children }: { children: ReactNode }) {
       )
     }
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
+      <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
         <MaintenanceNotice title="Sistem Sedang dalam Pemeliharaan" message={message} until={until} />
       </div>
     )

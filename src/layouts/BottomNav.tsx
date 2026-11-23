@@ -12,7 +12,7 @@ const DESIRED_TO: string[] = ['/dashboard', '/students', '/attendance', '/gate']
 
 const SHORT_LABEL: Record<string, string> = {
   '/dashboard': 'Beranda',
-  '/students': 'Siswa',
+  '/students': 'Santri',
   '/attendance': 'Absensi',
   '/gate': 'Gerbang',
 }

@@ -6,7 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { AppModal } from '../../../shared/components/AppModal'
 import { ModalFooter } from '../../../shared/components/ModalFooter'
 import { ModalNotice } from '../../../shared/components/ModalNotice'
-import { useGenerateStudentPins, useStudentPhotos } from '../hooks'
+import { useGenerateStudentPins, useStudentPhotos, useStudentPins } from '../hooks'
 import { GENDER_LABEL } from '../status'
 import type { Student } from '../types'
 
@@ -63,6 +63,9 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
   // A1: Ambil foto on-demand hanya saat modal cetak terbuka
   const photosQuery = useStudentPhotos(open ? students.map((s) => s.id) : [])
   const photos = photosQuery.data ?? {}
+  // PIN ada di tabel terpisah sejak 0066 — hanya manager ke atas yang bisa membaca
+  const pinsQuery = useStudentPins(open ? students.map((s) => s.id) : [])
+  const pins = pinsQuery.data ?? {}
   // PIN hasil generate ditempelkan lokal agar kartu langsung menampilkan
   // PIN baru tanpa menunggu refetch daftar siswa di halaman
   const [pinOverrides, setPinOverrides] = useState<Map<string, string>>(new Map())
@@ -75,8 +78,8 @@ export function CardModal({ open, onClose, students }: CardModalProps) {
   }, [open])
 
   const visible = students.slice(0, MAX_CARDS).map((s) => {
-    const override = pinOverrides.get(s.id)
-    return override ? { ...s, pin: override } : s
+    const pin = pinOverrides.get(s.id) ?? pins[s.id] ?? s.pin ?? null
+    return { ...s, pin }
   })
   const overflow = students.length - visible.length
   const missingPinStudents = visible.filter((s) => !s.pin)

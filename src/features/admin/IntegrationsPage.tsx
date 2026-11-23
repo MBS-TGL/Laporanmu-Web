@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Alert,
   App,
@@ -14,6 +14,7 @@ import {
   Tooltip,
   Typography,
   theme,
+  type TableColumnsType,
 } from 'antd'
 import {
   ApiOutlined,
@@ -28,7 +29,7 @@ import { StatChip } from '../../shared/components/StatChip'
 import { AppModal } from '../../shared/components/AppModal'
 import { ModalFooter } from '../../shared/components/ModalFooter'
 import { useTabActions } from '../../shared/components/ActionsSlot'
-import { useApiKeys, useApiKeyUsage, useCreateApiKey, useRevokeApiKey } from './integrations'
+import { useApiKeys, useApiKeyUsage, useCreateApiKey, useRevokeApiKey, useApiRequestLogs, type ApiRequestLogRow } from './integrations'
 
 /** Contoh payload webhook — nama field persis seperti RPC ppdb_admission_upsert. */
 const SAMPLE_PAYLOAD = `curl -X POST "$SUPABASE_URL/functions/v1/ppdb-webhook" \\
@@ -60,6 +61,48 @@ export function IntegrationsPage({ active }: { active: boolean }) {
   const [nameDraft, setNameDraft] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [createdKey, setCreatedKey] = useState<string | null>(null)
+
+  // Log permintaan webhook — server-paginated, 10/halaman
+  const LOG_PAGE_SIZE = 10
+  const [logPage, setLogPage] = useState(1)
+  const logsQuery = useApiRequestLogs(logPage, LOG_PAGE_SIZE)
+  const logColumns = useMemo(
+    () => [
+      {
+        title: 'Waktu',
+        dataIndex: 'created_at',
+        width: 150,
+        render: (v: string) => dayjs(v).format('DD MMM YYYY HH:mm:ss'),
+      },
+      {
+        title: 'Path',
+        dataIndex: 'path',
+        render: (v: string | null) => (
+          <code style={{ fontSize: 12 }}>{v ?? '—'}</code>
+        ),
+      },
+      {
+        title: 'Status',
+        dataIndex: 'status',
+        width: 90,
+        render: (v: number | null) =>
+          v === null ? (
+            <Tag>?</Tag>
+          ) : (
+            <Tag color={v < 400 ? 'success' : v < 500 ? 'warning' : 'error'} style={{ borderRadius: 6 }}>
+              {v}
+            </Tag>
+          ),
+      },
+      {
+        title: 'IP Sumber',
+        dataIndex: 'source_ip',
+        width: 140,
+        render: (v: string | null) => v ?? '—',
+      },
+    ] as TableColumnsType<ApiRequestLogRow>,
+    [],
+  )
 
   const openCreate = () => {
     setNameDraft('')
@@ -280,6 +323,47 @@ export function IntegrationsPage({ active }: { active: boolean }) {
             <pre style={codeStyle(token)}>{SAMPLE_PAYLOAD}</pre>
           </div>
         </Space>
+      </Card>
+
+      <Card
+        title={
+          <Space>
+            <ApiOutlined />
+            Log Permintaan (7 hari terakhir)
+          </Space>
+        }
+      >
+        <Typography.Paragraph type="secondary" style={{ fontSize: 13, marginBottom: 12 }}>
+          Jejak setiap permintaan webhook: waktu, path, status HTTP, dan IP sumber — untuk diagnosa
+          kegagalan pengiriman PPDB.
+        </Typography.Paragraph>
+        {logsQuery.isPending ? (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <Spin />
+          </div>
+        ) : logsQuery.isError ? (
+          <Alert type="error" showIcon message="Gagal memuat log permintaan" description={String(logsQuery.error)} />
+        ) : (logsQuery.data?.data.length ?? 0) === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Belum ada permintaan webhook dalam 7 hari terakhir."
+          />
+        ) : (
+          <Table<ApiRequestLogRow>
+            rowKey="id"
+            size="small"
+            columns={logColumns}
+            dataSource={logsQuery.data.data}
+            scroll={{ x: 'max-content' }}
+            pagination={{
+              current: logPage,
+              pageSize: LOG_PAGE_SIZE,
+              total: logsQuery.data.total,
+              showSizeChanger: false,
+              onChange: setLogPage,
+            }}
+          />
+        )}
       </Card>
 
       <AppModal

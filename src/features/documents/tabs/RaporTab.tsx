@@ -220,7 +220,7 @@ export function RaporTab() {
             disabled={!studentId}
             onClick={() => setPrintOpen(true)}
           >
-            Cetak Raport
+            Cetak Rapor
           </Button>
         </Space>
         {avg !== null && (
@@ -323,7 +323,7 @@ export function RaporAiNote() {
       type="info"
       showIcon
       message="Polesan AI opsional"
-      description="Tanpa VITE_GROQ_API_KEY, tombol AI tetap bisa ditekan tapi hanya mengembalikan catatan. Deskripsi otomatis selalu tersedia."
+      description="Jika layanan AI belum dikonfigurasi di server, tombol AI hanya mengembalikan catatan. Deskripsi otomatis selalu tersedia."
       style={{ borderRadius: 10 }}
     />
   )

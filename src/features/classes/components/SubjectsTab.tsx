@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   App,
   Button,
@@ -52,23 +52,30 @@ export function SubjectsTab({ cls }: SubjectsTabProps) {
 
   const [editRows, setEditRows] = useState<EditRow[]>([])
   const [dirty, setDirty] = useState(false)
+  const [syncedKey, setSyncedKey] = useState('')
 
-  // Build edit rows from fetched data
-  useEffect(() => {
-    if (!classSubjectsQuery.data) return
-    const rows: EditRow[] = classSubjectsQuery.data.map((cs) => ({
-      key: cs.subject_id,
-      subject_id: cs.subject_id,
-      subject_name: cs.subjects?.name ?? '—',
-      subject_code: cs.subjects?.code ?? null,
-      subject_kkm: cs.subjects?.kkm ?? null,
-      weekly_hours: cs.subjects?.weekly_hours ?? 0,
-      teacher_id: cs.teacher_id,
-      kkm_override: cs.kkm_override,
-    }))
-    setEditRows(rows)
-    setDirty(false)
-  }, [classSubjectsQuery.data])
+  // Bangun baris edit saat data berubah (adjust state saat render, bukan effect)
+  if (classSubjectsQuery.data) {
+    const key = classSubjectsQuery.data
+      .map((cs) => `${cs.subject_id}:${cs.teacher_id ?? ''}:${cs.kkm_override ?? ''}`)
+      .join('|')
+    if (key !== syncedKey) {
+      setSyncedKey(key)
+      setEditRows(
+        classSubjectsQuery.data.map((cs) => ({
+          key: cs.subject_id,
+          subject_id: cs.subject_id,
+          subject_name: cs.subjects?.name ?? '—',
+          subject_code: cs.subjects?.code ?? null,
+          subject_kkm: cs.subjects?.kkm ?? null,
+          weekly_hours: cs.subjects?.weekly_hours ?? 0,
+          teacher_id: cs.teacher_id,
+          kkm_override: cs.kkm_override,
+        })),
+      )
+      setDirty(false)
+    }
+  }
 
   const assignedSubjectIds = useMemo(
     () => new Set(editRows.map((r) => r.subject_id)),
@@ -297,6 +304,7 @@ export function SubjectsTab({ cls }: SubjectsTabProps) {
         size="small"
         columns={columns}
         dataSource={editRows}
+        scroll={{ x: 'max-content' }}
         loading={classSubjectsQuery.isPending}
         pagination={false}
         locale={{

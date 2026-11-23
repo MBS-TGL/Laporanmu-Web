@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { Button, Card, Empty, Popconfirm, Progress, Select, Space, Table, Tabs, Typography, type TableColumnsType } from 'antd'
 import { DeleteOutlined, EditOutlined, PrinterOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { PageHeader } from '../../shared/components/PageHeader'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useAcademicYearsBrief } from '../classes/hooks'
 import { isComplete, MONTH_NAMES, REPORT_CARD_TYPE_LABEL } from './constants'
 import {
   useAllMonthlyRows,
@@ -45,6 +45,11 @@ export function ArchivePage() {
   const semesterQuery = useAllSemesterRows(semesterType)
   const resetMonthly = useResetMonthlyPeriod()
   const resetSemester = useResetSemesterPeriod()
+  const yearsQuery = useAcademicYearsBrief()
+  const yearNameById = useMemo(
+    () => new Map((yearsQuery.data ?? []).map((y) => [y.id, y.name])),
+    [yearsQuery.data],
+  )
 
   const classById = useMemo(
     () => new Map((classesQuery.data ?? []).map((c) => [c.id, c])),
@@ -122,7 +127,7 @@ export function ArchivePage() {
         key,
         classId: b.classId,
         className: classById.get(b.classId)?.name ?? '—',
-        periodLabel: `Semester ${b.semester} — ${b.taId.slice(0, 8)}…`,
+        periodLabel: `Semester ${b.semester} — ${yearNameById.get(b.taId) ?? b.taId}`,
         musyrif: b.rows.find((r) => r.musyrif_name)?.musyrif_name ?? null,
         filled: b.rows.length,
         complete,
@@ -136,7 +141,7 @@ export function ArchivePage() {
         },
       }
     })
-  }, [semesterQuery.data, studentClassMap, classById, classTotal, semesterType])
+  }, [semesterQuery.data, studentClassMap, classById, classTotal, semesterType, yearNameById])
 
   const columns: TableColumnsType<ArchiveBucket> = [
     { title: 'Kelas', dataIndex: 'className', key: 'className', render: (v: string) => <Typography.Text strong>{v}</Typography.Text> },
@@ -195,8 +200,6 @@ export function ArchivePage() {
 
   return (
     <div>
-      <PageHeader title="Arsip Raport" subtitle="Riwayat raport per kelas dan periode" />
-
       <Tabs
         defaultActiveKey="monthly"
         items={[
@@ -209,6 +212,7 @@ export function ArchivePage() {
                   rowKey="key"
                   columns={columns}
                   dataSource={monthlyBuckets}
+                  scroll={{ x: 'max-content' }}
                   loading={monthlyQuery.isPending || studentClassesQuery.isPending}
                   locale={{
                     emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada arsip raport bulanan" />,
@@ -241,6 +245,7 @@ export function ArchivePage() {
                     rowKey="key"
                     columns={columns}
                     dataSource={semesterBuckets}
+                    scroll={{ x: 'max-content' }}
                     loading={semesterQuery.isPending || studentClassesQuery.isPending}
                     locale={{
                       emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Belum ada arsip raport semester" />,

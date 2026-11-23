@@ -82,7 +82,7 @@ export function DetailDrawer({ suspensionId, onClose }: DetailDrawerProps) {
     <AppModal
       open={suspensionId !== null}
       onCancel={onClose}
-      width={760}
+      width="min(760px, 96vw)"
       title={detail ? `Skorsing (${detail.student?.name ?? ''})` : 'Detail Skorsing'}
       subtitle={
         detail

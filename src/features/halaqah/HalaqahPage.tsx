@@ -11,39 +11,40 @@ import { PresensiTab } from './tabs/PresensiTab'
 import { SetoranTab } from './tabs/SetoranTab'
 
 const TAB_META: Record<string, { title: string; subtitle: string }> = {
-  presensi: {
-    title: 'Presensi Halaqah',
-    subtitle:
-      'Klik sel untuk ganti status · tahan & geser untuk isi banyak · klik nomor tanggal untuk isi kolom · klik kanan hapus sel',
+  attendance: {
+    title: 'Halaqah',
+    subtitle: 'Kehadiran santri per kelompok',
   },
   setoran: {
-    title: 'Setoran Hafalan',
-    subtitle: 'Catatan setoran hafalan santri — ziyadah dan murojaah',
+    title: 'Halaqah',
+    subtitle: 'Setoran hafalan ziyadah dan murojaah',
   },
   kelompok: {
-    title: 'Kelompok Halaqah',
-    subtitle: 'Kelompok halaqah, musyrif, dan anggota santri',
+    title: 'Halaqah',
+    subtitle: 'Kelompok, musyrif, dan anggota',
   },
 }
 
-/** Halaman Halaqah: presensi bulanan, setoran hafalan, & kelompok bimbingan dalam satu route (?tab=). */
+/** Halaman Halaqah: attendance bulanan, setoran hafalan, & kelompok bimbingan dalam satu route (?tab=). */
 export function HalaqahPage() {
-  const { tab, setTab } = useUrlTab('presensi')
+  const { tab, setTab } = useUrlTab('attendance', {
+    legacy: { presensi: 'attendance' },
+  })
   const { profile } = useProfile()
   const { can } = useRbac()
   // Tab Setoran menggantikan halaman Tahfidz lama — gate flag modul + perm baca
   const setoranEnabled = useFlag('module.tahfidz', true) && can('tahfidz:read')
-  const meta = TAB_META[tab] ?? TAB_META.presensi
+  const meta = TAB_META[tab] ?? TAB_META.attendance
   // Host aksi di kanan judul halaman (PageHeader) — diisi tiap tab via useTabActions (ActionsSlot)
   const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
 
   // Deep link ke tab yang tidak tersedia → kembali ke tab default (pola tab machines di AttendancePage)
   useEffect(() => {
-    if (tab === 'setoran' && !setoranEnabled) setTab('presensi')
+    if (tab === 'setoran' && !setoranEnabled) setTab('attendance')
   }, [tab, setoranEnabled, setTab])
 
   const items = [
-    { key: 'presensi', label: 'Presensi', children: <PresensiTab active={tab === 'presensi'} /> },
+    { key: 'attendance', label: 'Absensi', children: <PresensiTab active={tab === 'attendance'} /> },
     ...(profile && setoranEnabled
       ? [{ key: 'setoran', label: 'Setoran', children: <SetoranTab active={tab === 'setoran'} /> }]
       : []),

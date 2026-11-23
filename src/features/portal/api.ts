@@ -57,6 +57,12 @@ export interface PortalTahfidzItem {
   recorded_at: string
 }
 
+export interface PortalWorshipProgress {
+  category: 'wudhu' | 'sholat' | 'hafalan_hadist' | 'hafalan_doa'
+  totalItems: number
+  masteredCount: number
+}
+
 export interface PortalData {
   student: {
     id: string
@@ -72,6 +78,22 @@ export interface PortalData {
   points: { total: number; recent: PortalPointItem[] }
   spp: { items: PortalSppItem[]; total_due: number; total_paid: number }
   tahfidz: PortalTahfidzItem[]
+  worship: PortalWorshipProgress[]
+}
+
+export interface PortalNotification {
+  id: string
+  title: string
+  body: string
+  url: string | null
+  kind: 'announcement' | 'spp' | 'report' | 'general'
+  read_at: string | null
+  created_at: string
+}
+
+export interface PortalNotificationsResult {
+  items: PortalNotification[]
+  unread_count: number
 }
 
 export interface PortalLoginResult {
@@ -113,6 +135,17 @@ export async function rpcPortalSavePush(token: string, subscription: PushSubscri
 
 export async function rpcPortalDeletePush(token: string, endpoint: string): Promise<void> {
   const { error } = await supabase.rpc('portal_delete_push', { p_token: token, p_endpoint: endpoint })
+  if (error) throw error
+}
+
+export async function rpcPortalNotifications(token: string): Promise<PortalNotificationsResult> {
+  const { data, error } = await supabase.rpc('portal_notifications', { p_token: token })
+  if (error) throw error
+  return data as PortalNotificationsResult
+}
+
+export async function rpcPortalMarkNotificationRead(token: string, id: string): Promise<void> {
+  const { error } = await supabase.rpc('portal_mark_notification_read', { p_token: token, p_id: id })
   if (error) throw error
 }
 

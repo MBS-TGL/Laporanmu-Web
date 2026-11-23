@@ -16,6 +16,10 @@ export interface CounselingLog {
   action_plan: string | null
   urgency: CounselingUrgency
   status: CounselingStatus
+  /** Tenggat tindak lanjut (0069); sesi proses tanpa tenggat bisa menggantung */
+  next_session_date?: string | null
+  /** Peserta sesi kelompok; baris counseling_participants (bukan student_name) */
+  participants?: { student_id: string; name: string; class_name: string | null }[]
   created_at?: string
   updated_at?: string
 }
@@ -32,6 +36,7 @@ export interface CounselingFormValues {
   action_plan?: string
   urgency: CounselingUrgency
   status: CounselingStatus
+  next_session_date?: string | null
 }
 
 /** Filter daftar sesi — dipakai fetch daftar (server-side) & ekspor. */

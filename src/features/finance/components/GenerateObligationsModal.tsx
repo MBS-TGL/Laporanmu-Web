@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { App, DatePicker, Form, Select } from 'antd'
-import { Dayjs } from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import { AppModal } from '../../../shared/components/AppModal'
 import { useAcademicYearsBrief, useClasses } from '../../classes/hooks'
 import { useGenerateSppObligations, useSppComponents } from '../hooks'
@@ -30,6 +30,8 @@ export function GenerateObligationsModal({ open, onClose, component }: GenerateO
   const [componentId, setComponentId] = useState<string | undefined>(component?.id)
   const [classId, setClassId] = useState<string | undefined>(undefined)
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null)
+  /** Jatuh tempo; portal santri & wali menampilkannya, jadi harus bisa diisi. */
+  const [dueDate, setDueDate] = useState<Dayjs | null>(dayjs().date(10))
 
   const selected = useMemo(
     () => componentsQuery.data?.find((c) => c.id === (componentId ?? component?.id)) ?? null,
@@ -64,7 +66,7 @@ export function GenerateObligationsModal({ open, onClose, component }: GenerateO
         grade: selected.grade,
         classId,
         periods,
-        dueDate: null,
+        dueDate: dueDate ? dueDate.format('YYYY-MM-DD') : null,
       })
       message.success(`${created} kewajiban dibuat (duplikat dilewati)`)
       onClose()
@@ -112,6 +114,19 @@ export function GenerateObligationsModal({ open, onClose, component }: GenerateO
             />
           </Form.Item>
         )}
+
+        <Form.Item
+          label="Jatuh tempo"
+          extra="Tampil di portal santri dan portal wali. Kosongkan bila tidak ada tenggat."
+        >
+          <DatePicker
+            style={{ width: '100%' }}
+            format="DD MMM YYYY"
+            value={dueDate}
+            onChange={(d) => setDueDate(d)}
+            allowClear
+          />
+        </Form.Item>
 
         <Form.Item
           label="Kelas target"

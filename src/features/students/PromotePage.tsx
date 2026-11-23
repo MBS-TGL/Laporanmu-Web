@@ -73,7 +73,7 @@ interface PromoteModalProps {
 }
 
 /**
- * Modal wizard kenaikan kelas — dibuka dari halaman Siswa (tab Aktif).
+ * Modal wizard kenaikan kelas — dibuka dari halaman Santri (tab Aktif).
  * Tidak lagi route terpisah (pola: aksi massal = modal, lihat SKILLS.md §Skill 2).
  */
 export function PromoteModal({ open, onClose }: PromoteModalProps) {
@@ -284,7 +284,7 @@ export function PromoteModal({ open, onClose }: PromoteModalProps) {
     modal.confirm({
       title: 'Batalkan kenaikan kelas ini?',
       content:
-        'Siswa yang dipromosikan akan dikembalikan ke kelas asal. Siswa yang diluluskan akan dikembalikan menjadi santri aktif.',
+        'Santri yang dipromosikan akan dikembalikan ke kelas asal. Santri yang diluluskan akan dikembalikan menjadi santri aktif.',
       okText: 'Ya, Batalkan',
       okButtonProps: { danger: true },
       cancelText: 'Tutup',
@@ -425,6 +425,7 @@ export function PromoteModal({ open, onClose }: PromoteModalProps) {
             <Table<SourceRow>
               columns={columns}
               dataSource={sourceRows}
+              scroll={{ x: 'max-content' }}
               pagination={false}
               loading={studentsQuery.isPending || classesQuery.isPending}
               locale={{
@@ -490,7 +491,7 @@ export function PromoteModal({ open, onClose }: PromoteModalProps) {
 
           <div style={{ marginTop: 20 }}>
             <ModalNotice tone="warning" title="Tindakan ini mengubah data siswa secara massal">
-              Kenaikan kelas akan dicatat dengan ID batch sehingga dapat dibatalkan (undo) jika terjadi kesalahan. Siswa yang diluluskan akan kehilangan kelas dan asramanya, serta pindah ke halaman Alumni.
+              Kenaikan kelas akan dicatat dengan ID batch sehingga dapat dibatalkan (undo) jika terjadi kesalahan. Santri yang diluluskan akan kehilangan kelas dan asramanya, serta pindah ke halaman Alumni.
             </ModalNotice>
           </div>
 
@@ -525,7 +526,7 @@ export function PromoteModal({ open, onClose }: PromoteModalProps) {
             }
             extra={[
               <Button key="back" type="primary" onClick={onClose}>
-                Kembali ke Data Siswa
+                Kembali ke Santri
               </Button>,
               <Button
                 key="undo"

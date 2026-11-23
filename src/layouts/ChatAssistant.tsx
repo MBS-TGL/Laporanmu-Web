@@ -61,7 +61,7 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
       placement="right"
       open={open}
       onClose={onClose}
-      width={360}
+      size="min(360px, 100vw)"
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span

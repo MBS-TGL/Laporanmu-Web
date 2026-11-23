@@ -72,7 +72,7 @@ export function DetailDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      width={460}
+      size="min(460px, 94vw)"
       title={
         <Space size={8}>
           <HeartOutlined style={{ color: token.colorPrimary }} />

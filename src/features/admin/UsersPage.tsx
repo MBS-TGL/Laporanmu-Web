@@ -19,6 +19,7 @@ import {
 } from 'antd'
 import {
   DisconnectOutlined,
+  ExportOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
   LinkOutlined,
@@ -28,6 +29,7 @@ import {
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons'
+import dayjs from 'dayjs'
 import { StatChip } from '../../shared/components/StatChip'
 import { FilterChips } from '../../shared/components/FilterChips'
 import { StatusTag } from '../../shared/components/StatusTag'
@@ -36,7 +38,9 @@ import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useProfile } from '../../shared/hooks/useProfile'
 import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { logAudit } from '../../shared/utils/auditLogger'
+import { downloadXlsx } from '../../shared/export/download'
 import {
+  useLastLogins,
   useProfiles,
   useSendPasswordReset,
   useSetTeacherLink,
@@ -59,6 +63,7 @@ export function UsersPage({ active }: { active: boolean }) {
   const roleMetas = useRoleMeta()
   const profilesQuery = useProfiles()
   const teachersQuery = useTeachersForLinking()
+  const lastLoginsQuery = useLastLogins()
   const updateMutation = useUpdateProfile()
   const linkMutation = useSetTeacherLink()
   const resetPwMutation = useSendPasswordReset()
@@ -78,6 +83,7 @@ export function UsersPage({ active }: { active: boolean }) {
 
   const profiles = useMemo(() => profilesQuery.data ?? [], [profilesQuery.data])
   const teachers = useMemo(() => teachersQuery.data ?? [], [teachersQuery.data])
+  const lastLogins = lastLoginsQuery.data
   const teacherByProfileId = useMemo(
     () => new Map(teachers.filter((t) => t.profile_id).map((t) => [t.profile_id as string, t])),
     [teachers],
@@ -302,6 +308,22 @@ export function UsersPage({ active }: { active: boolean }) {
       },
     },
     {
+      title: 'Login Terakhir',
+      key: 'last_login',
+      width: 150,
+      sorter: (a, b) => (lastLogins?.[a.id] ?? '').localeCompare(lastLogins?.[b.id] ?? ''),
+      render: (_, p) => {
+        const ts = lastLogins?.[p.id]
+        return ts ? (
+          <span style={{ fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }}>
+            {dayjs(ts).format('DD MMM YYYY HH:mm')}
+          </span>
+        ) : (
+          <span style={{ fontSize: 12.5, color: '#bbb' }}>Belum pernah</span>
+        )
+      },
+    },
+    {
       title: 'Aksi',
       key: 'actions',
       width: canManage ? 170 : 120,
@@ -375,6 +397,37 @@ export function UsersPage({ active }: { active: boolean }) {
       : []),
   ]
 
+  const [exporting, setExporting] = useState(false)
+  const handleExportAccounts = async () => {
+    setExporting(true)
+    try {
+      await downloadXlsx(
+        `daftar-pengguna-${dayjs().format('YYYY-MM-DD')}.xlsx`,
+        'Pengguna',
+        ['Nama', 'Email', 'Role', 'Guru Terhubung', 'Login Terakhir', 'Dibuat'],
+        profiles.map((p) => [
+          p.name,
+          p.email,
+          p.role,
+          teacherByProfileId.get(p.id)?.name ?? '',
+          lastLogins?.[p.id] ? dayjs(lastLogins[p.id]).format('DD MMM YYYY HH:mm') : '',
+          p.created_at ? dayjs(p.created_at).format('DD MMM YYYY') : '',
+        ]),
+      )
+      void logAudit({
+        action: 'EXPORT',
+        source: 'SECURITY',
+        tableName: 'profiles',
+        newData: { rows: profiles.length, format: 'xlsx' },
+      })
+      message.success(`${profiles.length} akun diekspor`)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal mengekspor daftar pengguna')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // Aksi tab diportal ke kanan judul shell — hasil WAJIB dirender di JSX
   const actions = useTabActions(
     active,
@@ -384,6 +437,15 @@ export function UsersPage({ active }: { active: boolean }) {
           icon={isPrivacyMode ? <EyeInvisibleOutlined /> : <EyeOutlined />}
           aria-label={isPrivacyMode ? 'Tampilkan email' : 'Sembunyikan email (mode privasi)'}
           onClick={() => setIsPrivacyMode((v) => !v)}
+        />
+      </Tooltip>
+      <Tooltip title="Ekspor daftar akun (XLSX)">
+        <Button
+          icon={<ExportOutlined />}
+          aria-label="Ekspor daftar akun"
+          loading={exporting}
+          disabled={profiles.length === 0}
+          onClick={() => void handleExportAccounts()}
         />
       </Tooltip>
       <Button

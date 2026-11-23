@@ -17,6 +17,7 @@ import {
   type TableColumnsType,
 } from 'antd'
 import {
+  BellOutlined,
   BookOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
@@ -51,7 +52,10 @@ import {
 import { BookForm } from './components/BookForm'
 import { LoanModal } from './components/LoanModal'
 import type { Book, BookFormValues, BookLoan, LoanFormValues, LoanView } from './types'
+import { RETURN_CONDITION_LABEL } from './types'
 import { useStudentDetail } from '../students/useStudentDetail'
+import { ExportModal } from '../../shared/export/ExportModal'
+import { sendOverdueReminder } from './waAuto'
 
 function loanStatus(loan: BookLoan): 'active' | 'overdue' | 'returned' {
   if (loan.returned_at) return 'returned'
@@ -84,6 +88,8 @@ export function LibraryPage() {
   const [bookFormOpen, setBookFormOpen] = useState(false)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
   const [loanOpen, setLoanOpen] = useState(false)
+  const [exportBooksOpen, setExportBooksOpen] = useState(false)
+  const [exportLoansOpen, setExportLoansOpen] = useState(false)
   const searchRef = useRef<InputRef>(null)
 
   const booksQuery = useBooks()
@@ -171,10 +177,13 @@ export function LibraryPage() {
   }
 
   const handleReturn = (loan: BookLoan) => {
-    returnLoanMutation.mutate(loan.id, {
-      onSuccess: () => message.success('Buku ditandai sudah kembali'),
-      onError: (err: Error) => message.error(err.message || 'Gagal menandai pengembalian'),
-    })
+    returnLoanMutation.mutate(
+      { id: loan.id, condition: 'good', dueDate: loan.due_date },
+      {
+        onSuccess: () => message.success('Buku ditandai sudah kembali'),
+        onError: (err: Error) => message.error(err.message || 'Gagal menandai pengembalian'),
+      },
+    )
   }
 
   const handleDeleteLoan = (id: string) => {
@@ -260,9 +269,9 @@ export function LibraryPage() {
 
   const pgBook = useTablePagination(bookRows.length, { label: 'judul' })
 
-  const paginatedBooks = useMemo(
-    () => bookRows.slice((pgBook.page - 1) * pgBook.pageSize, pgBook.page * pgBook.pageSize),
-    [bookRows, pgBook.page, pgBook.pageSize],
+  const paginatedBooks = bookRows.slice(
+    (pgBook.page - 1) * pgBook.pageSize,
+    pgBook.page * pgBook.pageSize,
   )
 
   const loanRows = useMemo(() => {
@@ -307,6 +316,9 @@ export function LibraryPage() {
           <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
             {[row.author, row.publisher, row.year].filter(Boolean).join(' · ')}
           </div>
+          {row.description && (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 2 }}>{row.description}</div>
+          )}
         </div>
       ),
     },
@@ -441,6 +453,37 @@ export function LibraryPage() {
       },
     },
     {
+      title: 'Denda',
+      key: 'fine',
+      width: 120,
+      align: 'right',
+      responsive: ['lg'],
+      sorter: (a, b) => (a.fine_amount ?? 0) - (b.fine_amount ?? 0),
+      render: (_, row) => {
+        if (!row.fine_amount) return <span style={{ color: '#bbb' }}>—</span>
+        return (
+          <Tag color={row.fine_paid ? 'green' : 'red'}>
+            {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(row.fine_amount)}
+            {row.fine_paid ? ' · lunas' : ''}
+          </Tag>
+        )
+      },
+    },
+    {
+      title: 'Catatan',
+      key: 'notes',
+      render: (_, row) => row.notes ?? '—',
+      responsive: ['xl'],
+    },
+    {
+      title: 'Kondisi Kembali',
+      key: 'condition_on_return',
+      width: 130,
+      responsive: ['lg'],
+      render: (_, row) =>
+        row.condition_on_return ? <Tag>{RETURN_CONDITION_LABEL[row.condition_on_return]}</Tag> : '—',
+    },
+    {
       title: 'Aksi',
       key: 'actions',
       width: 110,
@@ -448,12 +491,26 @@ export function LibraryPage() {
         const status = loanStatus(row)
         return (
           <Space size="small">
+            {canWrite && status === 'overdue' && (
+              <Tooltip title="Kirim pengingat WA ke wali">
+                <Button
+                  type="text"
+                  icon={<BellOutlined />}
+                  aria-label="Kirim pengingat keterlambatan"
+                  onClick={async () => {
+                    const result = await sendOverdueReminder(row)
+                    if (result.ok) message.success('Pengingat dikirim ke wali')
+                    else message.warning(result.reason ?? 'Gagal mengirim pengingat')
+                  }}
+                />
+              </Tooltip>
+            )}
             {canWrite && status !== 'returned' && (
               <Tooltip title="Tandai sudah kembali">
                 <Button
                   type="text"
                   icon={<CheckCircleOutlined style={{ color: '#10b981' }} />}
-                  loading={returnLoanMutation.isPending && returnLoanMutation.variables === row.id}
+                  loading={returnLoanMutation.isPending && returnLoanMutation.variables?.id === row.id}
                   onClick={() => handleReturn(row)}
                 />
               </Tooltip>
@@ -480,7 +537,7 @@ export function LibraryPage() {
     <div>
       <PageHeader
         title="Perpustakaan"
-        subtitle="Katalog buku dan peminjaman oleh santri"
+        subtitle="Katalog buku dan peminjaman santri"
         extra={
           <Space wrap>
             <Tooltip title="Muat ulang (R)">
@@ -494,6 +551,12 @@ export function LibraryPage() {
             </Tooltip>
             <Tooltip title="Palet shortcut (?)">
               <Button icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+            </Tooltip>
+            <Tooltip title={tab === 'books' ? 'Ekspor katalog buku' : 'Ekspor peminjaman'}>
+              <Button
+                icon={<ExportOutlined />}
+                onClick={() => (tab === 'books' ? setExportBooksOpen(true) : setExportLoansOpen(true))}
+              />
             </Tooltip>
             {canWrite && tab === 'books' && (
               <Button type="primary" icon={<PlusOutlined />} onClick={openCreateBook}>
@@ -677,6 +740,68 @@ export function LibraryPage() {
       />
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
+
+      <ExportModal<Book>
+        open={exportBooksOpen}
+        onClose={() => setExportBooksOpen(false)}
+        title="Ekspor Katalog Buku"
+        filename="katalog-buku"
+        auditTable="books"
+        columns={[
+          { key: 'code', header: 'Kode', value: (b) => b.code ?? '' },
+          { key: 'title', header: 'Judul', value: (b) => b.title },
+          { key: 'author', header: 'Penulis', value: (b) => b.author ?? '' },
+          { key: 'publisher', header: 'Penerbit', value: (b) => b.publisher ?? '' },
+          { key: 'year', header: 'Tahun', value: (b) => b.year ?? '' },
+          { key: 'category', header: 'Kategori', value: (b) => b.category ?? '' },
+          { key: 'copies', header: 'Eksemplar', value: (b) => b.copies },
+          { key: 'shelf', header: 'Rak', value: (b) => b.shelf ?? '' },
+          { key: 'description', header: 'Keterangan', value: (b) => b.description ?? '' },
+        ]}
+        scopes={[
+          {
+            key: 'filtered',
+            label: 'Hasil filter',
+            description: 'Baris yang tampil setelah pencarian dan filter kategori',
+            count: bookRows.length,
+            getRows: async () => bookRows,
+          },
+        ]}
+      />
+
+      <ExportModal<BookLoan>
+        open={exportLoansOpen}
+        onClose={() => setExportLoansOpen(false)}
+        title="Ekspor Peminjaman"
+        filename="peminjaman-buku"
+        auditTable="book_loans"
+        columns={[
+          { key: 'book', header: 'Judul Buku', value: (l) => l.books?.title ?? '' },
+          { key: 'student', header: 'Peminjam', value: (l) => l.students?.name ?? '' },
+          { key: 'code', header: 'Kode Registrasi', value: (l) => l.students?.registration_code ?? '' },
+          { key: 'borrowed_at', header: 'Dipinjam', value: (l) => l.borrowed_at },
+          { key: 'due_date', header: 'Batas', value: (l) => l.due_date ?? '' },
+          { key: 'returned_at', header: 'Kembali', value: (l) => l.returned_at ?? '' },
+          { key: 'fine_amount', header: 'Denda', value: (l) => l.fine_amount ?? 0 },
+          { key: 'notes', header: 'Catatan', value: (l) => l.notes ?? '' },
+        ]}
+        scopes={[
+          {
+            key: 'filtered',
+            label: 'Hasil filter',
+            description: 'Baris peminjaman yang tampil saat ini',
+            count: loanRows.length,
+            getRows: async () => loanRows,
+          },
+          {
+            key: 'all',
+            label: 'Semua peminjaman',
+            description: 'Seluruh catatan peminjaman',
+            count: allLoans.length,
+            getRows: async () => allLoans,
+          },
+        ]}
+      />
     </div>
   )
 }

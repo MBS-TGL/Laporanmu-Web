@@ -94,8 +94,29 @@ export async function fetchTeachersByIds(ids: string[]): Promise<Teacher[]> {
   return (data ?? []) as Teacher[]
 }
 
+const PHOTO_BUCKET = 'teacher-photo'
+
+/** Unggah foto (data URL hasil compressImage) ke Storage — simpan URL publik, bukan base64 di DB */
+async function uploadTeacherPhoto(dataUrl: string): Promise<string> {
+  const blob = await (await fetch(dataUrl)).blob()
+  const ext = blob.type === 'image/png' ? 'png' : 'jpg'
+  const fileName = `teacher_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .upload(fileName, blob, { contentType: blob.type || 'image/jpeg' })
+  if (error) throw new Error(`Gagal mengunggah foto: ${error.message}`)
+  const { data } = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(fileName)
+  return data.publicUrl
+}
+
+/** Foto dari form: data URL yang baru dipilih → unggah; URL storage lama → pertahankan */
+async function resolvePhotoUrl(photoUrl?: string | null): Promise<string | null> {
+  if (!photoUrl) return null
+  return photoUrl.startsWith('data:') ? uploadTeacherPhoto(photoUrl) : photoUrl
+}
+
 /** Payload form — satu sumber untuk insert & update agar kolomnya selalu sinkron */
-function teacherFormPayload(values: TeacherFormValues) {
+async function teacherFormPayload(values: TeacherFormValues) {
   return {
     name: values.name,
     nbm: values.nbm || null,
@@ -110,7 +131,7 @@ function teacherFormPayload(values: TeacherFormValues) {
     nuptk: values.nuptk || null,
     notes: values.notes || null,
     address: values.address || null,
-    photo_url: values.photo_url || null,
+    photo_url: await resolvePhotoUrl(values.photo_url),
     employment_status: values.employment_status || 'GTY',
     type: values.type || 'guru',
     birth_place: values.birth_place || null,
@@ -127,7 +148,7 @@ function teacherFormPayload(values: TeacherFormValues) {
 export async function createTeacher(values: TeacherFormValues): Promise<Teacher> {
   const { data, error } = await supabase
     .from('teachers')
-    .insert(teacherFormPayload(values))
+    .insert(await teacherFormPayload(values))
     .select('*')
     .single()
 
@@ -138,7 +159,7 @@ export async function createTeacher(values: TeacherFormValues): Promise<Teacher>
 export async function updateTeacher(id: string, values: TeacherFormValues): Promise<Teacher> {
   const { data, error } = await supabase
     .from('teachers')
-    .update(teacherFormPayload(values))
+    .update(await teacherFormPayload(values))
     .eq('id', id)
     .select('*')
     .single()

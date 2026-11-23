@@ -27,6 +27,7 @@ import {
   YAxis,
 } from 'recharts'
 import { PageHeader } from '../../shared/components/PageHeader'
+import { OpsWidgets } from './components/OpsWidgets'
 import { useStudentDetail } from '../students/useStudentDetail'
 import { CATEGORY_COLORS, type AnnouncementCategory } from '../announcements/types'
 import { supabase } from '../../lib/supabase'
@@ -343,12 +344,12 @@ export function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Ringkasan utama sistem" />
+      <PageHeader title="Dashboard" subtitle="Ringkasan kegiatan dan kondisi sekolah" />
 
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={8} xl={4}>
           <StatCard
-            title="Siswa"
+            title="Santri"
             value={studentsQuery.data ?? 0}
             loading={studentsQuery.isPending}
             icon={<TeamOutlined />}
@@ -403,6 +404,8 @@ export function DashboardPage() {
         </Col>
       </Row>
 
+      <OpsWidgets />
+
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={14}>
           <Card title="Tren Catatan Poin (30 hari)">
@@ -439,7 +442,7 @@ export function DashboardPage() {
           </Card>
         </Col>
         <Col xs={24} lg={10}>
-          <Card title="Distribusi Status Siswa">
+          <Card title="Distribusi Status Santri">
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={statusData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -456,8 +459,8 @@ export function DashboardPage() {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={12}>
           <Card
-            title="Siswa dengan Poin Terendah"
-            extra={<CardLink label="Semua catatan" to="/disiplin?tab=catatan" navigate={navigate} />}
+            title="Santri dengan Poin Terendah"
+            extra={<CardLink label="Semua catatan" to="/discipline?tab=notes" navigate={navigate} />}
           >
             <List<LowPointStudent>
               loading={lowPointsQuery.isPending}

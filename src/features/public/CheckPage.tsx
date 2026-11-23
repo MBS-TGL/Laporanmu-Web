@@ -29,6 +29,7 @@ import { usePublicAnnouncements } from '../announcements/hooks'
 import { CATEGORY_COLORS } from '../announcements/types'
 import { PublicShell } from './PublicShell'
 import { PortalCard } from './PortalCard'
+import { SppPanel } from '../portal/components/SppPanel'
 
 // Struktur respons RPC check_student
 interface CheckStudentResult {
@@ -80,7 +81,19 @@ interface CheckStudentResult {
     semester: number
     academic_year: string
     scores: Record<string, number | null>
+    subject_names?: Record<string, string>
   }[]
+  spp?: {
+    items: {
+      component: string
+      period: string
+      amount: number
+      paid: number
+      due_date: string | null
+    }[]
+    total_due: number
+    total_paid: number
+  }
   savings: {
     balance: number
     status: 'active' | 'closed'
@@ -169,22 +182,9 @@ export function CheckPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CheckStudentResult | null>(null)
-  const [subjectNames, setSubjectNames] = useState<Record<string, string>>({})
 
   useEffect(() => {
     document.title = 'Cek Wali Santri · Laporanmu'
-    // Load nama mata pelajaran untuk label nilai rapor semester
-    void supabase
-      .from('subjects')
-      .select('id, name')
-      .is('deleted_at', null)
-      .then(({ data }) => {
-        if (data) {
-          const map: Record<string, string> = {}
-          for (const s of data) map[s.id] = s.name
-          setSubjectNames(map)
-        }
-      })
   }, [])
 
   // Pengumuman publik — cache 5 menit; gagal fetch diperlakukan non-kritis
@@ -370,7 +370,7 @@ export function CheckPage() {
                 },
                 {
                   key: 'report-card',
-                  label: 'Raport Bulanan',
+                  label: 'Rapor Bulanan',
                   children: (
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
                       {result.report_cards.length === 0 && (
@@ -434,7 +434,7 @@ export function CheckPage() {
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px 16px' }}>
                               {Object.entries(sr.scores || {}).map(([subjKey, score]) => {
-                                const name = subjectNames[subjKey] || subjKey
+                                const name = sr.subject_names?.[subjKey] || subjKey
                                 return (
                                   <div key={subjKey} style={{ fontSize: 12.5 }}>
                                     <span style={{ color: '#64748b' }}>{name}: </span>
@@ -574,6 +574,17 @@ export function CheckPage() {
                   ),
                 },
                 {
+                  key: 'tagihan',
+                  label: 'Tagihan SPP',
+                  children: (
+                    <SppPanel
+                      items={result.spp?.items ?? []}
+                      totalDue={result.spp?.total_due ?? 0}
+                      totalPaid={result.spp?.total_paid ?? 0}
+                    />
+                  ),
+                },
+                {
                   key: 'skorsing',
                   label: 'Skorsing',
                   children:
@@ -643,7 +654,7 @@ export function CheckPage() {
           description="Pantau pembinaan putra/putri Anda kapan saja — tanpa perlu membuat akun."
           bullets={[
             'Poin pelanggaran & prestasi terkini',
-            'Raport bulanan, kehadiran & catatan musyrif',
+            'Rapor bulanan, kehadiran & catatan musyrif',
             'Saldo dan mutasi tabungan santri',
             'Data hanya bisa dibuka dengan PIN santri',
           ]}

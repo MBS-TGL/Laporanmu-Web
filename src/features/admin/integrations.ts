@@ -101,3 +101,40 @@ export function useRevokeApiKey() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['api-keys'] }),
   })
 }
+
+// ------------------------------------------------------------
+// Log permintaan webhook (api_request_log) — browser 7 hari terakhir
+// ------------------------------------------------------------
+
+export interface ApiRequestLogRow {
+  id: string
+  path: string | null
+  status: number | null
+  source_ip: string | null
+  created_at: string
+}
+
+/** Log permintaan 7 hari terakhir, server-paginated (terbaru dulu). */
+export async function fetchApiRequestLogs(
+  page: number,
+  pageSize: number,
+): Promise<{ data: ApiRequestLogRow[]; total: number }> {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const from = (page - 1) * pageSize
+  const { data, count, error } = await supabase
+    .from('api_request_log')
+    .select('id, path, status, source_ip, created_at', { count: 'exact' })
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .range(from, from + pageSize - 1)
+  if (error) throw error
+  return { data: (data ?? []) as ApiRequestLogRow[], total: count ?? 0 }
+}
+
+export function useApiRequestLogs(page: number, pageSize: number) {
+  return useQuery({
+    queryKey: ['api-keys', 'request-log', page, pageSize],
+    queryFn: () => fetchApiRequestLogs(page, pageSize),
+    staleTime: 30_000,
+  })
+}

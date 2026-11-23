@@ -22,6 +22,10 @@ export interface BookLoan {
   due_date: string | null
   returned_at: string | null
   notes: string | null
+  /** Denda keterlambatan (0069) */
+  fine_amount: number
+  fine_paid: boolean
+  condition_on_return: ItemCondition | null
   created_at?: string
   updated_at?: string
   students?: {
@@ -31,6 +35,26 @@ export interface BookLoan {
     classes?: { name: string } | null
   } | null
   books?: { id: string; title: string; code: string | null } | null
+}
+
+export type ItemCondition = 'good' | 'light_damaged' | 'heavy_damaged' | 'lost'
+
+export const RETURN_CONDITION_LABEL: Record<ItemCondition, string> = {
+  good: 'Baik',
+  light_damaged: 'Rusak Ringan',
+  heavy_damaged: 'Rusak Berat',
+  lost: 'Hilang',
+}
+
+/** Denda keterlambatan: Rp 1.000 per hari setelah jatuh tempo. */
+export const FINE_PER_DAY = 1000
+
+export function computeFine(dueDate: string | null, returnedAt: string | null): number {
+  if (!dueDate || !returnedAt) return 0
+  const due = new Date(dueDate)
+  const ret = new Date(returnedAt)
+  const days = Math.floor((ret.getTime() - due.getTime()) / (24 * 60 * 60 * 1000))
+  return days > 0 ? days * FINE_PER_DAY : 0
 }
 
 export type LoanView = '' | 'active' | 'overdue' | 'returned'

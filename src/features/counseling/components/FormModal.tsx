@@ -26,6 +26,7 @@ interface CounselingFormShape {
   action_plan?: string
   urgency: CounselingUrgency
   status: CounselingStatus
+  next_session_date?: Dayjs
 }
 
 const AI_SYSTEM = `Kamu adalah asisten konselor sekolah pondok santri (BK) di aplikasi Laporanmu.
@@ -42,6 +43,8 @@ interface FormModalProps {
   editLog: CounselingLog | null
   /** Santri yang sudah ditentukan (catat sesi dari drawer detail) */
   presetStudent?: { value: string; label: string } | null
+  /** Keluhan awal (mis. tindak lanjut ketidakhadiran dari halaman absensi) */
+  presetComplaint?: string
   defaultCounselor: string
   onCancel: () => void
   onSubmit: (values: CounselingFormValues) => void
@@ -52,6 +55,7 @@ export function FormModal({
   submitting,
   editLog,
   presetStudent,
+  presetComplaint,
   defaultCounselor,
   onCancel,
   onSubmit,
@@ -84,18 +88,21 @@ export function FormModal({
         action_plan: editLog.action_plan ?? undefined,
         urgency: editLog.urgency,
         status: editLog.status,
+        next_session_date: editLog.next_session_date ? dayjs(editLog.next_session_date) : undefined,
       })
     } else {
       form.setFieldsValue({
+        student_id: presetStudent?.value,
         counselor_name: defaultCounselor,
         date: dayjs(),
         time: dayjs(),
         category: 'personal',
+        complaint: presetComplaint ?? undefined,
         urgency: 'low',
         status: 'in_progress',
       })
     }
-  }, [open, form, editLog, defaultCounselor])
+  }, [open, form, editLog, defaultCounselor, presetStudent, presetComplaint])
 
   const suggestPlan = async () => {
     const complaintValue = String(form.getFieldValue('complaint') ?? '').trim()
@@ -145,6 +152,7 @@ Buat satu rencana tindakan BK ringkas untuk kasus di atas.`,
       action_plan: values.action_plan,
       urgency: values.urgency,
       status: values.status,
+      next_session_date: values.next_session_date ? values.next_session_date.format('YYYY-MM-DD') : null,
     })
   }
 
@@ -236,6 +244,14 @@ Buat satu rencana tindakan BK ringkas untuk kasus di atas.`,
 
         <Form.Item name="diagnosis" label="Diagnosis / Identifikasi Akar Masalah">
           <Input maxLength={150} placeholder="Contoh: Homesickness ringan, penurunan motivasi" />
+        </Form.Item>
+
+        <Form.Item
+          name="next_session_date"
+          label="Tenggat Tindak Lanjut"
+          extra="Isi jika kasus perlu dipantau lagi; sesi proses tanpa tenggat bisa menggantung."
+        >
+          <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
         </Form.Item>
 
         <Form.Item

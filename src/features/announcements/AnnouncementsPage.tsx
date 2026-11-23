@@ -150,8 +150,8 @@ export function AnnouncementsPage() {
   return (
     <div>
       <PageHeader
-        title="Informasi"
-        subtitle="Pengumuman dan informasi untuk staf — opsional tampil di portal wali santri"
+        title="Pengumuman"
+        subtitle="Pengumuman staf, opsional tampil di portal wali"
         extra={
           canWrite ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>

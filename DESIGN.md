@@ -36,6 +36,33 @@
 - **Glass**: tidak dipakai.
 - **Ikon**: `@ant-design/icons` (set resmi produk, relevan dengan konten; bukan ikon dekoratif generik).
 
+## Responsif (mobile vs desktop)
+
+> Prinsip: **mobile adalah layout yang berbeda, bukan layout desktop yang diperkecil.** Lebar dan tinggi kanvas berubah, jadi ukuran, jarak, grid, dan navigasi harus ikut berubah.
+
+- **Wajib baca skill** `.opencode/skills/antislop-layoutmobile/SKILL.md` setiap kali menyentuh layout, grid, tabel, modal, navigasi, atau halaman baru. Skill inti `antislop` tetap dipakai sebagai filter.
+- **Breakpoint mengikuti konten**, bukan daftar perangkat. Kecilkan viewport dan lihat di mana layout mulai rusak.
+- **Minimal tiga keadaan**: ponsel satu kolom, tablet dua kolom bila muat, desktop grid penuh. Jangan hanya menyediakan dua keadaan.
+- **Skala mobile sendiri**: font, padding, gap, dan tinggi section lebih kecil. Jangan membawa ukuran desktop apa adanya. Tap target minimal 44 x 44 px dan beri jarak antar target.
+- **Grid dan tabel**: kolom wajib turun menjadi satu kolom. Tabel lebar memakai `scroll.x` atau layout kartu, bukan memaksa semua kolom muat. Tidak boleh ada horizontal overflow.
+- **Navigasi**: sidebar desktop tidak boleh dipaksakan. Di bawah 768px gunakan `BottomNav` + drawer "Lainnya" yang sudah ada. Modal otomatis menjadi bottom sheet lewat `AppModal`.
+- **Interaksi hover wajib punya padanan tap** (`:active`, klik). Jangan ada menu yang hanya terbuka saat hover.
+- **Tinggi**: hindari `100vh` untuk section; gunakan `auto` atau `dvh`. `BottomNav` wajib menyisakan padding bawah konten.
+- **Verifikasi wajib**: 390px (ponsel), 768px (tablet), dan desktop. Cek `scrollWidth === clientWidth`, tombol bisa ditekan, teks tidak terpotong, dan konten terakhir tidak tertutup bottom nav.
+
+Checklist mobile (ringkasan dari skill):
+
+- [ ] Layout mobile punya state sendiri, bukan desktop yang diperkecil.
+- [ ] Ada state tablet di antara ponsel dan desktop.
+- [ ] Ukuran mengikuti skala mobile.
+- [ ] Grid dan tabel turun menjadi satu kolom.
+- [ ] Tidak ada overflow horizontal dan tidak ada konten terpotong.
+- [ ] Tap target minimal 44 x 44 px dan berjarak.
+- [ ] Hover punya padanan tap.
+- [ ] Navigasi memakai pola mobile.
+- [ ] Bottom nav tidak menutup konten.
+- [ ] Diuji di lebar mobile, bukan hanya di preview desktop.
+
 ## Motion (dial)
 
 > Dial: **ENERGY 2 / RHYTHM 2 / MOTION 2** (subtil & profesional).

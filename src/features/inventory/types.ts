@@ -1,5 +1,7 @@
 export type ItemCondition = 'good' | 'light_damaged' | 'heavy_damaged' | 'lost'
 
+export type MovementKind = 'in' | 'out' | 'damage' | 'loss' | 'adjustment'
+
 export interface InventoryItem {
   id: string
   code: string | null

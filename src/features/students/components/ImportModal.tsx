@@ -585,7 +585,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
 
   const mappingColumns = [
     {
-      title: 'Data Siswa',
+      title: 'Santri',
       key: 'field',
       width: 190,
       render: (_: unknown, f: (typeof FIELDS)[number]) => (
@@ -750,7 +750,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
             </Button>
           }
           onOk={() => void handleImport()}
-          okText={`Impor ${validRows.length} Siswa`}
+          okText={`Impor ${validRows.length} Santri`}
           okLoading={submitting}
           okDisabled={validRows.length === 0}
         />
@@ -761,7 +761,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
 
   return (
     <WizardModal
-      title="Impor Data Siswa"
+      title="Impor Santri"
       subtitle="Unggah data siswa secara masal dari file Excel, CSV, atau Google Sheets. Sistem akan memvalidasi data secara otomatis."
       icon={<ImportOutlined />}
       open={open}
@@ -843,7 +843,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
           <ModalSection
             icon={<FileExcelOutlined />}
             title="Data referensi"
-            desc="Siswa, Kelas & Asrama"
+            desc="Santri, Kelas & Asrama"
             trailing={
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <Popover trigger="click" placement="bottomLeft" content={referenceContent}>

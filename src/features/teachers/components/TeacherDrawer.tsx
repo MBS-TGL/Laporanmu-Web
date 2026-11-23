@@ -206,7 +206,7 @@ export function TeacherDrawer({ open, teacher, isPrivacyMode, onClose, onEdit }:
     tugas_luar: { label: 'Tugas Luar', color: 'purple' },
   }
 
-  if (!teacher) return <Drawer open={open} onClose={onClose} width={560} />
+  if (!teacher) return <Drawer open={open} onClose={onClose} size="min(560px, 96vw)" />
 
   const infoContent = (
     <>
@@ -548,7 +548,7 @@ export function TeacherDrawer({ open, teacher, isPrivacyMode, onClose, onEdit }:
     <Drawer
       open={open}
       onClose={onClose}
-      width={560}
+      size="min(560px, 96vw)"
       title={teacher.name}
       styles={{ body: { paddingTop: 0 } }}
     >
@@ -608,14 +608,16 @@ export function TeacherDrawer({ open, teacher, isPrivacyMode, onClose, onEdit }:
 
         <div style={{ marginTop: 16, display: 'flex', gap: 16 }}>
           {onEdit && (
-            <a
+            <Button
+              type="link"
+              style={{ padding: 0 }}
               onClick={() => {
                 onClose()
                 onEdit(teacher)
               }}
             >
               Edit data guru
-            </a>
+            </Button>
           )}
         </div>
       </motion.div>

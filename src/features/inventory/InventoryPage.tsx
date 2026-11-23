@@ -18,10 +18,12 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
+  HistoryOutlined,
   InboxOutlined,
   PlusOutlined,
   QuestionCircleOutlined,
   SearchOutlined,
+  SwapOutlined,
   SyncOutlined,
   UndoOutlined,
   WarningOutlined,
@@ -38,6 +40,7 @@ import { usePermissions } from '../../shared/hooks/useProfile'
 import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { useCreateItem, useDeleteItem, useItems, useUpdateItem } from './hooks'
 import { CONDITION_OPTIONS, ItemForm } from './components/ItemForm'
+import { MovementDrawer, MovementModal } from './components/MovementModal'
 import type { InventoryItem, ItemCondition, ItemFormValues } from './types'
 
 const CONDITION_COLORS: Record<ItemCondition, string> = {
@@ -59,6 +62,8 @@ export function InventoryPage() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
+  const [movementItem, setMovementItem] = useState<InventoryItem | null>(null)
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null)
   const [exporting, setExporting] = useState(false)
   const searchRef = useRef<InputRef>(null)
 
@@ -307,15 +312,23 @@ export function InventoryPage() {
     {
       title: 'Aksi',
       key: 'actions',
-      width: 110,
+      width: 150,
       render: (_, row) =>
         canWrite || canDelete ? (
           <Space size="small">
             {canWrite && (
-              <Tooltip title="Edit">
-                <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(row)} />
-              </Tooltip>
+              <>
+                <Tooltip title="Mutasi stok (masuk/keluar/rusak)">
+                  <Button type="text" icon={<SwapOutlined />} onClick={() => setMovementItem(row)} aria-label="Mutasi stok" />
+                </Tooltip>
+                <Tooltip title="Edit">
+                  <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(row)} aria-label="Edit barang" />
+                </Tooltip>
+              </>
             )}
+            <Tooltip title="Riwayat mutasi">
+              <Button type="text" icon={<HistoryOutlined />} onClick={() => setHistoryItem(row)} aria-label="Riwayat mutasi" />
+            </Tooltip>
             {canDelete && (
               <Popconfirm
                 title="Hapus barang ini?"
@@ -324,7 +337,7 @@ export function InventoryPage() {
                 cancelText="Batal"
               >
                 <Tooltip title="Hapus">
-                  <Button type="text" danger icon={<DeleteOutlined />} />
+                  <Button type="text" danger icon={<DeleteOutlined />} aria-label="Hapus barang" />
                 </Tooltip>
               </Popconfirm>
             )}
@@ -339,7 +352,7 @@ export function InventoryPage() {
     <div>
       <PageHeader
         title="Inventaris"
-        subtitle="Aset dan barang milik pondok / sekolah beserta kondisinya"
+        subtitle="Aset dan barang milik sekolah beserta kondisi"
         extra={
           <Space wrap>
             <Tooltip title="Muat ulang (R)">
@@ -486,6 +499,9 @@ export function InventoryPage() {
         onCancel={() => setFormOpen(false)}
         onSubmit={handleSubmit}
       />
+
+      <MovementModal open={movementItem !== null} item={movementItem} onClose={() => setMovementItem(null)} />
+      <MovementDrawer item={historyItem} onClose={() => setHistoryItem(null)} />
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>

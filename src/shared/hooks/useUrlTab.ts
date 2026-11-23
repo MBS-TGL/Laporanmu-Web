@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 export interface UseUrlTabOptions {
   /**
    * Tulis juga tab default ke URL. Default `false` agar address bar tetap
-   * bersih: `/students` saja, bukan `/students?tab=aktif`.
+   * bersih: `/students` saja, bukan `/students?tab=active`.
    *
    * Aktifkan untuk halaman yang seluruh tab-nya harus bisa di-deep-link,
    * misalnya `/attendance?tab=students`.
@@ -16,6 +16,11 @@ export interface UseUrlTabOptions {
    * panel kosong karena `activeKey` tidak cocok item mana pun.
    */
   keys?: readonly string[]
+  /**
+   * Peta nilai `?tab=` lama → baru (renaman tab). Nilai lama dari
+   * bookmark/tautan masih berfungsi dan otomatis ditulis ulang ke URL baru.
+   */
+  legacy?: Record<string, string>
 }
 
 /**
@@ -29,18 +34,23 @@ export function useUrlTab(
   tab: string
   setTab: (key: string) => void
 } {
-  const { writeDefault = false, keys } = options
+  const { writeDefault = false, keys, legacy } = options
   const [searchParams, setSearchParams] = useSearchParams()
-  const raw = searchParams.get('tab') ?? defaultTab
-  const tab = keys && !keys.includes(raw) ? defaultTab : raw
+  const rawParam = searchParams.get('tab')
+  const raw = rawParam ?? defaultTab
+  const legacyTo = rawParam ? legacy?.[rawParam] : undefined
+  const resolved = legacyTo ?? raw
+  const tab = keys && !keys.includes(resolved) ? defaultTab : resolved
+  // Nilai legacy selalu ditulis ulang ke URL baru, walau default tidak ditulis
+  const rewriteLegacy = legacyTo !== undefined && legacyTo !== tab
 
   useEffect(() => {
-    if (!writeDefault) return
-    if (searchParams.get('tab') === tab) return
+    if (!writeDefault && !rewriteLegacy) return
+    if (rawParam === tab) return
     const next = new URLSearchParams(searchParams)
     next.set('tab', tab)
     setSearchParams(next, { replace: true, preventScrollReset: true })
-  }, [writeDefault, tab, searchParams, setSearchParams])
+  }, [writeDefault, rewriteLegacy, tab, rawParam, searchParams, setSearchParams])
 
   const setTab = useCallback(
     (key: string) => {

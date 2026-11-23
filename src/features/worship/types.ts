@@ -35,6 +35,6 @@ export interface WorshipFormValues {
 export const WORSHIP_CATEGORY_LABEL: Record<WorshipCategory, string> = {
   wudhu: 'Wudhu',
   sholat: 'Sholat',
-  hafalan_hadist: 'Hafalan Hadist',
+  hafalan_hadist: 'Hafalan Hadis',
   hafalan_doa: 'Hafalan Doa',
 }

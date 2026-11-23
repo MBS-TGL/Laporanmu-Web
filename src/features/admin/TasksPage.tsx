@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   App,
   Button,
@@ -6,7 +6,6 @@ import {
   Col,
   Empty,
   Input,
-  Popconfirm,
   Progress,
   Row,
   Select,
@@ -18,12 +17,11 @@ import {
   theme,
   type TableColumnsType,
 } from 'antd'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   CaretRightOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  DeleteOutlined,
-  ExclamationCircleOutlined,
   HistoryOutlined,
   LoadingOutlined,
   ThunderboltOutlined,
@@ -33,12 +31,13 @@ import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { logAudit } from '../../shared/utils/auditLogger'
-import { runDetachRefs, runRotateAuditLogs, runSyncStats } from './api'
+import { insertTaskRun, runDetachRefs, runRotateAuditLogs, runSyncStats } from './api'
+import { useIntegrityIssues, useImportTaskRuns, useRotationPreview, useTaskRuns } from './hooks'
+import { ConfirmTaskModal, type TaskPreviewRow } from './components/ConfirmTaskModal'
 import {
   clearTaskLogs,
   formatDuration,
   loadTaskLogs,
-  saveTaskLog,
   TASKS,
   type TaskDef,
   type TaskId,
@@ -61,26 +60,51 @@ function summarizeStats(stats: Record<string, number>): string {
 export function TasksPage({ active }: { active: boolean }) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
+  const qc = useQueryClient()
   const [runningId, setRunningId] = useState<TaskId | null>(null)
   const [progress, setProgress] = useState(0)
   const [rotationDays, setRotationDays] = useState(45)
-  const [logs, setLogs] = useState<TaskRunLog[]>(() => loadTaskLogs())
+  const [confirmTask, setConfirmTask] = useState<TaskDef | null>(null)
   const [logSearch, setLogSearch] = useState('')
   const debouncedLogSearch = useDebounce(logSearch, 300)
 
-  const finishRun = (task: TaskDef, startedAt: number, summary: string) => {
+  // Riwayat server-side (tabel task_runs, migrasi 0062) — persist lintas perangkat
+  const runsQuery = useTaskRuns({ enabled: active })
+  const importRunsMutation = useImportTaskRuns()
+  const integrityQuery = useIntegrityIssues()
+  const rotationPreview = useRotationPreview(rotationDays, confirmTask?.id === 'rotate_logs')
+  const logs = useMemo(() => runsQuery.data ?? [], [runsQuery.data])
+
+  // Migrasi sekali: riwayat localStorage lama diunggah ke server lalu dibuang
+  const didMigrate = useRef(false)
+  useEffect(() => {
+    if (!runsQuery.isSuccess || didMigrate.current) return
+    didMigrate.current = true
+    if ((runsQuery.data ?? []).length === 0) {
+      const local = loadTaskLogs()
+      if (local.length > 0) {
+        importRunsMutation.mutate(local, {
+          onSuccess: () => {
+            clearTaskLogs()
+            message.info(`${local.length} riwayat lama dimigrasi ke server`)
+          },
+        })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runsQuery.isSuccess, runsQuery.data])
+
+  const recordRun = (task: TaskDef, ok: boolean, durationMs: number, detail: string, affected: Record<string, number> | null) => {
+    insertTaskRun({ taskKey: task.id, ok, durationMs, affected, detail })
+      .then(() => void qc.invalidateQueries({ queryKey: ['admin', 'task-runs'] }))
+      .catch(() => message.warning('Riwayat gagal tersimpan ke server'))
+  }
+
+  const finishRun = (task: TaskDef, startedAt: number, summary: string, affected: Record<string, number> | null) => {
     setRunningId(null)
     setProgress(0)
-    const next = saveTaskLog({
-      id: `${Date.now()}`,
-      taskId: task.id,
-      startedAt: new Date(startedAt).toISOString(),
-      durationMs: Date.now() - startedAt,
-      ok: true,
-      summary,
-    })
-    setLogs(next)
     message.success(`${task.label} selesai — ${summary}`)
+    recordRun(task, true, Date.now() - startedAt, summary, affected)
     void logAudit({
       action: 'EXECUTE',
       source: 'SYSTEM',
@@ -95,32 +119,57 @@ export function TasksPage({ active }: { active: boolean }) {
     setRunningId(task.id)
     setProgress(20)
 
-    const runner = async (): Promise<string> => {
+    const runner = async (): Promise<{ summary: string; affected: Record<string, number> | null }> => {
       if (task.id === 'sync_stats') {
         setProgress(60)
         const stats = await runSyncStats()
-        return summarizeStats(stats)
+        return { summary: summarizeStats(stats), affected: stats }
       }
       if (task.id === 'detach_refs') {
         setProgress(50)
         const { classRefs, dormRefs } = await runDetachRefs()
         setProgress(85)
-        return `${classRefs} relasi kelas, ${dormRefs} relasi asrama dilepas`
+        const summary = `${classRefs} relasi kelas, ${dormRefs} relasi asrama dilepas`
+        return { summary, affected: { classRefs, dormRefs } }
       }
       setProgress(40)
       const deleted = await runRotateAuditLogs(rotationDays)
       setProgress(85)
-      return `${deleted} audit log dihapus (> ${rotationDays} hari)`
+      return { summary: `${deleted} audit log dihapus (> ${rotationDays} hari)`, affected: { deleted } }
     }
 
     runner()
-      .then((summary) => finishRun(task, startedAt, summary))
+      .then(({ summary, affected }) => finishRun(task, startedAt, summary, affected))
       .catch((err: unknown) => {
         setRunningId(null)
         setProgress(0)
-        message.error(err instanceof Error ? err.message : 'Gagal menjalankan tugas')
+        const detail = err instanceof Error ? err.message : 'Gagal menjalankan tugas'
+        message.error(detail)
+        recordRun(task, false, Date.now() - startedAt, detail, null)
       })
   }
+
+  // Dry-run preview untuk modal konfirmasi task destruktif
+  const preview = useMemo<TaskPreviewRow[]>(() => {
+    if (!confirmTask) return []
+    if (confirmTask.id === 'rotate_logs') {
+      return [
+        {
+          label: `Audit log lebih lama dari ${rotationDays} hari`,
+          value: `${(rotationPreview.data ?? 0).toLocaleString('id-ID')} baris akan dihapus`,
+        },
+      ]
+    }
+    if (confirmTask.id === 'detach_refs') {
+      const classRefs = integrityQuery.data?.find((i) => i.id === 'refs_dead_class')?.count ?? 0
+      const dormRefs = integrityQuery.data?.find((i) => i.id === 'refs_dead_dorm')?.count ?? 0
+      return [
+        { label: 'Santri menunjuk kelas terhapus', value: `${classRefs} relasi akan dilepas` },
+        { label: 'Santri menunjuk asrama terhapus', value: `${dormRefs} relasi akan dilepas` },
+      ]
+    }
+    return []
+  }, [confirmTask, rotationDays, rotationPreview.data, integrityQuery.data])
 
   const filteredLogs = useMemo(() => {
     const term = debouncedLogSearch.trim().toLowerCase()
@@ -253,7 +302,13 @@ export function TasksPage({ active }: { active: boolean }) {
                       <div style={{ marginTop: 'auto' }}>
                         {isRunning ? (
                           <Progress percent={progress} size="small" strokeColor={token.colorPrimary} />
-                        ) : !task.destructive ? (
+                        ) : task.destructive ? (
+                          <Tooltip title="Perlu konfirmasi ketik JALANKAN + pratinjau dampak">
+                            <Button type="default" danger icon={<CaretRightOutlined />} block disabled={runningId !== null} onClick={() => setConfirmTask(task)}>
+                              Jalankan
+                            </Button>
+                          </Tooltip>
+                        ) : (
                           <Button
                             type="primary"
                             icon={<CaretRightOutlined />}
@@ -263,20 +318,6 @@ export function TasksPage({ active }: { active: boolean }) {
                           >
                             Jalankan
                           </Button>
-                        ) : (
-                          <Popconfirm
-                            title={`Jalankan "${task.label}"?`}
-                            icon={<ExclamationCircleOutlined style={{ color: '#f59e0b' }} />}
-                            description={task.description + ' Tindakan ini permanen dan tercatat di audit log.'}
-                            okText="Jalankan"
-                            okButtonProps={{ danger: true, disabled: runningId !== null }}
-                            cancelText="Batal"
-                            onConfirm={() => runTask(task)}
-                          >
-                            <Button type="default" danger icon={<CaretRightOutlined />} block disabled={runningId !== null}>
-                              Jalankan
-                            </Button>
-                          </Popconfirm>
                         )}
                       </div>
                     </div>
@@ -306,22 +347,11 @@ export function TasksPage({ active }: { active: boolean }) {
                   onChange={(e) => setLogSearch(e.target.value)}
                   style={{ width: 180, maxWidth: '100%' }}
                 />
-                <Popconfirm
-                  title="Hapus semua riwayat?"
-                  description="Riwayat hanya tersimpan di perangkat ini."
-                  okText="Ya, Hapus"
-                  okButtonProps={{ danger: true }}
-                  cancelText="Batal"
-                  onConfirm={() => {
-                    clearTaskLogs()
-                    setLogs([])
-                    message.success('Riwayat dihapus')
-                  }}
-                >
-                  <Button size="small" icon={<DeleteOutlined />} disabled={logs.length === 0}>
-                    Hapus Riwayat
-                  </Button>
-                </Popconfirm>
+                <Tooltip title="Riwayat tersimpan di server — tampil sama di semua perangkat">
+                  <Tag icon={<CheckCircleOutlined />} style={{ borderRadius: 999, marginInlineEnd: 0 }}>
+                    Server
+                  </Tag>
+                </Tooltip>
               </Space>
             }
           >
@@ -347,6 +377,7 @@ export function TasksPage({ active }: { active: boolean }) {
               size="small"
               columns={logColumns}
               dataSource={filteredLogs}
+              loading={runsQuery.isPending}
               scroll={{ x: 'max-content' }}
               pagination={logs.length > 8 ? { pageSize: 8, showSizeChanger: false } : false}
               locale={{
@@ -356,6 +387,21 @@ export function TasksPage({ active }: { active: boolean }) {
           </Card>
         </Col>
       </Row>
+
+      <ConfirmTaskModal
+        task={confirmTask}
+        preview={preview}
+        previewLoading={confirmTask?.id === 'rotate_logs' ? rotationPreview.isPending : integrityQuery.isPending}
+        confirmWord="JALANKAN"
+        open={confirmTask !== null}
+        loading={runningId !== null}
+        onClose={() => setConfirmTask(null)}
+        onConfirm={() => {
+          const task = confirmTask
+          setConfirmTask(null)
+          if (task) runTask(task)
+        }}
+      />
     </div>
   )
 }

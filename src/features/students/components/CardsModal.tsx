@@ -56,7 +56,7 @@ export function CardsModal({
     return allStudents.filter((s) => s.class_id === classId)
   }, [scope, filteredRows, allStudents, classId])
 
-  const missingPin = list.filter((s) => !s.pin).length
+  const missingPin = list.filter((s) => !(s.has_pin ?? !!s.pin)).length
 
   const scopeLabel = (value: Scope, label: string) => {
     const count =

@@ -86,14 +86,23 @@ export async function scanMediaReferences(): Promise<{ refs: Set<string>; failed
   return { refs, failedTables }
 }
 
-/** URL akses file: public URL untuk bucket publik, signed URL 1 jam untuk privat. */
+// Cache signed URL privat (TTL 55 menit dari masa token 1 jam) — 1 request
+// createSignedUrl per path per jam, bukan 1 per render thumbnail.
+const SIGNED_URL_TTL_MS = 55 * 60_000
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
+
+/** URL akses file: public URL untuk bucket publik, signed URL 1 jam (ber-cache) untuk privat. */
 export async function getMediaFileUrl(bucket: string, path: string, isPublic: boolean): Promise<string> {
   if (isPublic) {
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
     return data.publicUrl
   }
+  const cacheKey = `${bucket}/${path}`
+  const cached = signedUrlCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) return cached.url
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 3600)
   if (error) throw error
+  signedUrlCache.set(cacheKey, { url: data.signedUrl, expiresAt: Date.now() + SIGNED_URL_TTL_MS })
   return data.signedUrl
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type Key } from 'react'
+import { useEffect, useMemo, useRef, useState, type Key } from 'react'
 import {
   App,
   Button,
@@ -27,6 +27,7 @@ import {
 } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useSearchParams } from 'react-router-dom'
+import { TabActionsContext, useTabActions } from '../../shared/components/ActionsSlot'
 import { PageHeader } from '../../shared/components/PageHeader'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { ActionBar } from '../../shared/components/ActionBar'
@@ -71,11 +72,12 @@ async function fetchStudentSnapshot(studentId: string): Promise<{ name: string; 
   }
 }
 
-function CounselingSessions() {
+function CounselingSessions({ active = true }: { active?: boolean }) {
   const { message } = App.useApp()
   const { profile } = useProfile()
   const { canWrite, canDelete } = usePermissions()
   const { open: openStudentDetail } = useStudentDetail()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Filter tabel
   const [search, setSearch] = useState('')
@@ -91,6 +93,7 @@ function CounselingSessions() {
   const [formOpen, setFormOpen] = useState(false)
   const [editLog, setEditLog] = useState<CounselingLog | null>(null)
   const [presetStudent, setPresetStudent] = useState<{ value: string; label: string } | null>(null)
+  const [presetComplaint, setPresetComplaint] = useState<string | null>(null)
   const [detailLog, setDetailLog] = useState<CounselingLog | null>(null)
   const [inProgressOpen, setInProgressOpen] = useState(false)
   const [highOpen, setHighOpen] = useState(false)
@@ -135,6 +138,31 @@ function CounselingSessions() {
   const openCreate = () => {
     setEditLog(null)
     setPresetStudent(null)
+    setFormOpen(true)
+  }
+
+  // Deep-link tindak lanjut: /counseling?tab=sesi&new=1&studentId=..&complaint=..
+  // Nilai dibaca saat render (pola "adjust state when props change") supaya
+  // tidak ada setState di dalam effect (react-hooks/set-state-in-effect).
+  const newFromUrl = active && searchParams.get('new') === '1'
+  const urlStudentId = newFromUrl ? searchParams.get('studentId') : null
+  const urlStudentName = newFromUrl ? searchParams.get('studentName') : null
+  const urlComplaint = newFromUrl ? searchParams.get('complaint') : null
+
+  useEffect(() => {
+    if (!newFromUrl) return
+    // Hanya membersihkan URL (API router), bukan setState — refresh tidak membuka modal lagi
+    setSearchParams({ tab: 'sesi' }, { replace: true })
+  }, [newFromUrl, setSearchParams])
+
+  // Buka modal dari deep-link saat render (pola adjust state saat props berubah).
+  const [deepLinkApplied, setDeepLinkApplied] = useState<string | null>(null)
+  const deepLinkToken = newFromUrl ? `${urlStudentId ?? ''}|${urlComplaint ?? ''}` : null
+  if (deepLinkToken && deepLinkToken !== deepLinkApplied) {
+    setDeepLinkApplied(deepLinkToken)
+    setEditLog(null)
+    setPresetStudent(urlStudentId ? { value: urlStudentId, label: urlStudentName ?? 'Santri terpilih' } : null)
+    setPresetComplaint(urlComplaint)
     setFormOpen(true)
   }
 
@@ -418,30 +446,29 @@ function CounselingSessions() {
     },
   ]
 
+  const actions = useTabActions(
+    active,
+    <>
+      <Tooltip title="Ekspor data sesi BK">
+        <Button
+          icon={<ExportOutlined />}
+          onClick={() => {
+            setExportScope('filtered')
+            setExportOpen(true)
+          }}
+        />
+      </Tooltip>
+      {canWrite && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          Catat Sesi BK
+        </Button>
+      )}
+    </>,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Bimbingan & Konseling"
-        subtitle="Pembinaan karakter, solusi psikososial, dan arahan karir santri"
-        extra={
-          <Space size="small" wrap>
-            <Tooltip title="Ekspor data sesi BK">
-              <Button
-                icon={<ExportOutlined />}
-                onClick={() => {
-                  setExportScope('filtered')
-                  setExportOpen(true)
-                }}
-              />
-            </Tooltip>
-            {canWrite && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-                Catat Sesi BK
-              </Button>
-            )}
-          </Space>
-        }
-      />
+      {actions}
 
       <StatsRow
         stats={statsQuery.data}
@@ -590,6 +617,7 @@ function CounselingSessions() {
         submitting={createMutation.isPending || updateMutation.isPending}
         editLog={editLog}
         presetStudent={presetStudent}
+        presetComplaint={presetComplaint ?? undefined}
         defaultCounselor={profile?.name ?? ''}
         onCancel={() => {
           setFormOpen(false)
@@ -645,18 +673,35 @@ function CounselingSessions() {
   )
 }
 
-// Halaman induk BK: tab Sesi BK (utama) & Surat Resmi — deep-link via ?tab=surat-resmi
+// Halaman induk BK: tab Sesi (utama) & Surat Resmi, deep-link via ?tab=surat-resmi
 export function CounselingPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = searchParams.get('tab') === 'surat-resmi' ? 'surat-resmi' : 'sesi'
+  const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
+  const subtitle =
+    tab === 'surat-resmi'
+      ? 'Surat panggilan, peringatan, dan penghargaan'
+      : 'Pembinaan karakter dan pendampingan santri'
+
   return (
-    <Tabs
-      activeKey={tab}
-      onChange={(key) => setSearchParams(key === 'sesi' ? {} : { tab: key })}
-      items={[
-        { key: 'sesi', label: 'Sesi BK', children: <CounselingSessions /> },
-        { key: 'surat-resmi', label: 'Surat Resmi', children: <LettersPage /> },
-      ]}
-    />
+    <TabActionsContext.Provider value={actionsHost}>
+      <PageHeader
+        title="Bimbingan Konseling"
+        subtitle={subtitle}
+        extra={<div ref={setActionsHost} style={{ display: 'flex', alignItems: 'center', gap: 8 }} />}
+      />
+      <Tabs
+        activeKey={tab}
+        onChange={(key) => setSearchParams(key === 'sesi' ? {} : { tab: key })}
+        items={[
+          { key: 'sesi', label: 'Sesi', children: <CounselingSessions active={tab === 'sesi'} /> },
+          {
+            key: 'surat-resmi',
+            label: 'Surat Resmi',
+            children: <LettersPage active={tab === 'surat-resmi'} />,
+          },
+        ]}
+      />
+    </TabActionsContext.Provider>
   )
 }

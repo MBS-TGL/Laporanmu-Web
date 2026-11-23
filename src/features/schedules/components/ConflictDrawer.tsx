@@ -29,7 +29,7 @@ export function ConflictDrawer({
         </div>
       }
       placement="right"
-      width={680}
+      size="min(680px, 96vw)"
       open={open}
       onClose={onClose}
     >

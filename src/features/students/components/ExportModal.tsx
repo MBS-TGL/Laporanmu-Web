@@ -74,9 +74,9 @@ export function ExportModal({
       size="xl"
       open={open}
       onClose={onClose}
-      title="Export Data Siswa"
+      title="Ekspor Data Santri"
       filename="data-siswa"
-      sheetName="Siswa"
+      sheetName="Santri"
       columns={columns}
       scopes={scopes}
       presets={presets}

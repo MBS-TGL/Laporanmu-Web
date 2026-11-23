@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { Book, BookFormValues, BookLoan, LoanFormValues } from './types'
+import { computeFine, type Book, type BookFormValues, type BookLoan, type ItemCondition, type LoanFormValues } from './types'
 
 const LOAN_SELECT =
   '*, students(id, name, registration_code, classes!students_class_id_fkey(name)), books(id, title, code)'
@@ -110,10 +110,19 @@ export async function createLoan(values: LoanFormValues): Promise<BookLoan> {
   return data as unknown as BookLoan
 }
 
-export async function returnLoan(id: string): Promise<void> {
+export async function returnLoan(
+  id: string,
+  options?: { condition?: ItemCondition | null; dueDate?: string | null },
+): Promise<void> {
+  const returnedAt = new Date().toISOString().slice(0, 10)
+  const fine = options?.dueDate ? computeFine(options.dueDate, returnedAt) : 0
   const { error } = await supabase
     .from('book_loans')
-    .update({ returned_at: new Date().toISOString().slice(0, 10) })
+    .update({
+      returned_at: returnedAt,
+      condition_on_return: options?.condition ?? null,
+      fine_amount: fine,
+    })
     .eq('id', id)
   if (error) throw error
 }

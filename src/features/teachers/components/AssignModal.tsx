@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { App, Checkbox, Empty, Select, Tag, theme } from 'antd'
 import { BookOutlined } from '@ant-design/icons'
@@ -70,32 +70,35 @@ export function AssignModal({
 
   const [subjectId, setSubjectId] = useState<string | undefined>()
   const [checked, setChecked] = useState<Set<string>>(new Set())
+  const [openKey, setOpenKey] = useState('')
+  const [dbKey, setDbKey] = useState('')
 
-  // Reset saat modal dibuka
-  useEffect(() => {
-    if (open) {
-      setSubjectId(undefined)
-      setChecked(new Set())
-    }
-  }, [open, teacher?.id])
+  // Reset saat modal dibuka (adjust state saat render, bukan effect)
+  const currentOpenKey = `${open}:${teacher?.id ?? ''}`
+  if (currentOpenKey !== openKey) {
+    setOpenKey(currentOpenKey)
+    setSubjectId(undefined)
+    setChecked(new Set())
+  }
 
-  // Auto-saran mapel dari field subject guru (best effort — pencocokan nama)
-  useEffect(() => {
-    if (!open || !teacher || subjectId) return
-    const subjects = subjectsQuery.data
-    if (!subjects?.length) return
-    const match = subjects.find((s) => s.name === teacher.subject)
+  // Auto-saran mapel dari field subject guru (best effort, pencocokan nama)
+  if (open && teacher && !subjectId && subjectsQuery.data?.length) {
+    const match = subjectsQuery.data.find((s) => s.name === teacher.subject)
     if (match) setSubjectId(match.id)
-  }, [open, teacher, subjectId, subjectsQuery.data])
+  }
 
   // Sinkronkan checkbox dengan keadaan DB untuk mapel terpilih
-  useEffect(() => {
-    if (!subjectId || !teacher) return
-    const rows = (byYearQuery.data ?? []).filter(
-      (cs) => cs.subject_id === subjectId && cs.teacher_id === teacher.id,
-    )
-    setChecked(new Set(rows.map((r) => r.class_id)))
-  }, [subjectId, byYearQuery.data, teacher])
+  const dbRows =
+    subjectId && teacher
+      ? (byYearQuery.data ?? []).filter(
+          (cs) => cs.subject_id === subjectId && cs.teacher_id === teacher.id,
+        )
+      : []
+  const currentDbKey = `${subjectId ?? ''}:${teacher?.id ?? ''}:${dbRows.map((r) => r.class_id).join(',')}`
+  if (currentDbKey !== dbKey) {
+    setDbKey(currentDbKey)
+    setChecked(new Set(dbRows.map((r) => r.class_id)))
+  }
 
   // teacher_id per kelas untuk mapel terpilih (guru lain = warning)
   const occupiedBy = useMemo(() => {

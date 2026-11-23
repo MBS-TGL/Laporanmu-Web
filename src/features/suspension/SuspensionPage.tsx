@@ -20,7 +20,7 @@ import {
 import { PlusOutlined, StopOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useQuery } from '@tanstack/react-query'
-import { PageHeader } from '../../shared/components/PageHeader'
+import { useTabActions } from '../../shared/components/ActionsSlot'
 import { AppModal } from '../../shared/components/AppModal'
 import { StatusTag } from '../../shared/components/StatusTag'
 import { useDebounce } from '../../shared/hooks/useDebounce'
@@ -44,7 +44,7 @@ function isSmaGrade(grade: string | null): boolean {
   return g === 10 || g === 11 || g === 12
 }
 
-export function SuspensionPage() {
+export function SuspensionPage({ active = true }: { active?: boolean }) {
   const { message } = App.useApp()
   const { canWrite } = usePermissions()
   const suspensionsQuery = useSuspensions()
@@ -53,7 +53,7 @@ export function SuspensionPage() {
   const createMutation = useCreateSuspension()
 
   const [formOpen, setFormOpen] = useState(false)
-  // Deep-link: /disiplin?tab=skorsing&detail=<id> langsung membuka drawer skorsing
+  // Deep-link: /discipline?tab=suspension&detail=<id> langsung membuka drawer skorsing
   const [searchParams, setSearchParams] = useSearchParams()
   const [detailId, setDetailId] = useState<string | null>(searchParams.get('detail'))
 
@@ -66,7 +66,7 @@ export function SuspensionPage() {
     }
   }
 
-  const active = suspensions.filter((s) => s.status === 'active')
+  const activeSuspensions = suspensions.filter((s) => s.status === 'active')
   const done = suspensions.filter((s) => s.status === 'completed')
 
   const columns: TableColumnsType<Suspension> = [
@@ -158,23 +158,22 @@ export function SuspensionPage() {
     )
   }
 
+  const actions = useTabActions(
+    active,
+    canWrite ? (
+      <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
+        Terbitkan Skorsing
+      </Button>
+    ) : null,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Skorsing & Pembinaan"
-        subtitle="Skorsing santri dan pembinaan di rumah bersama wali"
-        extra={
-          canWrite ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setFormOpen(true)}>
-              Terbitkan Skorsing
-            </Button>
-          ) : undefined
-        }
-      />
+      {actions}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={12} sm={8} xl={6}>
-          <Card><Statistic title="Aktif" value={active.length} loading={suspensionsQuery.isLoading} /></Card>
+          <Card><Statistic title="Aktif" value={activeSuspensions.length} loading={suspensionsQuery.isLoading} /></Card>
         </Col>
         <Col xs={12} sm={8} xl={6}>
           <Card><Statistic title="Selesai" value={done.length} /></Card>
@@ -189,6 +188,7 @@ export function SuspensionPage() {
           rowKey="id"
           columns={columns}
           dataSource={suspensions}
+          scroll={{ x: 'max-content' }}
           loading={suspensionsQuery.isLoading}
           locale={{
             emptyText: (

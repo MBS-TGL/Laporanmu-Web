@@ -39,6 +39,17 @@ export async function fetchAllClasses(
   return (data ?? []) as unknown as ClassRow[]
 }
 
+/** Kelas terarsip (deleted_at terisi) — dipakai tabs/ArchiveTab untuk pulihkan */
+export async function fetchArchivedClasses(): Promise<ClassRow[]> {
+  const { data, error } = await supabase
+    .from('classes')
+    .select(SELECT_STR)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as unknown as ClassRow[]
+}
+
 /** Untuk lingkup ekspor "terpilih" */
 export async function fetchClassesByIds(ids: string[]): Promise<ClassRow[]> {
   if (ids.length === 0) return []
@@ -153,6 +164,38 @@ export async function softDeleteClassesBulk(ids: string[]): Promise<void> {
     .update({ deleted_at: new Date().toISOString() })
     .in('id', ids)
   if (error) throw error
+}
+
+/** Batalkan soft delete — kelas kembali ke daftar aktif */
+export async function restoreClass(id: string): Promise<void> {
+  const { error } = await supabase.from('classes').update({ deleted_at: null }).eq('id', id)
+  if (error) throw error
+}
+
+export type ClassImportPayload = {
+  name: string
+  grade: string | null
+  major: string | null
+  academic_year_id: string | null
+  homeroom_teacher_id: string | null
+}
+
+/** Insert batch hasil impor (dipanggil per-chunk oleh ImportModal) */
+export async function createClassesBulk(rows: ClassImportPayload[]): Promise<number> {
+  const { data, error } = await supabase
+    .from('classes')
+    .insert(
+      rows.map((r) => ({
+        name: r.name,
+        grade: r.grade,
+        major: r.major,
+        academic_year_id: r.academic_year_id,
+        homeroom_teacher_id: r.homeroom_teacher_id,
+      })),
+    )
+    .select('id')
+  if (error) throw error
+  return data?.length ?? 0
 }
 
 // ─── Class subjects (mata pelajaran per kelas, mantan classSubjectsApi.ts) ──

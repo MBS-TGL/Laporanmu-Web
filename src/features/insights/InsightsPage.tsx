@@ -28,9 +28,12 @@ import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useFlag } from '../../shared/hooks/useFeatureFlags'
 import { swapTransition, swapVariants } from '../../shared/motion'
-import { generateInsight } from './api'
+import { MODEL } from '../../shared/lib/ai'
+import dayjs from 'dayjs'
+import { HistoryOutlined } from '@ant-design/icons'
+import { buildInsightPrompt, generateInsight, saveInsightLog } from './api'
 import { InsightCharts } from './components/InsightCharts'
-import { useSnapshot } from './hooks'
+import { useInvalidateInsightLogs, useInsightLogs, useSnapshot } from './hooks'
 import type { InsightPreset } from './types'
 
 const PRESETS: { key: InsightPreset; label: string; icon: React.ReactNode }[] = [
@@ -110,6 +113,10 @@ export function InsightsPage({ active }: { active: boolean }) {
   const [result, setResult] = useState<string>('')
   const [generating, setGenerating] = useState(false)
 
+  // Riwayat snapshot server-side (tabel insight_logs, migrasi 0062)
+  const historyQuery = useInsightLogs({ enabled: active })
+  const invalidateHistory = useInvalidateInsightLogs()
+
   const handleGenerate = async (which: InsightPreset = preset) => {
     setPreset(which)
     if (!snapshot) return
@@ -119,6 +126,11 @@ export function InsightsPage({ active }: { active: boolean }) {
       setResult(text)
       if (text.startsWith('Maaf') || text.startsWith('Tidak bisa') || text.startsWith('API Key')) {
         message.warning('Jawaban AI tidak optimal — periksa koneksi atau API key')
+      } else {
+        // Simpan snapshot sukses ke riwayat server (gagal simpan tidak mengganggu hasil)
+        saveInsightLog({ prompt: buildInsightPrompt(snapshot, which), result: text, model: MODEL })
+          .then(invalidateHistory)
+          .catch(() => message.warning('Riwayat gagal tersimpan ke server'))
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Gagal menghasilkan insight')
@@ -320,6 +332,56 @@ export function InsightsPage({ active }: { active: boolean }) {
           )}
         </motion.div>
       </Card>
+
+      {/* Riwayat snapshot server-side — klik untuk membuka kembali hasil */}
+      {historyQuery.data && historyQuery.data.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <HistoryOutlined />
+              Riwayat Analisis
+            </Space>
+          }
+          size="small"
+          style={{ marginTop: 16 }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {historyQuery.data.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setResult(entry.result)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 12,
+                  textAlign: 'left',
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: 'none',
+                  font: 'inherit',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = token.colorFillQuaternary
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'none'
+                }}
+              >
+                <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                  {dayjs(entry.createdAt).format('DD MMM YYYY HH:mm')}
+                </Typography.Text>
+                <Typography.Text style={{ fontSize: 12.5 }} ellipsis>
+                  {entry.result.split('\n').find((l) => l.trim() && !l.startsWith('##')) ?? 'Snapshot analisis'}
+                </Typography.Text>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   )
 }

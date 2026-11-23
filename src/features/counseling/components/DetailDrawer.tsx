@@ -13,7 +13,7 @@ import { StatusTag } from '../../../shared/components/StatusTag'
 import { formatDisplayName } from '../../../shared/utils/displayName'
 import { useStudentDetail } from '../../students/useStudentDetail'
 import { CATEGORY_LABEL, STATUS_META, URGENCY_META } from '../constants'
-import { useStudentCounseling } from '../hooks'
+import { useCounselingParticipants, useStudentCounseling } from '../hooks'
 import type { CounselingLog } from '../types'
 
 interface DetailDrawerProps {
@@ -46,6 +46,8 @@ export function DetailDrawer({
   const { token } = theme.useToken()
   const { open: openStudentDetail } = useStudentDetail()
   const historyQuery = useStudentCounseling(log?.student_id ?? null)
+  const participantsQuery = useCounselingParticipants(log?.id ?? null)
+  const participants = participantsQuery.data ?? []
   const [toggling, setToggling] = useState(false)
 
   if (!log) return null
@@ -60,7 +62,7 @@ export function DetailDrawer({
     <Drawer
       open={Boolean(log)}
       onClose={onClose}
-      width={560}
+      size="min(560px, 96vw)"
       title={
         <div>
           <div style={{ fontWeight: 600, fontSize: 15 }}>
@@ -164,6 +166,26 @@ export function DetailDrawer({
           <Descriptions.Item label="Rencana Tindakan">
             {log.action_plan ? <span style={{ whiteSpace: 'pre-wrap' }}>{log.action_plan}</span> : <Typography.Text type="secondary">-</Typography.Text>}
           </Descriptions.Item>
+          <Descriptions.Item label="Tenggat Tindak Lanjut">
+            {log.next_session_date ? (
+              dayjs(log.next_session_date).isBefore(dayjs(), 'day') && log.status === 'in_progress' ? (
+                <Tag color="red">Lewat tenggat · {dayjs(log.next_session_date).format('DD MMM YYYY')}</Tag>
+              ) : (
+                dayjs(log.next_session_date).format('DD MMM YYYY')
+              )
+            ) : (
+              <Typography.Text type="secondary">Belum ditentukan</Typography.Text>
+            )}
+          </Descriptions.Item>
+          {participants.length > 0 && (
+            <Descriptions.Item label="Peserta Kelompok">
+              <Space size={[4, 4]} wrap>
+                {participants.map((p) => (
+                  <Tag key={p.student_id}>{p.name}{p.class_name ? ` · ${p.class_name}` : ''}</Tag>
+                ))}
+              </Space>
+            </Descriptions.Item>
+          )}
           {log.created_at && (
             <Descriptions.Item label="Dicatat">
               {dayjs(log.created_at).format('DD MMM YYYY HH:mm')}

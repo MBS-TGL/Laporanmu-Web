@@ -68,7 +68,7 @@ type Mapping = Partial<Record<FieldKey, number>>
 
 // Keterangan per kolom untuk sheet "Petunjuk" di template Excel
 const FIELD_NOTES: Partial<Record<FieldKey, string>> = {
-  kode: 'Wajib. Kode registrasi siswa atau NISN — dicocokkan ke Data Siswa.',
+  kode: 'Wajib. Kode registrasi santri atau NISN, dicocokkan ke Santri.',
   arah: 'Wajib. masuk / keluar (alias: entry, exit, in, out, m, k, pulang, pergi).',
   waktu: 'Opsional. YYYY-MM-DD HH:mm atau DD/MM/YYYY HH:mm. Kosong = waktu impor. Tidak boleh lebih dari 5 menit ke depan.',
   catatan: 'Opsional. Keterangan tambahan (mis. pulang izin).',
@@ -354,7 +354,7 @@ function parseGateTable(table: string[][], mapping: Mapping, ctx: ParseContext):
       student = ctx.byCode.get(kodeNorm) ?? ctx.byCode.get(kodeNorm.toUpperCase()) ?? ctx.byNisn.get(kodeNorm)
       if (!student) {
         status = 'error'
-        errorMessage = 'Siswa tidak ditemukan'
+        errorMessage = 'Santri tidak ditemukan'
       }
     }
 
@@ -865,7 +865,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
       },
     },
     {
-      title: 'Siswa',
+      title: 'Santri',
       key: 'student',
       render: (_, r) => (
         <div>
@@ -989,7 +989,7 @@ export function ImportModal({ open, onClose, initialSource = 'file' }: ImportMod
   return (
     <WizardModal
       title="Impor Log Gerbang"
-      subtitle="Unggah log keluar-masuk dari file Excel, CSV, atau Google Sheets. Siswa & arah dicocokkan otomatis."
+      subtitle="Unggah log keluar-masuk dari file Excel, CSV, atau Google Sheets. Santri & arah dicocokkan otomatis."
       icon={<ImportOutlined />}
       open={open}
       onCancel={handleClose}

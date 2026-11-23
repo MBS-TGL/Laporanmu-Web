@@ -56,7 +56,7 @@ import { usePermissions } from '../../shared/hooks/useProfile'
 import { useFlag } from '../../shared/hooks/useFeatureFlags'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { supabase } from '../../lib/supabase'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useReportCardClasses, useReportCardStudents } from '../report-cards/hooks'
 import { useStudentDetail } from '../students/useStudentDetail'
 import type { ReportCardStudent } from '../report-cards/types'
@@ -96,6 +96,7 @@ function AttendanceSantriTab({ active = true }: { active?: boolean }) {
   const { open: openStudentDetail } = useStudentDetail()
   const now = new Date()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [classId, setClassId] = useState<string | undefined>(searchParams.get('class') ?? undefined)
   const [month, setMonth] = useState(Number(searchParams.get('month')) || now.getMonth() + 1)
   const [year, setYear] = useState(Number(searchParams.get('year')) || now.getFullYear())
@@ -573,6 +574,37 @@ function AttendanceSantriTab({ active = true }: { active?: boolean }) {
         if (sum.A >= 3) return <Tag color="red">Alpa ≥ 3 hari</Tag>
         if (anyFilled && pct < 75) return <Tag color="orange">Hadir &lt; 75%</Tag>
         return <Tag color="green">Baik</Tag>
+      },
+    },
+    {
+      title: 'Tindak Lanjut',
+      key: 'followup',
+      width: 120,
+      render: (_: unknown, s: ReportCardStudent) => {
+        const sum = summaries.get(s.id) ?? { H: 0, S: 0, I: 0, A: 0, P: 0 }
+        const anyFilled = Object.keys(getDays(s.id)).length > 0
+        const pct = weekdays > 0 ? Math.round((sum.H / weekdays) * 100) : 0
+        const needsFollowUp = sum.A >= 3 || (anyFilled && pct < 75)
+        if (!needsFollowUp) return null
+        const complaint = `Tindak lanjut ketidakhadiran ${MONTH_NAMES[month - 1]} ${year}: ${sum.A} hari alpa, kehadiran ${pct}%.`
+        const href = (tab: 'sesi' | 'surat-resmi') =>
+          `/counseling?tab=${tab}&new=1&studentId=${s.id}&studentName=${encodeURIComponent(s.name)}&complaint=${encodeURIComponent(complaint)}`
+        return (
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'bk', label: 'Buat sesi BK' },
+                { key: 'letter', label: 'Buat surat panggilan' },
+              ],
+              onClick: ({ key }) => navigate(href(key === 'letter' ? 'surat-resmi' : 'sesi')),
+            }}
+            trigger={['click']}
+          >
+            <Button size="small" type="link">
+              Tindak lanjut
+            </Button>
+          </Dropdown>
+        )
       },
     },
   ]
@@ -1509,22 +1541,22 @@ const ATTENDANCE_TAB_ITEMS: { key: AttendanceTabKey; label: string; subtitle: st
   {
     key: 'students',
     label: 'Santri',
-    subtitle: 'Kehadiran harian per kelas per bulan — grid, scan kartu, dan rekap dalam satu halaman',
+    subtitle: 'Kehadiran harian santri per kelas',
   },
   {
     key: 'subjects',
     label: 'Mapel',
-    subtitle: 'Absensi per jam pelajaran — grid santri × jam, WA wali, dan analitik bulanan',
+    subtitle: 'Kehadiran per jam pelajaran',
   },
   {
     key: 'teachers',
-    label: 'Guru & Karyawan',
-    subtitle: 'Rekap kehadiran guru & karyawan — input manual, impor mesin, dan ekspor',
+    label: 'Guru',
+    subtitle: 'Kehadiran guru dan tenaga kependidikan',
   },
   {
     key: 'machines',
     label: 'Mesin',
-    subtitle: 'Kelola mesin presensi, impor log, dan sinkronkan ke absensi santri',
+    subtitle: 'Mesin presensi dan sinkronisasi absensi',
   },
 ]
 

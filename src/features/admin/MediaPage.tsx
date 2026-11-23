@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { App, Alert, Breadcrumb, Button, Card, Empty, Input, Select, Skeleton, Space, Tag, Tooltip, theme } from 'antd'
+import { App, Alert, Breadcrumb, Button, Card, Empty, Input, Pagination, Select, Skeleton, Space, Tag, Tooltip, theme } from 'antd'
 import {
   CloudUploadOutlined,
   FileImageOutlined,
@@ -71,6 +71,18 @@ export function MediaPage({ active }: { active: boolean }) {
     if (!q) return allFiles
     return allFiles.filter((f) => f.name.toLowerCase().includes(q))
   }, [allFiles, debouncedSearch])
+
+  // Grid dibatasi 60 file/halaman — hingga 1.000 file dari list() tidak
+  // dirender sekaligus (thumbnail image + signed URL per item).
+  const PAGE_SIZE = 60
+  const [page, setPage] = useState(1)
+  useEffect(() => {
+    setPage(1) // daftar berubah (folder/filter) → kembali ke halaman pertama
+  }, [filteredFiles])
+  const pageFiles = useMemo(
+    () => filteredFiles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredFiles, page],
+  )
 
   const refs = refsScan.data?.refs
   const isReferenced = (file: MediaFile) => (refs ? refs.has(`${file.bucket}/${file.path}`) : null)
@@ -283,8 +295,9 @@ export function MediaPage({ active }: { active: boolean }) {
             }
           />
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-            {filteredFiles.map((file) => {
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+              {pageFiles.map((file) => {
               const referenced = isReferenced(file)
               return (
                 <button
@@ -336,8 +349,21 @@ export function MediaPage({ active }: { active: boolean }) {
                   )}
                 </button>
               )
-            })}
-          </div>
+              })}
+            </div>
+            {filteredFiles.length > PAGE_SIZE && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                <Pagination
+                  current={page}
+                  pageSize={PAGE_SIZE}
+                  total={filteredFiles.length}
+                  onChange={setPage}
+                  showSizeChanger={false}
+                  showTotal={(t) => `${t} file`}
+                />
+              </div>
+            )}
+          </>
         )}
       </Card>
 

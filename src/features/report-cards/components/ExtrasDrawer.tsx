@@ -36,7 +36,14 @@ export function ExtrasDrawer({
     if (!open || !student) return
     form.resetFields()
     if (type === 'monthly') {
-      form.setFieldsValue(monthlyInitial ?? {})
+      const m = monthlyInitial ?? {}
+      // Nama kolom DB -> nama field form (kebalikan dari pemetaan di handleSave)
+      form.setFieldsValue({
+        ...m,
+        pelanggaran: m.violations,
+        prestasi: m.achievements,
+        catatan: m.notes,
+      })
     } else {
       form.setFieldsValue(semesterInitial ?? {})
     }
@@ -61,7 +68,20 @@ export function ExtrasDrawer({
     if (!student) return
     const values = form.getFieldsValue()
     if (type === 'monthly') {
-      onSaveMonthly(student.id, values as MonthlyDraft)
+      // Kolom form memakai label Indonesia; petakan ke nama kolom DB yang sebenarnya
+      // (pelanggaran->violations, prestasi->achievements, catatan->notes)
+      const { pelanggaran, prestasi, catatan, ...rest } = values as MonthlyDraft & {
+        pelanggaran?: string
+        prestasi?: string
+        catatan?: string
+      }
+      const draft: MonthlyDraft = {
+        ...rest,
+        violations: rest.violations ?? pelanggaran ?? undefined,
+        achievements: rest.achievements ?? prestasi ?? undefined,
+        notes: rest.notes ?? catatan ?? undefined,
+      }
+      onSaveMonthly(student.id, draft)
     } else {
       // Baris ekskul tanpa nama dibuang agar jsonb raport tidak berisi sampah
       const draft = values as SemesterDraft

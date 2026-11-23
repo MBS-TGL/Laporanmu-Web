@@ -10,7 +10,7 @@ export function ProtectedRoute() {
 
   if (sessionQuery.isPending || isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh' }}>
         <Spin size="large" />
       </div>
     )
@@ -52,7 +52,7 @@ export function PublicRoute() {
 
   if (sessionQuery.isPending || isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100dvh' }}>
         <Spin size="large" />
       </div>
     )

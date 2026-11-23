@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Button,
   Card,
@@ -21,7 +22,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
 } from '@ant-design/icons'
-import { PageHeader } from '../../../shared/components/PageHeader'
+import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { StatChip } from '../../../shared/components/StatChip'
 import { usePermissions } from '../../../shared/hooks/useProfile'
 import { useTablePagination } from '../../../shared/hooks/useTablePagination'
@@ -34,14 +35,33 @@ import {
   type OfficialLetterType,
 } from './types'
 
-export function LettersPage() {
+export function LettersPage({ active = true }: { active?: boolean }) {
   const { token } = theme.useToken()
   const { canWrite, canDelete } = usePermissions()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string | undefined>()
   const [createOpen, setCreateOpen] = useState(false)
+  const [presetStudentId, setPresetStudentId] = useState<string | undefined>()
   const [printLetter, setPrintLetter] = useState<OfficialLetter | null>(null)
+
+  // Deep-link tindak lanjut: /counseling?tab=surat-resmi&new=1&studentId=..
+  // Diterapkan saat render (adjust state), bukan setState di effect.
+  const newFromUrl = active && searchParams.get('new') === '1'
+  const urlStudentId = newFromUrl ? (searchParams.get('studentId') ?? undefined) : undefined
+  const [deepLinkApplied, setDeepLinkApplied] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!newFromUrl) return
+    setSearchParams({ tab: 'surat-resmi' }, { replace: true })
+  }, [newFromUrl, setSearchParams])
+
+  if (newFromUrl && (urlStudentId ?? '') !== deepLinkApplied) {
+    setDeepLinkApplied(urlStudentId ?? '')
+    setPresetStudentId(urlStudentId)
+    setCreateOpen(true)
+  }
 
   const lettersQuery = useOfficialLetters()
   const deleteMutation = useDeleteOfficialLetter()
@@ -148,31 +168,26 @@ export function LettersPage() {
     },
   ]
 
+  const actions = useTabActions(
+    active,
+    <>
+      <Tooltip title="Muat Ulang">
+        <Button
+          icon={<ReloadOutlined spin={lettersQuery.isFetching} />}
+          onClick={() => void lettersQuery.refetch()}
+        />
+      </Tooltip>
+      {canWrite && (
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+          Terbitkan Surat
+        </Button>
+      )}
+    </>,
+  )
+
   return (
     <div>
-      <PageHeader
-        title="Surat Resmi BK & Kesiswaan"
-        subtitle="Penerbitan surat panggilan orang tua, surat peringatan (SP), dan piagam penghargaan resmi dengan QR verifikasi."
-        extra={
-          <Space wrap>
-            <Tooltip title="Muat Ulang">
-              <Button
-                icon={<ReloadOutlined spin={lettersQuery.isFetching} />}
-                onClick={() => void lettersQuery.refetch()}
-              />
-            </Tooltip>
-            {canWrite && (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setCreateOpen(true)}
-              >
-                Terbitkan Surat
-              </Button>
-            )}
-          </Space>
-        }
-      />
+      {actions}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <StatChip
@@ -233,6 +248,7 @@ export function LettersPage() {
           size="middle"
           columns={columns}
           dataSource={filtered}
+          scroll={{ x: 'max-content' }}
           loading={lettersQuery.isPending}
           pagination={pg.pagination}
           locale={{
@@ -248,7 +264,11 @@ export function LettersPage() {
 
       <LetterModal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false)
+          setPresetStudentId(undefined)
+        }}
+        presetStudentId={presetStudentId}
       />
 
       <PrintModal

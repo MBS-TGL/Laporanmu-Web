@@ -21,10 +21,10 @@ export const SEMESTER_LABEL: Record<1 | 2, string> = {
 }
 
 export const REPORT_CARD_TYPE_LABEL: Record<ReportCardType, string> = {
-  monthly: 'Raport Bulanan',
+  monthly: 'Rapor Bulanan',
   pondok_oral: 'Pondok (Lisan)',
   pondok_subject: 'Pondok (Mapel)',
-  general: 'Raport Umum',
+  general: 'Rapor Umum',
 }
 
 export const BULANAN_MAX_SCORE = 9
@@ -320,6 +320,21 @@ export function getPredicate(type: ReportCardType, score: number | null): string
   return type === 'monthly'
     ? getGradePredicateMonthly(score)
     : getGradePredicateSemester(score)
+}
+
+// Tint latar sel nilai sesuai band predikat (pemisahan visual input ala V1).
+// Pakai warna status tema (emerald/amber/red) dengan alpha rendah agar teks tetap terbaca.
+export function scoreTint(type: ReportCardType, value: number | null): string | null {
+  if (value === null || Number.isNaN(value)) return null
+  if (type === 'monthly') {
+    if (value >= 8) return 'rgba(16, 185, 129, 0.16)'
+    if (value >= 6) return 'rgba(245, 158, 11, 0.18)'
+    if (value >= 4) return 'rgba(245, 158, 11, 0.32)'
+    return 'rgba(239, 68, 68, 0.18)'
+  }
+  if (value >= 80) return 'rgba(16, 185, 129, 0.16)'
+  if (value >= SEMESTER_KKM) return 'rgba(245, 158, 11, 0.20)'
+  return 'rgba(239, 68, 68, 0.18)'
 }
 
 export function calcAverage(

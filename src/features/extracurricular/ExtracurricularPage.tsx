@@ -7,21 +7,20 @@ import { ActivityTab } from './tabs/ActivityTab'
 import { AttendanceTab } from './tabs/AttendanceTab'
 
 const TAB_META: Record<string, { title: string; subtitle: string }> = {
-  kegiatan: {
+  activity: {
     title: 'Ekstrakurikuler',
-    subtitle: 'Kegiatan ekstrakurikuler, pembina, dan anggota santri',
+    subtitle: 'Kegiatan, pembina, dan anggota',
   },
-  presensi: {
-    title: 'Presensi Ekstrakurikuler',
-    subtitle:
-      'Klik sel untuk ganti status · tahan & geser untuk isi banyak · klik nomor tanggal untuk isi kolom',
+  attendance: {
+    title: 'Ekstrakurikuler',
+    subtitle: 'Kehadiran santri per kegiatan',
   },
 }
 
 /** Halaman Ekstrakurikuler: kegiatan & presensi bulanan dalam satu route (?tab=). */
 export function ExtracurricularPage() {
-  const { tab, setTab } = useUrlTab('activity')
-  const meta = TAB_META[tab] ?? TAB_META.kegiatan
+  const { tab, setTab } = useUrlTab('activity', { legacy: { kegiatan: 'activity', presensi: 'attendance' } })
+  const meta = TAB_META[tab] ?? TAB_META.activity
   // Host aksi di kanan judul halaman — diisi tiap tab via useTabActions (pola HalaqahPage)
   const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
 
@@ -37,7 +36,7 @@ export function ExtracurricularPage() {
         onChange={setTab}
         items={[
           { key: 'activity', label: 'Kegiatan', children: <ActivityTab active={tab === 'activity'} /> },
-          { key: 'attendance', label: 'Presensi', children: <AttendanceTab active={tab === 'attendance'} /> },
+          { key: 'attendance', label: 'Absensi', children: <AttendanceTab active={tab === 'attendance'} /> },
         ]}
       />
     </TabActionsContext.Provider>

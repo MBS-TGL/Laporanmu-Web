@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { fetchWaSettingsStatus, sendWaBroadcast } from '../students/api'
 import { waPhoneDigits } from '../students/wa'
+import { pickGuardianContact } from '../../shared/utils/guardianPhone'
 
 /**
  * WA wali saat santri alpa jam pelajaran (P2, toggle auto_absen_mapel_wa).
@@ -80,23 +81,46 @@ export async function maybeSendAbsentWa(
   }
 }
 
-/** Ambil kontak wali untuk daftar santri alpa (embed students). */
+/** Ambil kontak wali untuk daftar santri alpa. Nomor wali (student_guardians)
+ *  diprioritaskan; nomor santri hanya fallback. Satu query per tabel. */
 export async function fetchAbsentContacts(
   studentIds: string[],
 ): Promise<Map<string, { name: string; className: string; guardianName: string | null; phone: string | null }>> {
   const map = new Map<string, { name: string; className: string; guardianName: string | null; phone: string | null }>()
   if (studentIds.length === 0) return map
-  const { data, error } = await supabase
-    .from('students')
-    .select('id, name, phone, guardian_name, classes!students_class_id_fkey(name)')
-    .in('id', studentIds)
-  if (error) throw error
-  for (const r of (data ?? []) as Array<Record<string, unknown>>) {
-    map.set(r.id as string, {
+
+  const [studentsRes, guardiansRes] = await Promise.all([
+    supabase
+      .from('students')
+      .select('id, name, phone, guardian_name, classes!students_class_id_fkey(name)')
+      .in('id', studentIds),
+    supabase
+      .from('student_guardians')
+      .select('student_id, relation, name, phone')
+      .in('student_id', studentIds)
+      .is('deleted_at', null),
+  ])
+  if (studentsRes.error) throw studentsRes.error
+
+  const guardiansByStudent = new Map<string, { relation: string; name: string | null; phone: string | null }[]>()
+  for (const g of guardiansRes.data ?? []) {
+    const key = (g as { student_id: string }).student_id
+    const list = guardiansByStudent.get(key) ?? []
+    list.push(g as { relation: string; name: string | null; phone: string | null })
+    guardiansByStudent.set(key, list)
+  }
+
+  for (const r of (studentsRes.data ?? []) as Array<Record<string, unknown>>) {
+    const id = r.id as string
+    const contact = pickGuardianContact(guardiansByStudent.get(id) ?? [], {
+      name: (r.guardian_name as string | null) ?? (r.name as string),
+      phone: (r.phone as string | null) ?? null,
+    })
+    map.set(id, {
       name: r.name as string,
       className: (r.classes as { name: string } | null)?.name ?? '',
-      guardianName: (r.guardian_name as string | null) ?? null,
-      phone: (r.phone as string | null) ?? null,
+      guardianName: (r.guardian_name as string | null) ?? contact.name,
+      phone: contact.phone,
     })
   }
   return map

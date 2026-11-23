@@ -36,7 +36,7 @@ const FEATURES = [
   },
   {
     icon: <FileDoneOutlined />,
-    title: 'Raport Bulanan',
+    title: 'Rapor Bulanan',
     desc: 'Input, cetak, dan arsipkan raport bulanan asrama tanpa repot.',
   },
   {
@@ -236,7 +236,7 @@ function HeroPreview() {
         <Card size="small" style={{ borderRadius: 12, boxShadow: '0 10px 30px rgba(15,23,42,0.12)' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}>
             <FileDoneOutlined style={{ color: '#4f46e5' }} />
-            <b>Raport Tersedia</b>
+            <b>Rapor Tersedia</b>
           </span>
         </Card>
       </div>
@@ -397,7 +397,7 @@ function DemoSkorsing() {
 
 const DEMO_TABS = [
   { label: 'Poin & Prestasi', value: 'poin' },
-  { label: 'Raport Bulanan', value: 'raport' },
+  { label: 'Rapor Bulanan', value: 'raport' },
   { label: 'Skorsing', value: 'skorsing' },
 ]
 
@@ -573,7 +573,7 @@ export function LandingPage() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fff' }}>
+    <div style={{ minHeight: '100dvh', background: '#fff' }}>
       {/* Navbar */}
       <header className="land-nav">
         <div
@@ -625,7 +625,7 @@ export function LandingPage() {
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         placement="right"
-        width={280}
+        size="min(280px, 84vw)"
         title={
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             <img src="/logo-icon.png" alt="" width={22} height={22} /> Laporanmu

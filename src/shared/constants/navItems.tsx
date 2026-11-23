@@ -34,6 +34,7 @@ import {
   SolutionOutlined,
   TeamOutlined,
   TrophyOutlined,
+  UserAddOutlined,
   WalletOutlined,
 } from '@ant-design/icons'
 
@@ -66,61 +67,62 @@ export const DASHBOARD_ITEM: NavItem = {
   to: '/dashboard',
   label: 'Dashboard',
   icon: DashboardOutlined,
-  desc: 'Ringkasan utama dan statistik sistem',
+  desc: 'Ringkasan kegiatan dan kondisi sekolah',
   perm: 'dashboard:read',
 }
 
 // ─── Kesantrian: operasional harian santri ──────────────────────────────────
 const BOARDING_ITEMS: NavItem[] = [
-  { to: '/attendance', label: 'Absensi', icon: SolutionOutlined, desc: 'Absensi santri, guru & karyawan, dan mesin presensi', perm: 'attendance:read' },
-  { to: '/leave-permit', label: 'Izin Keluar', icon: ExportOutlined, desc: 'Surat izin keluar pondok', flag: 'module.leave_permit', perm: 'leave_permit:read' },
-  { to: '/gate', label: 'Gerbang', icon: GatewayOutlined, desc: 'Log keluar-masuk santri di gerbang', flag: 'module.gate', perm: 'gate:read' },
-  { to: '/dorms', label: 'Asrama', icon: ApartmentOutlined, desc: 'Kamar dan plotting santri asrama', flag: 'module.dorms', perm: 'dorms:read' },
-  { to: '/health', label: 'Kesehatan', icon: MedicineBoxOutlined, desc: 'Rekam medis, observasi, stok obat', flag: 'module.health', perm: 'health:read' },
-  { to: '/counseling', label: 'Bimbingan Konseling', icon: CommentOutlined, desc: 'Sesi BK dan pembinaan santri', flag: 'module.counseling', perm: 'counseling:read' },
-  { to: '/discipline', label: 'Poin & Disiplin', icon: AuditOutlined, desc: 'Catatan poin, aturan pelanggaran-prestasi, dan skorsing santri', perm: 'discipline:read' },
+  { to: '/attendance', label: 'Absensi', icon: SolutionOutlined, desc: 'Absensi harian santri, guru, dan mesin presensi', perm: 'attendance:read' },
+  { to: '/leave-permit', label: 'Izin Keluar', icon: ExportOutlined, desc: 'Surat izin keluar dan pemantauan status', flag: 'module.leave_permit', perm: 'leave_permit:read' },
+  { to: '/gate', label: 'Gerbang', icon: GatewayOutlined, desc: 'Catatan keluar-masuk santri di gerbang', flag: 'module.gate', perm: 'gate:read' },
+  { to: '/admissions', label: 'PPDB', icon: UserAddOutlined, desc: 'Pendaftar baru dan konversi menjadi santri', flag: 'module.ppdb', perm: 'admissions:read' },
+  { to: '/dorms', label: 'Asrama', icon: ApartmentOutlined, desc: 'Kamar dan penempatan santri asrama', flag: 'module.dorms', perm: 'dorms:read' },
+  { to: '/health', label: 'Kesehatan', icon: MedicineBoxOutlined, desc: 'Rekam medis, observasi, dan stok obat', flag: 'module.health', perm: 'health:read' },
+  { to: '/counseling', label: 'Bimbingan Konseling', icon: CommentOutlined, desc: 'Sesi konseling, pembinaan, dan surat resmi', flag: 'module.counseling', perm: 'counseling:read' },
+  { to: '/discipline', label: 'Poin & Disiplin', icon: AuditOutlined, desc: 'Catatan poin, aturan, dan skorsing santri', perm: 'discipline:read' },
 ]
 
 // ─── Akademik: KBM dan penilaian ────────────────────────────────────────────
 const ACADEMIC_ITEMS: NavItem[] = [
-  { to: '/grades', label: 'Penilaian', icon: FileDoneOutlined, desc: 'Nilai formatif, sumatif, PTS, PAS, dan leger', flag: 'module.grades', perm: 'grades:read' },
-  { to: '/instruments', label: 'Pusat Evaluasi', icon: FundProjectionScreenOutlined, desc: 'Angket AKPD, Sosiometri, MBTI, EDOM, dan kuesioner kustom', flag: 'module.evaluation', perm: 'evaluation:read' },
-  { to: '/cbt', label: 'CBT', icon: FileProtectOutlined, desc: 'Bank soal, ujian ber-token, dan pemantauan ujian', flag: 'module.cbt', perm: 'cbt:read' },
-  { to: '/schedules', label: 'Jadwal KBM', icon: ScheduleOutlined, desc: 'Jadwal mengajar per kelas, mapel, dan guru', flag: 'module.schedules', perm: 'schedules:read' },
-  { to: '/teaching-load', label: 'Beban Mengajar', icon: FieldTimeOutlined, desc: 'Distribusi jam mengajar guru dan cakupan kelas', perm: 'teaching_load:read' },
-  { to: '/report-cards', label: 'Raport', icon: FileTextOutlined, desc: 'Input raport bulanan & semester per kelas', flag: 'module.report_cards', perm: 'report_cards:read' },
-  { to: '/documents', label: 'Pusat Dokumen', icon: FileProtectOutlined, desc: 'Raport Kurmer, KHS, transkrip, buku induk, dan yudisium kelulusan', flag: 'module.documents', perm: 'documents:read' },
+  { to: '/grades', label: 'Penilaian', icon: FileDoneOutlined, desc: 'Nilai ulangan, leger, dan ketuntasan belajar', flag: 'module.grades', perm: 'grades:read' },
+  { to: '/instruments', label: 'Evaluasi', icon: FundProjectionScreenOutlined, desc: 'Angket dan asesmen santri: AKPD, sosiometri, MBTI, dan EDOM', flag: 'module.evaluation', perm: 'evaluation:read' },
+  { to: '/cbt', label: 'CBT', icon: FileProtectOutlined, desc: 'Bank soal, sesi ujian, dan pemantauan', flag: 'module.cbt', perm: 'cbt:read' },
+  { to: '/schedules', label: 'Jadwal & Kalender', icon: ScheduleOutlined, desc: 'Jadwal pelajaran, kalender akademik, dan agenda pondok', flag: 'module.schedules', perm: 'schedules:read' },
+  { to: '/teaching-load', label: 'Beban Mengajar', icon: FieldTimeOutlined, desc: 'Sebaran jam mengajar dan cakupan kelas', perm: 'teaching_load:read' },
+  { to: '/report-cards', label: 'Rapor', icon: FileTextOutlined, desc: 'Rapor bulanan dan semester per kelas', flag: 'module.report_cards', perm: 'report_cards:read' },
+  { to: '/documents', label: 'Dokumen Akademik', icon: FileProtectOutlined, desc: 'Rapor, KHS, transkrip, buku induk, dan yudisium', flag: 'module.documents', perm: 'documents:read' },
   { to: '/library', label: 'Perpustakaan', icon: BookOutlined, desc: 'Katalog buku dan peminjaman santri', flag: 'module.library', perm: 'library:read' },
 ]
 
 // ─── Kegiatan Santri: kegiatan pembinaan di luar KBM ────────────────────────
 const ACTIVITY_ITEMS: NavItem[] = [
-  { to: '/halaqah', label: 'Halaqah', icon: DeploymentUnitOutlined, desc: 'Presensi halaqah, setoran hafalan (ziyadah & murojaah), dan kelompok', flag: 'module.halaqah', perm: 'halaqah:read' },
-  { to: '/extracurricular', label: 'Ekstrakurikuler', icon: FlagOutlined, desc: 'Kegiatan ekstrakurikuler dan pembina', flag: 'module.ekskul', perm: 'ekskul:read' },
-  { to: '/worship', label: 'Ibadah', icon: StarOutlined, desc: 'Kemahiran ibadah (wudhu, sholat, hafalan hadist & doa) dan nilai bulanan per butir', flag: 'module.spiritual', perm: 'worship:read' },
+  { to: '/halaqah', label: 'Halaqah', icon: DeploymentUnitOutlined, desc: 'Absensi, setoran hafalan, dan kelompok halaqah', flag: 'module.halaqah', perm: 'halaqah:read' },
+  { to: '/extracurricular', label: 'Ekstrakurikuler', icon: FlagOutlined, desc: 'Kegiatan, pembina, dan anggota ekstrakurikuler', flag: 'module.ekskul', perm: 'ekskul:read' },
+  { to: '/worship', label: 'Ibadah', icon: StarOutlined, desc: 'Kemahiran ibadah dan nilai bulanan santri', flag: 'module.spiritual', perm: 'worship:read' },
 ]
 
 // ─── Keuangan & Aset ────────────────────────────────────────────────────────
 const FINANCE_ITEMS: NavItem[] = [
-  { to: '/finance', label: 'Keuangan SPP', icon: AccountBookOutlined, desc: 'Kewajiban biaya, pembayaran, dan tunggakan per santri', flag: 'module.finance_spp', perm: 'finance:read' },
-  { to: '/savings', label: 'Tabungan', icon: MoneyCollectOutlined, desc: 'Rekening tabungan, setor-tarik, dan buku tabungan', flag: 'module.savings', perm: 'savings:read' },
-  { to: '/inventory', label: 'Inventaris', icon: InboxOutlined, desc: 'Aset dan barang beserta kondisinya', flag: 'module.inventory', perm: 'inventory:read' },
+  { to: '/finance', label: 'Keuangan SPP', icon: AccountBookOutlined, desc: 'Tagihan, pembayaran, dan tunggakan SPP', flag: 'module.finance_spp', perm: 'finance:read' },
+  { to: '/savings', label: 'Tabungan', icon: MoneyCollectOutlined, desc: 'Rekening, setor-tarik, dan buku tabungan santri', flag: 'module.savings', perm: 'savings:read' },
+  { to: '/inventory', label: 'Inventaris', icon: InboxOutlined, desc: 'Aset dan barang beserta kondisi', flag: 'module.inventory', perm: 'inventory:read' },
 ]
 
 // ─── Master Data: referensi inti sistem ─────────────────────────────────────
 const MASTER_ITEMS: NavItem[] = [
-  { to: '/students', label: 'Data Siswa', icon: TeamOutlined, desc: 'Pusat database seluruh santri aktif', perm: 'students:read' },
-  { to: '/teachers', label: 'Data Guru', icon: IdcardOutlined, desc: 'Data pengajar, musyrif, dan staf', perm: 'teachers:read' },
-  { to: '/classes', label: 'Data Kelas', icon: BankOutlined, desc: 'Struktur kelas dan wali kelas', perm: 'classes:read' },
-  { to: '/subjects', label: 'Mata Pelajaran', icon: OrderedListOutlined, desc: 'Daftar mapel, CP/TP, kelompok, dan beban JP', perm: 'subjects:read' },
-  { to: '/academic-years', label: 'Tahun Akademik', icon: CalendarOutlined, desc: 'Periode semester, slot jam KBM, dan ruang kelas', perm: 'academic_years:read' },
+  { to: '/students', label: 'Santri', icon: TeamOutlined, desc: 'Data induk santri aktif', perm: 'students:read' },
+  { to: '/teachers', label: 'Guru', icon: IdcardOutlined, desc: 'Data guru, musyrif, dan tenaga kependidikan', perm: 'teachers:read' },
+  { to: '/classes', label: 'Kelas', icon: BankOutlined, desc: 'Struktur kelas, tingkat, dan wali kelas', perm: 'classes:read' },
+  { to: '/subjects', label: 'Mata Pelajaran', icon: OrderedListOutlined, desc: 'Daftar mata pelajaran, CP/TP, dan beban jam', perm: 'subjects:read' },
+  { to: '/academic-years', label: 'Tahun Akademik', icon: CalendarOutlined, desc: 'Tahun ajaran, semester, slot jam, dan ruang', perm: 'academic_years:read' },
 ]
 
 // ─── Sistem: pengaturan umum + admin ────────────────────────────────────────
 const SYSTEM_ITEMS: NavItem[] = [
-  { to: '/announcements', label: 'Informasi', icon: NotificationOutlined, desc: 'Pengumuman untuk staf dan wali santri', perm: 'announcements:read' },
-  { to: '/school', label: 'Profil Sekolah', icon: SettingOutlined, desc: 'Identitas sekolah untuk kop raport', perm: 'school:read' },
-  { to: '/admin', label: 'Dashboard Admin', icon: AppstoreOutlined, desc: 'Pusat kendali teknis: insights, pengguna, roles, database, storage, media, sampah, audit', perm: 'admin:access' },
+  { to: '/announcements', label: 'Pengumuman', icon: NotificationOutlined, desc: 'Pengumuman untuk staf dan wali', perm: 'announcements:read' },
+  { to: '/school', label: 'Profil Sekolah', icon: SettingOutlined, desc: 'Identitas sekolah pada kop rapor', perm: 'school:read' },
+  { to: '/admin', label: 'Administrasi', icon: AppstoreOutlined, desc: 'Pengguna, peran, basis data, media, dan jejak audit', perm: 'admin:access' },
 ]
 
 export const NAV_GROUPS: NavGroup[] = [

@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Button } from 'antd'
+import { Button, Drawer } from 'antd'
+import { MenuOutlined } from '@ant-design/icons'
 import { motion } from 'motion/react'
 import { shellTransition, shellVariants } from '../../shared/motion'
+import { useDocumentTitle } from '../../shared/hooks/useDocumentTitle'
 
 const GRADIENTS = {
   indigo: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 40%, #f8fafc 100%)',
@@ -28,12 +30,14 @@ interface PublicShellProps {
  * Konten utama entrance fade-up sekali saat mount (bukan saat state berubah).
  */
 export function PublicShell({ tint = 'indigo', footerLabel, hideFooterLinks = false, children }: PublicShellProps) {
+  useDocumentTitle()
   const { pathname } = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <div
       className="public-print-root"
-      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: GRADIENTS[tint] }}
+      style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', background: GRADIENTS[tint] }}
     >
       <header className="land-nav no-print">
         <div
@@ -67,8 +71,44 @@ export function PublicShell({ tint = 'indigo', footerLabel, hideFooterLinks = fa
               </Button>
             </Link>
           )}
+          <Button
+            className="land-menu-btn"
+            icon={<MenuOutlined />}
+            onClick={() => setMenuOpen(true)}
+            aria-label="Buka menu"
+          />
         </div>
       </header>
+
+      <Drawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        placement="right"
+        size="min(280px, 84vw)"
+        title="Menu"
+      >
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {NAV_LINKS.filter((l) => l.to !== pathname).map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              onClick={() => setMenuOpen(false)}
+              style={{ padding: '12px 4px', color: '#334155', fontWeight: 500 }}
+            >
+              {l.label}
+            </Link>
+          ))}
+          {pathname !== '/login' && (
+            <Link
+              to="/login"
+              onClick={() => setMenuOpen(false)}
+              style={{ padding: '12px 4px', color: '#4f46e5', fontWeight: 600 }}
+            >
+              Masuk
+            </Link>
+          )}
+        </nav>
+      </Drawer>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <motion.div

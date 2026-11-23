@@ -132,10 +132,11 @@ export function ItemForm({ open, item, submitting, usedCategories = [], onCancel
           </Form.Item>
           <Form.Item
             name="quantity"
-            label="Jumlah"
+            label="Stok Awal"
             rules={[{ required: true, message: 'Jumlah wajib diisi' }]}
+            extra={item ? 'Stok berjalan diubah lewat Mutasi stok, bukan dari form.' : undefined}
           >
-            <InputNumber style={{ width: '100%' }} min={0} max={99999} precision={0} />
+            <InputNumber style={{ width: '100%' }} min={0} max={99999} precision={0} disabled={Boolean(item)} />
           </Form.Item>
           <Form.Item name="unit" label="Satuan">
             <Input placeholder="unit / set / pcs" maxLength={20} />

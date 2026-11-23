@@ -76,7 +76,7 @@ export function DebugPanel() {
 
       <Drawer
         title="Panel Debug Developer"
-        width={520}
+        size="min(520px, 94vw)"
         open={open}
         onClose={() => setOpen(false)}
         extra={

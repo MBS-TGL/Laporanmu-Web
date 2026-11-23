@@ -62,7 +62,7 @@ export function DetailDrawer({
     <Drawer
       open={!!dorm}
       onClose={onClose}
-      width={420}
+      size="min(420px, 94vw)"
       title={
         dorm ? (
           <Space size={8} wrap>
@@ -193,7 +193,7 @@ export function DetailDrawer({
               style={{ padding: 0 }}
               onClick={() => dorm && navigate(`/students?dormId=${dorm.id}`)}
             >
-              Kelola di Data Siswa
+              Kelola di Santri
             </Button>
           </div>
 

@@ -499,7 +499,10 @@ export function Topbar({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
           {!(isMobile && searchFocused) &&
             (isMobile ? (
-              <Space size="small" align="center">
+              // Mobile: hamburger + logo ikon saja — anggaran lebar 390px tidak
+              // sanggup memuat wordmark + 4 kontrol kanan tanpa saling menimpa;
+              // nama brand lengkap hidup di drawer menu (hamburger).
+              <Space size={4} align="center">
                 <Button
                   type="text"
                   icon={<MenuOutlined />}
@@ -513,9 +516,6 @@ export function Topbar({
                   height={22}
                   style={{ borderRadius: 6 }}
                 />
-                <Typography.Text strong style={{ fontSize: 15 }}>
-                  Laporanmu
-                </Typography.Text>
               </Space>
             ) : (
               <>
@@ -633,7 +633,7 @@ export function Topbar({
         </div>
 
         {/* ── Kanan: entity, asisten AI, notifikasi, profil ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
           <EntitySwitcher isMobile={isMobile} />
           <Button
             icon={<RobotOutlined style={{ fontSize: 14 }} />}

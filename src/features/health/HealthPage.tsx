@@ -508,7 +508,7 @@ export function HealthPage() {
     <div>
       <PageHeader
         title="Kesehatan"
-        subtitle="Rekam medis santri, observasi, dan stok obat poskestren"
+        subtitle="Rekam medis, observasi, dan stok obat"
         extra={
           <Space wrap>
             <Dropdown
@@ -828,6 +828,7 @@ export function HealthPage() {
                   rowKey="id"
                   columns={medicineColumns}
                   dataSource={filteredMedicines}
+                  scroll={{ x: 'max-content' }}
                   loading={medicinesQuery.isLoading}
                   locale={{
                     emptyText: (

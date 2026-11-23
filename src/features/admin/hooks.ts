@@ -7,10 +7,14 @@ import {
   fetchBuckets,
   fetchIntegrityIssues,
   fetchLargestFiles,
+  fetchLastLogins,
   fetchOrphanFiles,
+  fetchTaskRuns,
   fetchTeachersForLinking,
   fetchProfiles,
   fetchTableStats,
+  importTaskRunsFromLocal,
+  previewRotateAuditLogs,
   sendPasswordResetEmail,
   setTeacherProfileLink,
   updateProfile,
@@ -85,6 +89,48 @@ export function useAuditLogs(filters: AuditFilters) {
   })
 }
 
+/** Login terakhir per akun — map user_id → ISO timestamp (untuk kolom Pengguna). */
+export function useLastLogins() {
+  return useQuery({
+    queryKey: ['admin', 'last-logins'],
+    queryFn: fetchLastLogins,
+    staleTime: 60_000,
+  })
+}
+
+// ------------------------------------------------------------
+// Riwayat eksekusi task (server-side, tabel task_runs)
+// ------------------------------------------------------------
+export function useTaskRuns(opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['admin', 'task-runs'],
+    queryFn: fetchTaskRuns,
+    staleTime: 30_000,
+    enabled: opts?.enabled,
+  })
+}
+
+/** Impor sekali riwayat localStorage lama ke server, lalu invalidate. */
+export function useImportTaskRuns() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: importTaskRunsFromLocal,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', 'task-runs'] })
+    },
+  })
+}
+
+/** Dry-run rotasi audit log — aktif hanya saat modal konfirmasi terbuka. */
+export function useRotationPreview(days: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ['admin', 'rotation-preview', days],
+    queryFn: () => previewRotateAuditLogs(days),
+    enabled,
+    staleTime: 15_000,
+  })
+}
+
 // ------------------------------------------------------------
 // Kesehatan database
 // ------------------------------------------------------------
@@ -92,7 +138,8 @@ export function useTableStats(opts?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ['admin', 'table-stats'],
     queryFn: fetchTableStats,
-    // Hitungan per tabel mahal (puluhan head-count) — anggap segar 1 menit
+    // RPC agregat (1 call, migrasi 0062) tapi count tetap berat di server —
+    // anggap segar 1 menit
     staleTime: 60_000,
     refetchInterval: opts?.refetchInterval,
   })

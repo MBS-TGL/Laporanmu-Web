@@ -1389,7 +1389,7 @@ function ExamShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         background: 'linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #f8fafc 100%)',
         padding: '24px 16px',
       }}
