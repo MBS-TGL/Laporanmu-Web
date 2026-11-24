@@ -6,6 +6,14 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 
 ## Keputusan arsitektur
 
+### 2026-11-24 — URL sync Tab Absensi Mapel (`/attendance?tab=subjects`)
+
+- **Deep-link kelas & tanggal**: `SubjectsTab.tsx` kini membaca/menulis query params `class` (id kelas) dan `date` (`YYYY-MM-DD`) via `useSearchParams` + `tab=subjects`, konsisten dengan pola halaman lain (rapor, santri). Pilihan tersimpan di URL sehingga bisa di-bookmark, di-refresh, dan dibagikan tanpa kehilangan konteks.
+- **Init dari URL saat mount**: `useState` diinisialisasi dari `searchParams` (tanggal divalidasi `dayjs(...).isValid()`, fallback hari ini) — tanpa `useEffect` sinkronisasi (pola hydrate-from-server).
+- **Handler eksplisit**: `handleClassChange` / `handleDateChange` memperbarui state lokal lalu `syncParams(...)` (`replace: true` agar riwayat browser tidak penuh perubahan kecil). Select kelas juga diberi `allowClear` agar bisa kembali ke kondisi "belum pilih kelas".
+- **Gotcha lint**: `rangeQuery.data ?? []` di dalam `useMemo` deps memicu warning `react-hooks/exhaustive-deps` — dibungkus `useMemo(() => rangeQuery.data ?? [], [rangeQuery.data])` agar referensi stabil.
+- **Verifikasi**: eslint 0 error, build sukses, vitest 342/342 lulus.
+
 ### 2026-11-24 — Radar Chart capaian kompetensi santri di Rapor Kurmer (`/documents?tab=report-card`)
 
 - **Komponen Reusable `RaporRadarChart.tsx`**: Diagram jaring laba-laba (*spider/radar chart*) berbasis `recharts` yang memvisualisasikan sebaran nilai santri vs batas KKM per mata pelajaran.

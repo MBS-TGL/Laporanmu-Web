@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Alert,
   App,
@@ -53,9 +54,40 @@ interface StudentBrief {
 /** Tab Absensi Mapel (P2): grid santri × jam pelajaran kelas pada satu tanggal,
  *  isi cepat, simpan (upsert), WA wali untuk alpa, dan analitik bulan berjalan. */
 export function SubjectsTab({ active = true }: { active?: boolean }) {
-  const [classId, setClassId] = useState<string | undefined>(undefined)
-  const [date, setDate] = useState<Dayjs>(dayjs())
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const urlClass = searchParams.get('class') ?? undefined
+  const urlDate = searchParams.get('date')
+  const initialDate = urlDate && dayjs(urlDate).isValid() ? dayjs(urlDate) : dayjs()
+
+  const [classId, setClassId] = useState<string | undefined>(urlClass)
+  const [date, setDate] = useState<Dayjs>(initialDate)
   const dateStr = date.format('YYYY-MM-DD')
+
+  // Sinkronkan pilihan kelas & tanggal ke URL agar bisa di-bookmark / di-refresh
+  const syncParams = (nextClass?: string, nextDate?: Dayjs) => {
+    const sp = new URLSearchParams(searchParams)
+    const targetClass = nextClass !== undefined ? nextClass : classId
+    const targetDate = nextDate ? nextDate.format('YYYY-MM-DD') : dateStr
+
+    if (targetClass) sp.set('class', targetClass)
+    else sp.delete('class')
+
+    if (targetDate) sp.set('date', targetDate)
+    sp.set('tab', 'subjects')
+    setSearchParams(sp, { replace: true })
+  }
+
+  const handleClassChange = (val?: string) => {
+    setClassId(val)
+    syncParams(val, date)
+  }
+
+  const handleDateChange = (val: Dayjs | null) => {
+    if (!val) return
+    setDate(val)
+    syncParams(classId, val)
+  }
 
   const classesQuery = useReportCardClasses()
   const studentsQuery = useReportCardStudents(classId)
@@ -89,12 +121,13 @@ export function SubjectsTab({ active = true }: { active?: boolean }) {
             style={{ minWidth: 200 }}
             value={classId}
             options={(classesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            onChange={setClassId}
+            onChange={handleClassChange}
+            allowClear
             aria-label="Pilih kelas"
           />
           <DatePicker
             value={date}
-            onChange={(v) => v && setDate(v)}
+            onChange={handleDateChange}
             allowClear={false}
             aria-label="Pilih tanggal"
           />
@@ -368,7 +401,7 @@ function AnalyticsSection({
     enabled: Boolean(classId),
     staleTime: 60_000,
   })
-  const entries: SubjectAttendanceEntry[] = rangeQuery.data ?? []
+  const entries: SubjectAttendanceEntry[] = useMemo(() => rangeQuery.data ?? [], [rangeQuery.data])
 
   const trend = useMemo(() => weeklyTrend(entries), [entries])
   const heat = useMemo(() => heatmapBySubject(entries), [entries])
