@@ -5,8 +5,8 @@ import dayjs from 'dayjs'
 import { useQuery } from '@tanstack/react-query'
 import { useFlag } from '../../../shared/hooks/useFeatureFlags'
 import { fetchTableCount } from '../api'
-import { useIntegrityIssues, useTaskRuns } from '../hooks'
-import { TASKS } from '../tasks'
+import { useAutomationRuns, useIntegrityIssues } from '../hooks'
+import { AUTOMATIONS } from '../automation'
 
 interface SystemHealthProps {
   active: boolean
@@ -15,7 +15,7 @@ interface SystemHealthProps {
 
 /**
  * Widget Kesehatan Sistem untuk tab Ringkasan: latensi DB (ping head-count),
- * status mode maintenance, temuan integritas, dan task terakhir yang
+ * status mode maintenance, temuan integritas, dan tugas terakhir yang
  * dieksekusi — semuanya dari data Supabase nyata, tanpa angka hiasan.
  */
 export function SystemHealth({ active, onOpenDatabase }: SystemHealthProps) {
@@ -41,7 +41,7 @@ export function SystemHealth({ active, onOpenDatabase }: SystemHealthProps) {
     [integrityQuery.data],
   )
 
-  const runsQuery = useTaskRuns({ enabled: active })
+  const runsQuery = useAutomationRuns({ enabled: active })
   const lastRun = runsQuery.data?.[0]
 
   const latencyColor = (pingQuery.data ?? 0) <= 300 ? 'success' : (pingQuery.data ?? 0) <= 800 ? 'warning' : 'error'
@@ -93,12 +93,12 @@ export function SystemHealth({ active, onOpenDatabase }: SystemHealthProps) {
           )}
         </Row>
 
-        <Row icon={<ToolOutlined />} label="Task Terakhir" token={token}>
+        <Row icon={<ToolOutlined />} label="Tugas Terakhir" token={token}>
           {runsQuery.isPending ? (
             <Skeleton.Input active size="small" style={{ width: 160, height: 22 }} />
           ) : lastRun ? (
             <Typography.Text style={{ fontSize: 12.5 }}>
-              {TASKS.find((t) => t.id === lastRun.taskId)?.label ?? lastRun.taskId}
+              {AUTOMATIONS.find((a) => a.id === lastRun.automationId)?.label ?? lastRun.automationId}
               <Typography.Text type="secondary" style={{ fontSize: 11.5 }}>
                 {' '}· {dayjs(lastRun.startedAt).format('DD MMM HH:mm')}
               </Typography.Text>

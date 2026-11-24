@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createStaffUser,
   deleteStorageFiles,
+  fetchAutomationRuns,
   fetchAuditActivity,
   fetchAuditLogs,
   fetchBuckets,
@@ -9,11 +10,10 @@ import {
   fetchLargestFiles,
   fetchLastLogins,
   fetchOrphanFiles,
-  fetchTaskRuns,
   fetchTeachersForLinking,
   fetchProfiles,
   fetchTableStats,
-  importTaskRunsFromLocal,
+  importAutomationRuns,
   previewRotateAuditLogs,
   sendPasswordResetEmail,
   setTeacherProfileLink,
@@ -99,24 +99,24 @@ export function useLastLogins() {
 }
 
 // ------------------------------------------------------------
-// Riwayat eksekusi task (server-side, tabel task_runs)
+// Riwayat eksekusi otomasi (server-side, tabel task_runs)
 // ------------------------------------------------------------
-export function useTaskRuns(opts?: { enabled?: boolean }) {
+export function useAutomationRuns(opts?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: ['admin', 'task-runs'],
-    queryFn: fetchTaskRuns,
+    queryKey: ['admin', 'automation-runs'],
+    queryFn: fetchAutomationRuns,
     staleTime: 30_000,
     enabled: opts?.enabled,
   })
 }
 
 /** Impor sekali riwayat localStorage lama ke server, lalu invalidate. */
-export function useImportTaskRuns() {
+export function useImportAutomationRuns() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: importTaskRunsFromLocal,
+    mutationFn: importAutomationRuns,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'task-runs'] })
+      void qc.invalidateQueries({ queryKey: ['admin', 'automation-runs'] })
     },
   })
 }

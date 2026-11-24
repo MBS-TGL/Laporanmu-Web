@@ -8,7 +8,7 @@ import { StatChip } from '../../shared/components/StatChip'
 import { ActionBar } from '../../shared/components/ActionBar'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useTrashItems, useRestoreTrash, usePurgeTrash, TRASH_TABLES, type TrashEntry } from './trash'
-import { chunk } from './tasks'
+import { chunk } from '../../shared/utils/array'
 
 const MODULE_COLORS: Record<string, string> = {
   students: 'geekblue',

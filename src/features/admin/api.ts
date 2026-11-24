@@ -1,6 +1,6 @@
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
-import { findOrphanIds, type TaskRunLog } from './tasks'
+import { findOrphanIds, type AutomationRun } from './automation'
 import type {
   AdminProfile,
   AuditLog,
@@ -273,7 +273,7 @@ const AUDIT_TABLE_EXTRA_LABELS: Record<string, string> = {
   suspension_task_submissions: 'Kiriman Tugas Skorsing',
   suspension_tasks: 'Tugas Skorsing',
   suspension_tokens: 'Token Skorsing',
-  task_runs: 'Riwayat Task',
+  task_runs: 'Riwayat Otomasi',
   teacher_attendance: 'Absensi Guru',
   time_slots: 'Jam Pelajaran',
   wa_settings: 'Pengaturan WA',
@@ -513,7 +513,7 @@ export async function deleteStorageFiles(bucket: string, names: string[]): Promi
 }
 
 // ------------------------------------------------------------
-// Task runner — Otomasi (dieksekusi manual dari TasksPage)
+// Runner Otomasi (dijalankan manual dari AutomationPage)
 // ------------------------------------------------------------
 export async function runSyncStats(): Promise<Record<string, number>> {
   const [students, reports, classes, attendance] = await Promise.all([
@@ -598,11 +598,11 @@ export async function runRotateAuditLogs(days: number): Promise<number> {
 }
 
 // ------------------------------------------------------------
-// Riwayat eksekusi task server-side (tabel task_runs, migrasi 0062) —
+// Riwayat eksekusi otomasi server-side (tabel task_runs, migrasi 0062) —
 // pengganti localStorage agar persist lintas perangkat.
 // ------------------------------------------------------------
 
-export async function fetchTaskRuns(): Promise<TaskRunLog[]> {
+export async function fetchAutomationRuns(): Promise<AutomationRun[]> {
   const { data, error } = await supabase
     .from('task_runs')
     .select('*')
@@ -611,7 +611,7 @@ export async function fetchTaskRuns(): Promise<TaskRunLog[]> {
   if (error) throw error
   return (data ?? []).map((row) => ({
     id: String(row.id),
-    taskId: String(row.task_key) as TaskRunLog['taskId'],
+    automationId: String(row.task_key) as AutomationRun['automationId'],
     startedAt: String(row.created_at),
     durationMs: Number(row.duration_ms ?? 0),
     ok: row.status === 'success',
@@ -619,8 +619,8 @@ export async function fetchTaskRuns(): Promise<TaskRunLog[]> {
   }))
 }
 
-export async function insertTaskRun(input: {
-  taskKey: string
+export async function insertAutomationRun(input: {
+  automationId: string
   ok: boolean
   durationMs: number
   affected: Record<string, number> | null
@@ -630,7 +630,7 @@ export async function insertTaskRun(input: {
     data: { user },
   } = await supabase.auth.getUser()
   const { error } = await supabase.from('task_runs').insert({
-    task_key: input.taskKey,
+    task_key: input.automationId,
     status: input.ok ? 'success' : 'error',
     duration_ms: Math.round(input.durationMs),
     affected_rows: input.affected,
@@ -641,19 +641,19 @@ export async function insertTaskRun(input: {
 }
 
 /** Impor riwayat localStorage lama ke server (sekali, saat pertama load). */
-export async function importTaskRunsFromLocal(logs: TaskRunLog[]): Promise<void> {
-  if (logs.length === 0) return
+export async function importAutomationRuns(runs: AutomationRun[]): Promise<void> {
+  if (runs.length === 0) return
   const {
     data: { user },
   } = await supabase.auth.getUser()
   const { error } = await supabase.from('task_runs').insert(
-    logs.map((log) => ({
-      task_key: log.taskId,
-      status: log.ok ? 'success' : 'error',
-      duration_ms: Math.round(log.durationMs),
+    runs.map((run) => ({
+      task_key: run.automationId,
+      status: run.ok ? 'success' : 'error',
+      duration_ms: Math.round(run.durationMs),
       affected_rows: null,
-      detail: log.summary,
-      created_at: log.startedAt,
+      detail: run.summary,
+      created_at: run.startedAt,
       created_by: user?.id ?? null,
     })),
   )

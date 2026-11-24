@@ -4,17 +4,17 @@ import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { AppModal } from '../../../shared/components/AppModal'
 import { ModalFooter } from '../../../shared/components/ModalFooter'
 import { ModalNotice } from '../../../shared/components/ModalNotice'
-import type { TaskDef } from '../tasks'
+import type { Automation } from '../automation'
 
-export interface TaskPreviewRow {
+export interface RunPreviewRow {
   label: string
   value: string
 }
 
-interface ConfirmTaskModalProps {
-  task: TaskDef | null
-  /** Dry-run: perkiraan dampak task (baris terdampak dst.) */
-  preview: TaskPreviewRow[]
+interface ConfirmRunModalProps {
+  automation: Automation | null
+  /** Dry-run: perkiraan dampak eksekusi (baris terdampak dst.) */
+  preview: RunPreviewRow[]
   previewLoading: boolean
   /** Kata yang harus diketik pengguna untuk mengaktifkan tombol eksekusi */
   confirmWord: string
@@ -27,11 +27,11 @@ interface ConfirmTaskModalProps {
 const CONFIRM_HINT = 'JALANKAN'
 
 /**
- * Konfirmasi eksekusi task destruktif dengan dry-run preview + konfirmasi
+ * Konfirmasi eksekusi otomasi destruktif dengan dry-run preview + konfirmasi
  * ketik — mencegah klik-menghapus data dalam jumlah besar secara tidak sengaja.
  */
-export function ConfirmTaskModal({
-  task,
+export function ConfirmRunModal({
+  automation,
   preview,
   previewLoading,
   confirmWord,
@@ -39,7 +39,7 @@ export function ConfirmTaskModal({
   loading,
   onClose,
   onConfirm,
-}: ConfirmTaskModalProps) {
+}: ConfirmRunModalProps) {
   const [confirmText, setConfirmText] = useState('')
 
   // Reset ketikan tiap kali modal dibuka
@@ -51,10 +51,10 @@ export function ConfirmTaskModal({
 
   return (
     <AppModal
-      title={`Jalankan "${task?.label ?? ''}"?`}
+      title={`Jalankan "${automation?.label ?? ''}"?`}
       subtitle="Periksa perkiraan dampak di bawah sebelum mengeksekusi — tindakan ini tidak bisa dibatalkan."
       icon={<ExclamationCircleOutlined />}
-      open={open && task !== null}
+      open={open && automation !== null}
       onCancel={onClose}
       footer={
         <ModalFooter
@@ -72,7 +72,7 @@ export function ConfirmTaskModal({
     >
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <ModalNotice tone="warning" title="Tindakan permanen">
-          {task?.description} Data yang diubah/dihapus tidak dikembalikan. Eksekusi tercatat di riwayat dan audit log.
+          {automation?.description} Data yang diubah/dihapus tidak dikembalikan. Eksekusi tercatat di riwayat dan audit log.
         </ModalNotice>
 
         <div>

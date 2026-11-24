@@ -6,6 +6,24 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 
 ## Keputusan arsitektur
 
+### 2026-11-24 — Asisten AI P3: streaming SSE chat
+
+- **Edge `ai-proxy` v9**: `stream: true` hanya untuk `mode: 'chat'`. Payload Groq ikut `stream: true`; `response.body` diteruskan sebagai `text/event-stream` dengan `Cache-Control: no-cache, no-transform` + `X-Accel-Buffering: no`. Jalur non-streaming tidak berubah.
+- **`src/shared/lib/aiStream.ts`**: native `fetch` ke `functions/v1/ai-proxy` memakai access token sesi + anon key (bukan `functions.invoke`), `Accept: text/event-stream`. Parser murni `createSseDecoder` menangani event terbelah, `[DONE]`, error stream, dan JSON rusak. Abort mengembalikan teks parsial.
+- **`ChatAssistant`**: bubble streaming, tombol Berhenti, input/chip/saran nonaktif saat `busy`. Fallback ke `askAi` hanya untuk `network`/`server`/`invalid`/`empty` dan hanya bila belum ada token. Teks parsial akibat Stop/error disimpan tanpa cache; jawaban selesai baru di-cache bersama sumber.
+- **Flag `ai.chat.stream` default nyala**; set `false` untuk kembali ke jalur non-streaming.
+- **Verifikasi**: eslint file terkait bersih, `npm run build` sukses, vitest 339/339 (9 tes `aiStream`), edge v9 ACTIVE. Verifikasi live streaming di browser masih menunggu sesi login.
+
+### 2026-11-24 — Nama domain Otomasi diselaraskan (`TasksPage` → `AutomationPage`)
+
+- **Alasan**: tab admin memakai key `automation` (`/admin?tab=automation`, perm `admin:automation`), tetapi file, tipe, dan hook di dalamnya masih bernama `tasks`. Nama kini mengikuti route.
+- **Berkas**: `AutomationPage.tsx`, `automation.ts`, `automation.test.ts`, `components/ConfirmRunModal.tsx`. Tipe `Automation` / `AutomationId` / `AutomationRun` / `RunPreviewRow`, konstanta `AUTOMATIONS` (dulu `TASKS`).
+- **Hook & api**: `useAutomationRuns`, `useImportAutomationRuns`, `fetchAutomationRuns`, `insertAutomationRun`, `importAutomationRuns`; query key `['admin', 'automation-runs']`.
+- **Sengaja TIDAK di-rename** (nilai tersimpan / kontrak lama): tabel `task_runs` + kolom `task_key`; permission `admin:automation` (sudah benar); alias URL `admin/tasks` (redirect lama tetap hidup); key localStorage `laporanmu_task_logs`, dibaca sekali untuk migrasi lalu dibuang. Bentuk lama `{ taskId }` dipetakan ke `{ automationId }` di `loadLegacyRuns()`.
+- **Pindah**: helper generik `chunk()` ke `shared/utils/array.ts` (dipakai TrashPage, dulu menempel di modul Otomasi). Helper mati `cutoffIso()` dan `saveTaskLog()` dihapus.
+- **Copy & audit**: label widget `Task Terakhir` → `Tugas Terakhir`, label tabel audit `task_runs` → `Riwayat Otomasi`; audit eksekusi manual kini menulis `table_name: 'task_runs'` (dulu `'tasks'`, bukan nama tabel nyata).
+- **Verifikasi**: tsc 0, vitest 330/330 (tes `chunk` pindah ke `array.test.ts`), `npm run build` sukses, transform Vite dev 5174 untuk 4 modul baru 200 OK. 3 error lint yang tersisa sudah ada sebelum rename (`Date.now` purity 2x, `set-state-in-effect` di modal).
+
 ### 2026-11-22 — Portal wali, push nyata, dan alur operasional (migrasi 0069)
 
 - **Bug produksi diperbaiki**: `check_student` (definisi terakhir di 0066) masih merujuk `suspensions.jenjang`, padahal `0021:57` sudah rename kolom ke `level`. Seluruh halaman `/check` gagal. Perbaikan lewat **migrasi baru `0069`** (bukan mengedit 0066: file lama mungkin sudah diterapkan, mengeditnya tidak mengubah DB berjalan). **Aturan: perbaikan fungsi SQL = migrasi baru `create or replace`, jangan sunting migrasi lampau.**

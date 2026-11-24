@@ -128,7 +128,7 @@
 24. `[ ]` **P2** staleTime tuning + background refetch snapshot.
 25. `[ ]` **P2** Simpan hasil saat ganti tab (persist).
 
-## Tab Otomatisasi / `TasksPage.tsx`
+## Tab Otomatisasi / `AutomationPage.tsx`
 
 1. `[ ]` **P1** Progress bar nyata: proses per-chunk dengan progress proporsional.
 2. `[ ]` **P1** Riwayat eksekusi persist server-side (tabel `task_runs`), bukan localStorage.
@@ -281,7 +281,7 @@ Ronde eksekusi langsung atas gabungan: performa + katalog N1–N3 + fitur baru +
 - `[x]` **P1** RPC `admin_trash_items(p_tables)` — 13 query paralel → 1 call, judul relasional tetap jalan (injeksi FK name).
 - `[x]` **P1** Storage listing rekursif (depth 3, queue) untuk file terbesar & orphan; orphan refs via RPC `admin_storage_refs()` (base64 tidak keluar dari DB).
 - `[x]` **P1** Riwayat eksekusi task server-side (`task_runs`) + migrasi localStorage → server sekali di first load; tombol "Hapus Riwayat" dihapus (append-only).
-- `[x]` **P1** Dry-run + konfirmasi ketik "JALANKAN" untuk task destruktif (`ConfirmTaskModal`).
+- `[x]` **P1** Dry-run + konfirmasi ketik "JALANKAN" untuk task destruktif (`ConfirmRunModal`).
 - `[x]` **P1** Hapus cap limit Insights (`fetchAllPages` range 1000) — students/savings/loans.
 - `[x]` **P1** Widget "Kesehatan Sistem" di Ringkasan (latensi DB, maintenance, integritas, task terakhir).
 - `[x]` **P2** N1 `TABLE_CONFIG` 26→42; N2 `TABLE_LABELS` satu sumber (ekspor dari `api.ts`); N3 `TRASH_TABLES` +6 tabel modul baru.

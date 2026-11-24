@@ -12,7 +12,7 @@ import { InsightsPage } from '../insights/InsightsPage'
 import { UsersPage } from './UsersPage'
 import { RolesPage } from './RolesPage'
 import { FlagsPage } from './FlagsPage'
-import { TasksPage } from './TasksPage'
+import { AutomationPage } from './AutomationPage'
 import { DatabasePage } from './DatabasePage'
 import { TrashPage } from './TrashPage'
 import { StoragePage } from './StoragePage'
@@ -109,7 +109,7 @@ function tabContent(key: string, onNavigateTab: (tab: string) => void, active: b
     case 'settings':
       return <FlagsPage active={active} />
     case 'automation':
-      return <TasksPage active={active} />
+      return <AutomationPage active={active} />
     case 'integrations':
       return <IntegrationsPage active={active} />
     case 'portal':

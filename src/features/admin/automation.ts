@@ -1,18 +1,19 @@
 // ------------------------------------------------------------
-// Logika murni task runner Otomasi — dipisah agar bisa dites
-// Vitest tanpa Supabase/localStorage (pola students/wa.test.ts).
+// Logika murni Otomasi (AutomationPage) — runner pemeliharaan
+// manual. Dipisah agar bisa dites Vitest tanpa Supabase maupun
+// localStorage (pola students/wa.test.ts).
 // ------------------------------------------------------------
 
-export type TaskId = 'sync_stats' | 'detach_refs' | 'rotate_logs'
+export type AutomationId = 'sync_stats' | 'detach_refs' | 'rotate_logs'
 
-export interface TaskDef {
-  id: TaskId
+export interface Automation {
+  id: AutomationId
   label: string
   description: string
   destructive: boolean
 }
 
-export const TASKS: TaskDef[] = [
+export const AUTOMATIONS: Automation[] = [
   {
     id: 'sync_stats',
     label: 'Sinkronisasi Statistik',
@@ -34,9 +35,10 @@ export const TASKS: TaskDef[] = [
   },
 ]
 
-export interface TaskRunLog {
+/** Satu baris riwayat eksekusi otomasi (tabel task_runs). */
+export interface AutomationRun {
   id: string
-  taskId: TaskId
+  automationId: AutomationId
   startedAt: string
   durationMs: number
   ok: boolean
@@ -46,16 +48,6 @@ export interface TaskRunLog {
 // ------------------------------------------------------------
 // Helper murni
 // ------------------------------------------------------------
-
-/** Pecah array jadi chunk berukuran maksimal `size` (untuk .in() ber-urut). */
-export function chunk<T>(items: T[], size: number): T[][] {
-  if (size <= 0) throw new Error('Ukuran chunk harus > 0')
-  const out: T[][] = []
-  for (let i = 0; i < items.length; i += size) {
-    out.push(items.slice(i, i + size))
-  }
-  return out
-}
 
 /**
  * ID anak yang menunjuk parent yang tidak ada di `validParentIds`.
@@ -75,16 +67,9 @@ export function findOrphanIds(
   return out
 }
 
-/** ISO cutoff `days` hari sebelum `now` (default: sekarang). */
-export function cutoffIso(days: number, now: Date = new Date()): string {
-  const cutoff = new Date(now)
-  cutoff.setDate(cutoff.getDate() - days)
-  return cutoff.toISOString()
-}
-
 /** Potong riwayat run agar maksimal `max` entri terbaru. */
-export function pruneLogs(logs: TaskRunLog[], max = 100): TaskRunLog[] {
-  return [...logs].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, max)
+export function pruneRuns(runs: AutomationRun[], max = 100): AutomationRun[] {
+  return [...runs].sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, max)
 }
 
 /** Durasi ringkas: 850 ms → "850 ms", 65000 ms → "1 mnt 5 dtk". */
@@ -99,36 +84,47 @@ export function formatDuration(ms: number): string {
 }
 
 // ------------------------------------------------------------
-// Riwayat eksekusi (localStorage) — try/catch agar aman di
-// mode privasi / storage penuh.
+// Riwayat lama di localStorage. Sejak migrasi 0062 riwayat
+// ditulis ke server, jadi entri lokal hanya dibaca sekali untuk
+// diunggah lalu dibuang (lihat AutomationPage).
 // ------------------------------------------------------------
 
-const STORAGE_KEY = 'laporanmu_task_logs'
+const LEGACY_STORAGE_KEY = 'laporanmu_task_logs'
 
-export function loadTaskLogs(): TaskRunLog[] {
+/** Bentuk entri localStorage lama: field `taskId`, belum `automationId`. */
+interface LegacyRun {
+  id: string
+  taskId: AutomationId
+  startedAt: string
+  durationMs: number
+  ok: boolean
+  summary: string
+}
+
+export function loadLegacyRuns(): AutomationRun[] {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!raw) return []
-    return pruneLogs(JSON.parse(raw) as TaskRunLog[])
+    const legacy = JSON.parse(raw) as LegacyRun[]
+    return pruneRuns(
+      legacy.map((run) => ({
+        id: run.id,
+        automationId: run.taskId,
+        startedAt: run.startedAt,
+        durationMs: run.durationMs,
+        ok: run.ok,
+        summary: run.summary,
+      })),
+    )
   } catch {
     return []
   }
 }
 
-export function saveTaskLog(log: TaskRunLog): TaskRunLog[] {
-  const next = pruneLogs([log, ...loadTaskLogs()])
+export function clearLegacyRuns(): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY)
   } catch {
-    // storage penuh / tidak tersedia — riwayat hilang saja
-  }
-  return next
-}
-
-export function clearTaskLogs(): void {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // abaikan
+    // storage penuh / tidak tersedia — abaikan
   }
 }
