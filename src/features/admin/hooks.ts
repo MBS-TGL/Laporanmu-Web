@@ -15,11 +15,13 @@ import {
   fetchTableStats,
   importAutomationRuns,
   previewRotateAuditLogs,
+  runDetachRefs,
   sendPasswordResetEmail,
   setTeacherProfileLink,
   updateProfile,
   type AuditFilters,
 } from './api'
+import { logAudit } from '../../shared/utils/auditLogger'
 
 export function useProfiles() {
   return useQuery({
@@ -151,6 +153,23 @@ export function useIntegrityIssues(opts?: { refetchInterval?: number | false }) 
     queryFn: fetchIntegrityIssues,
     staleTime: 60_000,
     refetchInterval: opts?.refetchInterval,
+  })
+}
+
+/** Perbaikan referensi mati (relasi kelas/asrama) — dipakai Database & Ringkasan. */
+export function useDetachRefs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: runDetachRefs,
+    onSuccess: (result) => {
+      void qc.invalidateQueries({ queryKey: ['admin'] })
+      void logAudit({
+        action: 'EXECUTE',
+        source: 'SYSTEM',
+        tableName: 'students',
+        newData: { aksi: 'perbaikan_integritas', ...result },
+      })
+    },
   })
 }
 

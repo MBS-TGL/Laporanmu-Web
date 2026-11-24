@@ -30,22 +30,18 @@ import {
   WarningOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
-import { logAudit } from '../../shared/utils/auditLogger'
-import { runDetachRefs } from './api'
-import { useIntegrityIssues, useTableStats } from './hooks'
+import { useDetachRefs, useIntegrityIssues, useTableStats } from './hooks'
 import type { IntegrityIssue, TableStat } from './types'
 
 export function DatabasePage({ active }: { active: boolean }) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
-  const qc = useQueryClient()
   const searchRef = useRef<InputRef>(null)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
@@ -56,22 +52,17 @@ export function DatabasePage({ active }: { active: boolean }) {
   const statsQuery = useTableStats({ refetchInterval: autoRefresh ? 60_000 : false })
   const integrityQuery = useIntegrityIssues({ refetchInterval: autoRefresh ? 60_000 : false })
 
-  const repairMutation = useMutation({
-    mutationFn: runDetachRefs,
-    onSuccess: (result) => {
-      void qc.invalidateQueries({ queryKey: ['admin'] })
-      void logAudit({
-        action: 'EXECUTE',
-        source: 'SYSTEM',
-        tableName: 'students',
-        newData: { aksi: 'perbaikan_integritas', ...result },
-      })
-      message.success(
-        `Perbaikan selesai — ${result.classRefs} relasi kelas dan ${result.dormRefs} relasi asrama dilepas`,
-      )
-    },
-    onError: (err: Error) => message.error(err.message || 'Gagal menjalankan perbaikan'),
-  })
+  const repairMutation = useDetachRefs()
+
+  const handleRepair = () => {
+    repairMutation.mutate(undefined, {
+      onSuccess: (result) =>
+        message.success(
+          `Perbaikan selesai — ${result.classRefs} relasi kelas dan ${result.dormRefs} relasi asrama dilepas`,
+        ),
+      onError: (err: Error) => message.error(err.message || 'Gagal menjalankan perbaikan'),
+    })
+  }
 
   const handleRefresh = () => {
     void statsQuery.refetch()
@@ -214,7 +205,7 @@ export function DatabasePage({ active }: { active: boolean }) {
             description="Relasi santri ke kelas/asrama terarsip akan dilepas. Tindakan ini tercatat di audit log."
             okText="Perbaiki"
             cancelText="Batal"
-            onConfirm={() => repairMutation.mutate()}
+            onConfirm={handleRepair}
           >
             <Button size="small" icon={<ToolOutlined />} loading={repairMutation.isPending}>
               Perbaiki

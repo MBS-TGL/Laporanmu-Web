@@ -1,20 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Card, Col, Empty, Grid, List, Row, Segmented, Tag, Tooltip, Typography, theme } from 'antd'
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Col,
+  Dropdown,
+  Empty,
+  Grid,
+  List,
+  Popconfirm,
+  Row,
+  Segmented,
+  Tag,
+  Tooltip,
+  Typography,
+  theme,
+} from 'antd'
 import {
   AuditOutlined,
+  ClearOutlined,
   CrownFilled,
   DatabaseOutlined,
   FileDoneOutlined,
   FileTextOutlined,
+  MoreOutlined,
   ReadOutlined,
   SafetyOutlined,
   TeamOutlined,
   ThunderboltOutlined,
+  ToolOutlined,
   UserOutlined,
   WarningOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Area,
   AreaChart,
@@ -32,8 +53,8 @@ import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
-import { useAuditActivity, useAuditLogs, useIntegrityIssues, useTableStats } from './hooks'
-import { TABLE_LABELS } from './api'
+import { useAuditActivity, useAuditLogs, useDetachRefs, useIntegrityIssues, useTableStats } from './hooks'
+import { runSyncStats, TABLE_LABELS } from './api'
 import { SystemHealth } from './components/SystemHealth'
 import { SetupChecklist } from './components/SetupChecklist'
 
@@ -139,7 +160,42 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
   const isRefreshing =
     statsQuery.isFetching || activityQuery.isFetching || integrityQuery.isFetching || recentQuery.isFetching
 
+  // Aksi cepat ringkasan: segarkan, sinkron statistik, buang cache admin
+  const { message } = App.useApp()
+  const qc = useQueryClient()
+  const detachMutation = useDetachRefs()
+  const [syncing, setSyncing] = useState(false)
+  const handleSyncStats = () => {
+    setSyncing(true)
+    runSyncStats()
+      .then((result) => {
+        message.success(`Statistik disinkronkan — ${Object.values(result).join(', ')}`)
+        void statsQuery.refetch()
+      })
+      .catch((err: Error) => message.error(err.message || 'Gagal menyinkronkan statistik'))
+      .finally(() => setSyncing(false))
+  }
+  const handleClearCache = () => {
+    qc.removeQueries({ queryKey: ['admin'] })
+    message.success('Cache admin dibuang — data dimuat ulang dari server')
+    refreshRef.current()
+  }
+  const handleRepair = () => {
+    detachMutation.mutate(undefined, {
+      onSuccess: (result) =>
+        message.success(
+          `Perbaikan selesai — ${result.classRefs} relasi kelas dan ${result.dormRefs} relasi asrama dilepas`,
+        ),
+      onError: (err: Error) => message.error(err.message || 'Gagal menjalankan perbaikan'),
+    })
+  }
+
   // Aksi tab diportal ke kanan judul shell — hasil WAJIB dirender di JSX
+  const quickActionItems = [
+    { key: 'refresh', icon: <ThunderboltOutlined />, label: 'Segarkan semua data' },
+    { key: 'sync', icon: <ToolOutlined />, label: 'Sinkronkan statistik', disabled: syncing },
+    { key: 'clear', icon: <ClearOutlined />, label: 'Buang cache admin' },
+  ]
   const actions = useTabActions(
     active,
     <>
@@ -151,6 +207,23 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
           style={isMobile ? { width: 44, height: 44 } : undefined}
         />
       </Tooltip>
+      <Dropdown
+        trigger={['click']}
+        menu={{
+          items: quickActionItems,
+          onClick: ({ key }) => {
+            if (key === 'refresh') shortcutItems[0].run()
+            else if (key === 'sync') handleSyncStats()
+            else if (key === 'clear') handleClearCache()
+          },
+        }}
+      >
+        <Button
+          aria-label="Aksi cepat ringkasan"
+          icon={<MoreOutlined spin={syncing} />}
+          style={isMobile ? { width: 44, height: 44 } : undefined}
+        />
+      </Dropdown>
       <Tooltip title="Shortcut keyboard (?)">
         <Button
           aria-label="Bantuan shortcut keyboard"
@@ -293,12 +366,35 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
               <span style={{ color: token.colorTextSecondary }}>Perlu perhatian:</span>
               <span style={{ fontWeight: 600, color: '#dc2626' }}>
                 {openIssues
-                  .slice(0, 2)
+                  .slice(0, 3)
                   .map((i) => `${i.label} (${i.count})`)
                   .join(' · ')}
-                {openIssues.length > 2 ? ` +${openIssues.length - 2}` : ''}
+                {openIssues.length > 3 ? ` +${openIssues.length - 3}` : ''}
               </span>
             </button>
+          )}
+          {/* Perbaikan referensi mati langsung dari ringkasan — dry-run di
+              ConfirmRunModal/Otomatisasi tidak berlaku di sini (relasi mati
+              non-destruktif: hanya melepas pointer ke entitas terarsip) */}
+          {openIssues.some((i) => i.fixable) && (
+            <Popconfirm
+              title="Jalankan perbaikan integritas?"
+              description="Relasi santri ke kelas/asrama terarsip akan dilepas. Tindakan ini tercatat di audit log."
+              okText="Perbaiki"
+              cancelText="Batal"
+              onConfirm={handleRepair}
+            >
+              <Button
+                size="small"
+                type="primary"
+                danger
+                icon={<ToolOutlined />}
+                loading={detachMutation.isPending}
+                style={{ marginLeft: 'auto' }}
+              >
+                Perbaiki
+              </Button>
+            </Popconfirm>
           )}
         </div>
       )}
