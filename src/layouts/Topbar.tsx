@@ -13,8 +13,10 @@ import {
   Typography,
 } from 'antd'
 import {
+  AppstoreOutlined,
   ArrowRightOutlined,
   BellOutlined,
+  CheckOutlined,
   CloseCircleOutlined,
   CloseOutlined,
   DownOutlined,
@@ -40,9 +42,10 @@ import {
 } from '../shared/constants/navItems'
 import { useProfile } from '../shared/hooks/useProfile'
 import { useRbac } from '../shared/rbac/useRbac'
-import { useFlagMap } from '../shared/hooks/useFeatureFlags'
+import { useFlag, useFlagMap } from '../shared/hooks/useFeatureFlags'
 import { useLogout } from '../features/auth/hooks'
 import { useNotifications, type AppNotification } from '../shared/hooks/useNotifications'
+import { useEntityScope } from '../features/entities/hooks'
 
 // Lazy: chunk asisten chat hanya terunduh saat pertama dibuka.
 const ChatAssistant = lazy(() =>
@@ -177,6 +180,28 @@ const notifIconBoxStyle: CSSProperties = {
 function useProfileMenu(onAction?: () => void) {
   const { profile } = useProfile()
   const logout = useLogout()
+  const multiEntityEnabled = useFlag('system.multi_entity')
+  const { entities, entityId, switchEntity } = useEntityScope()
+
+  const activeEntities = (entities ?? []).filter((e) => e.is_active)
+  const hasMultipleEntities = multiEntityEnabled && activeEntities.length > 1
+
+  const entityMenuItems = hasMultipleEntities
+    ? [
+        {
+          key: 'entities_header',
+          type: 'group' as const,
+          label: 'Pilih Lembaga',
+          children: activeEntities.map((e) => ({
+            key: `entity_${e.id}`,
+            icon: e.id === entityId ? <CheckOutlined style={{ color: '#4f46e5' }} /> : <AppstoreOutlined />,
+            label: e.name,
+            style: e.id === entityId ? { fontWeight: 600, color: '#4f46e5' } : undefined,
+          })),
+        },
+        { type: 'divider' as const },
+      ]
+    : []
 
   return {
     profile,
@@ -189,12 +214,16 @@ function useProfileMenu(onAction?: () => void) {
           disabled: true,
         },
         { type: 'divider' as const },
+        ...entityMenuItems,
         { key: 'logout', icon: <LogoutOutlined />, label: 'Keluar', danger: true },
       ],
       onClick: ({ key }: { key: string }) => {
         if (key === 'logout') {
           onAction?.()
           logout.mutate()
+        } else if (key.startsWith('entity_')) {
+          const targetId = key.replace('entity_', '')
+          switchEntity(targetId)
         }
       },
     },
@@ -501,97 +530,34 @@ export function Topbar({
   return (
     <>
       <Header style={headerStyle}>
-        {/* ── Kiri: toggle, kembali, pencarian ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
-          {!(isMobile && searchFocused) &&
-            (isMobile ? (
-              // Mobile: hamburger + logo ikon saja — anggaran lebar 390px tidak
-              // sanggup memuat wordmark + 4 kontrol kanan tanpa saling menimpa;
-              // nama brand lengkap hidup di drawer menu (hamburger).
-              <Space size={4} align="center">
-                {!hasBottomNav && (
-                  <Button
-                    type="text"
-                    icon={<MenuOutlined />}
-                    onClick={onOpenDrawer}
-                    aria-label="Buka menu"
-                  />
-                )}
-                <img
-                  src="/logo-icon.png"
-                  alt="Logo Laporanmu"
-                  width={22}
-                  height={22}
-                  style={{ borderRadius: 6 }}
-                />
-              </Space>
-            ) : (
-              <>
-                <Button
-                  type="text"
-                  icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                  onClick={onToggleCollapse}
-                  title={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
-                  aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
-                  style={{ width: 36, height: 36, color: '#64748b', flexShrink: 0 }}
-                />
-                <Button
-                  type="text"
-                  icon={<LeftOutlined />}
-                  onClick={() => navigate(-1)}
-                  title="Kembali"
-                  aria-label="Kembali"
-                  style={{ width: 36, height: 36, color: '#64748b', flexShrink: 0 }}
-                />
-              </>
-            ))}
-
-          {isMobile && !searchFocused ? (
+        {/* Mobile Full Search Overlay saat searchFocused aktif */}
+        {isMobile && searchFocused ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: '100%' }}>
             <Button
               type="text"
-              icon={<SearchOutlined />}
-              onClick={() => setSearchFocused(true)}
-              aria-label="Cari halaman"
+              icon={<LeftOutlined style={{ fontSize: 15 }} />}
+              onClick={() => {
+                setSearchQuery('')
+                setSearchFocused(false)
+              }}
+              aria-label="Kembali"
               style={{ width: 36, height: 36, color: '#64748b', flexShrink: 0 }}
             />
-          ) : (
-            <div
-              ref={searchWrapRef}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') setSearchQuery('')
-              }}
-              style={{ position: 'relative', flex: 1, minWidth: 0, maxWidth: 520 }}
-            >
+            <div ref={searchWrapRef} style={{ flex: 1, minWidth: 0 }}>
               <AutoComplete
                 value={searchQuery}
                 onChange={(value) => setSearchQuery(typeof value === 'string' ? value : '')}
                 onSelect={(value) => handleSearchNavigate(String(value))}
                 options={searchOptions}
                 showSearch={{ filterOption: filterSearchOption }}
-                open={searchFocused && searchQuery.trim().length > 0}
-                onOpenChange={(open) => {
-                  if (!open) setSearchFocused(false)
-                }}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                popupMatchSelectWidth={520}
+                open={searchQuery.trim().length > 0}
+                popupMatchSelectWidth={false}
+                popupClassName="mobile-search-dropdown"
                 notFoundContent={
-                  <div
-                    style={{ padding: '22px 16px', textAlign: 'center', fontSize: 12.5, color: '#64748b' }}
-                  >
+                  <div style={{ padding: '20px 16px', textAlign: 'center', fontSize: 12.5, color: '#64748b' }}>
                     Tidak ada halaman yang cocok dengan “{searchQuery.trim()}”
                   </div>
                 }
-                popupRender={(menu) => (
-                  <>
-                    {menu}
-                    <div style={dropdownFooterStyle}>
-                      <span>↑↓ Navigasi</span>
-                      <span>↵ Buka</span>
-                      <span>Esc Tutup</span>
-                    </div>
-                  </>
-                )}
                 optionRender={(option) => {
                   const item = itemByPath.get(String(option.value))
                   if (!item) return null
@@ -614,87 +580,226 @@ export function Topbar({
                 style={{ width: '100%' }}
               >
                 <Input
-                  placeholder="Cari halaman…"
+                  autoFocus
+                  placeholder="Ketik nama halaman…"
                   aria-label="Cari halaman"
                   prefix={<SearchOutlined style={{ color: '#64748b', fontSize: 15 }} />}
                   suffix={
-                    searchFocused ? (
+                    searchQuery ? (
                       <Button
                         type="text"
                         size="small"
                         icon={<CloseOutlined style={{ fontSize: 12 }} />}
-                        onClick={() => {
-                          setSearchQuery('')
-                          setSearchFocused(false)
-                        }}
-                        aria-label="Tutup pencarian"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Hapus teks"
                         style={{ width: 22, height: 22, minWidth: 22, color: '#94a3b8' }}
                       />
-                    ) : (
-                      <span style={kbdBadgeStyle}>{isMac ? '⌘ K' : 'Ctrl K'}</span>
-                    )
+                    ) : null
                   }
+                  style={{ height: 38, borderRadius: 10 }}
                 />
               </AutoComplete>
             </div>
-          )}
-        </div>
-
-        {/* ── Kanan: entity, asisten AI, notifikasi, profil ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
-          {/* Entity hanya di desktop. Di mobile pindah ke drawer menu (di bawah brand)
-              agar topbar tidak memuat 6 kontrol sekaligus. */}
-          {!isMobile && <EntitySwitcher />}
-          <Button
-            icon={<RobotOutlined style={{ fontSize: 14 }} />}
-            onClick={() => setChatOpen(true)}
-            aria-label="Asisten AI"
-            style={{
-              height: 36,
-              borderRadius: 10,
-              fontSize: 12.5,
-              fontWeight: 600,
-              paddingInline: isMobile ? 0 : 12,
-              color: '#475569',
-              flexShrink: 0,
-            }}
-          >
-            {!isMobile && <span>Asisten AI</span>}
-          </Button>
-
-          <Popover
-            trigger={['click']}
-            placement="bottomRight"
-            arrow={false}
-            open={notifOpen}
-            onOpenChange={setNotifOpen}
-            styles={{
-              root: { width: 330, maxWidth: 'calc(100vw - 24px)' },
-              container: { padding: 0, overflow: 'hidden' },
-            }}
-            content={notifContent}
-          >
-            <Badge count={badgeCount} overflowCount={9} color="#ef4444">
-              <Button
-                type="text"
-                icon={
-                  <BellOutlined
-                    className={urgentCount > 0 ? 'tb-bell-shake' : undefined}
-                    style={{ fontSize: 17 }}
+          </div>
+        ) : (
+          <>
+            {/* ── Kiri: toggle, logo/brand, pencarian desktop ── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+              {isMobile ? (
+                // Mobile: logo ikon + nama brand ringkas
+                <Space size={6} align="center">
+                  {!hasBottomNav && (
+                    <Button
+                      type="text"
+                      icon={<MenuOutlined />}
+                      onClick={onOpenDrawer}
+                      aria-label="Buka menu"
+                      style={{ width: 36, height: 36 }}
+                    />
+                  )}
+                  <img
+                    src="/logo-icon.png"
+                    alt="Logo Laporanmu"
+                    width={24}
+                    height={24}
+                    style={{ borderRadius: 6 }}
                   />
-                }
-                aria-label="Notifikasi"
-                style={{ width: 36, height: 36, color: '#64748b' }}
-              />
-            </Badge>
-          </Popover>
+                  <Typography.Text strong style={{ fontSize: 14, letterSpacing: '-0.02em', color: '#1e293b' }}>
+                    Laporanmu
+                  </Typography.Text>
+                </Space>
+              ) : (
+                <>
+                  <Button
+                    type="text"
+                    icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                    onClick={onToggleCollapse}
+                    title={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+                    aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+                    style={{ width: 36, height: 36, color: '#64748b', flexShrink: 0 }}
+                  />
+                  <Button
+                    type="text"
+                    icon={<LeftOutlined />}
+                    onClick={() => navigate(-1)}
+                    title="Kembali"
+                    aria-label="Kembali"
+                    style={{ width: 36, height: 36, color: '#64748b', flexShrink: 0 }}
+                  />
+                  <div
+                    ref={searchWrapRef}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') setSearchQuery('')
+                    }}
+                    style={{ position: 'relative', flex: 1, minWidth: 0, maxWidth: 520 }}
+                  >
+                    <AutoComplete
+                      value={searchQuery}
+                      onChange={(value) => setSearchQuery(typeof value === 'string' ? value : '')}
+                      onSelect={(value) => handleSearchNavigate(String(value))}
+                      options={searchOptions}
+                      showSearch={{ filterOption: filterSearchOption }}
+                      open={searchFocused && searchQuery.trim().length > 0}
+                      onOpenChange={(open) => {
+                        if (!open) setSearchFocused(false)
+                      }}
+                      onFocus={() => setSearchFocused(true)}
+                      onBlur={() => setSearchFocused(false)}
+                      popupMatchSelectWidth={520}
+                      notFoundContent={
+                        <div
+                          style={{ padding: '22px 16px', textAlign: 'center', fontSize: 12.5, color: '#64748b' }}
+                        >
+                          Tidak ada halaman yang cocok dengan “{searchQuery.trim()}”
+                        </div>
+                      }
+                      popupRender={(menu) => (
+                        <>
+                          {menu}
+                          <div style={dropdownFooterStyle}>
+                            <span>↑↓ Navigasi</span>
+                            <span>↵ Buka</span>
+                            <span>Esc Tutup</span>
+                          </div>
+                        </>
+                      )}
+                      optionRender={(option) => {
+                        const item = itemByPath.get(String(option.value))
+                        if (!item) return null
+                        const Icon = item.icon
+                        return (
+                          <div style={searchResultRowStyle}>
+                            <span style={searchResultIconStyle}>
+                              <Icon />
+                            </span>
+                            <span style={searchResultTextStyle}>
+                              <span style={searchResultLabelStyle}>{item.label}</span>
+                              <span style={searchResultDescStyle}>{item.desc}</span>
+                            </span>
+                            {item._groupLabel && (
+                              <span style={searchResultGroupStyle}>{item._groupLabel}</span>
+                            )}
+                          </div>
+                        )
+                      }}
+                      style={{ width: '100%' }}
+                    >
+                      <Input
+                        placeholder="Cari halaman…"
+                        aria-label="Cari halaman"
+                        prefix={<SearchOutlined style={{ color: '#64748b', fontSize: 15 }} />}
+                        suffix={
+                          searchFocused ? (
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<CloseOutlined style={{ fontSize: 12 }} />}
+                              onClick={() => {
+                                setSearchQuery('')
+                                setSearchFocused(false)
+                              }}
+                              aria-label="Tutup pencarian"
+                              style={{ width: 22, height: 22, minWidth: 22, color: '#94a3b8' }}
+                            />
+                          ) : (
+                            <span style={kbdBadgeStyle}>{isMac ? '⌘ K' : 'Ctrl K'}</span>
+                          )
+                        }
+                      />
+                    </AutoComplete>
+                  </div>
+                </>
+              )}
+            </div>
 
-          {!isMobile && <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 6px' }} />}
+            {/* ── Kanan: search icon (mobile), entity (desktop), asisten AI, notifikasi, profil ── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
+              {isMobile && (
+                <Button
+                  type="text"
+                  icon={<SearchOutlined style={{ fontSize: 16 }} />}
+                  onClick={() => setSearchFocused(true)}
+                  aria-label="Cari halaman"
+                  style={{ width: 36, height: 36, color: '#64748b' }}
+                />
+              )}
 
-          <Dropdown menu={profileMenu} placement="bottomRight" trigger={['click']}>
-            {profileTrigger}
-          </Dropdown>
-        </div>
+              {/* Entity hanya di desktop. Di mobile pindah ke drawer menu & dropdown profil */}
+              {!isMobile && <EntitySwitcher />}
+
+              <Button
+                icon={<RobotOutlined style={{ fontSize: 14 }} />}
+                onClick={() => setChatOpen(true)}
+                aria-label="Asisten AI"
+                style={{
+                  height: 36,
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  paddingInline: isMobile ? 0 : 12,
+                  color: '#475569',
+                  flexShrink: 0,
+                  width: isMobile ? 36 : undefined,
+                }}
+              >
+                {!isMobile && <span>Asisten AI</span>}
+              </Button>
+
+              <Popover
+                trigger={['click']}
+                placement="bottomRight"
+                arrow={false}
+                open={notifOpen}
+                onOpenChange={setNotifOpen}
+                styles={{
+                  root: { width: 330, maxWidth: 'calc(100vw - 24px)' },
+                  container: { padding: 0, overflow: 'hidden' },
+                }}
+                content={notifContent}
+              >
+                <Badge count={badgeCount} overflowCount={9} color="#ef4444">
+                  <Button
+                    type="text"
+                    icon={
+                      <BellOutlined
+                        className={urgentCount > 0 ? 'tb-bell-shake' : undefined}
+                        style={{ fontSize: 17 }}
+                      />
+                    }
+                    aria-label="Notifikasi"
+                    style={{ width: 36, height: 36, color: '#64748b' }}
+                  />
+                </Badge>
+              </Popover>
+
+              {!isMobile && <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 6px' }} />}
+
+              <Dropdown menu={profileMenu} placement="bottomRight" trigger={['click']}>
+                {profileTrigger}
+              </Dropdown>
+            </div>
+          </>
+        )}
       </Header>
 
       {chatMounted && (
