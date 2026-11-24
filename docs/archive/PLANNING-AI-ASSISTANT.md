@@ -1,5 +1,9 @@
 # Planning: Improvisasi Asisten AI Laporanmu
 
+> **Status 2026-11-24: selesai dan diarsipkan.** P0-P3 sudah code-done, `ai-proxy` v9 ACTIVE.
+> Sisa verifikasi (bukan implementasi): uji manual 20 pertanyaan di `docs/AI-EVAL.md`,
+> verifikasi streaming live di browser, dan opsi ringkas history panjang.
+
 ## 1. Ringkasan
 Asisten AI sudah aman dari sisi API key (Edge Function `ai-proxy`), tetapi masih punya celah abuse, jawaban terlalu umum, dan belum streaming. Pengerjaan dibagi empat fase: P0 safety, P1 akurasi, P2 kecepatan non-streaming, P3 streaming setelah P0-P2 stabil.
 

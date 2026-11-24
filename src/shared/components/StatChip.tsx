@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Spin, theme } from 'antd'
+import { theme } from 'antd'
 import { motion } from 'motion/react'
 import { pageShellItemTransition, pageShellItemVariants } from '../motion'
 
@@ -85,8 +85,22 @@ export function StatChip({
       >
         {icon}
       </span>
-      <span style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, color: token.colorText }}>
-        {loading ? <Spin size="small" /> : value}
+      <span style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, color: token.colorText, display: 'inline-flex', alignItems: 'center' }}>
+        {loading ? (
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'inline-block',
+              width: 28,
+              height: 16,
+              borderRadius: 4,
+              background: token.colorFillSecondary,
+              animation: 'ant-skeleton-loading 1.4s ease infinite',
+            }}
+          />
+        ) : (
+          value
+        )}
       </span>
       <span style={{ fontSize: 12.5, fontWeight: 500, color: token.colorTextSecondary, whiteSpace: 'nowrap' }}>
         {label}

@@ -6,6 +6,24 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 
 ## Keputusan arsitektur
 
+### 2026-11-24 — Next Milestones selesai & diarsipkan (`docs/archive/PLAN-Next-Milestones.md`)
+
+- **Edge `create-user` v8**: CORS di-hardening membaca secret `APP_ORIGIN` (whitelist origin tunggal/terdaftar, tolak origin asing dengan 403). Deployed status ACTIVE v8.
+- **Dashboard Ringkasan Admin**:
+  - `StatChip.tsx`: animasi skeleton pulse saat loading pertama kali (tanpa layout shift & tanpa tanda strip mentah `–`).
+  - `DashboardPage.tsx`: toggle filter `Tanpa Log` / `Semua` pada Pie Chart distribusi tabel, secara default mengabaikan `audit_logs` dan `api_request_log` agar data operasional madrasah proporsional. Akses `Date.now` dan `useRef` dirapikan agar render murni (*idempotent*).
+  - `SystemHealth.tsx`: Quick toggle mode maintenance via Switch + `Popconfirm` khusus untuk role `developer`.
+- **Modul Operasional**: Alur notifikasi WhatsApp diverifikasi membaca prioritas `resolveGuardianPhone` (Wali → Ibu → Ayah → Santri) secara *fire-and-forget*. Portal `/check` terverifikasi responsif untuk mobile 390px.
+- **Arsip**: `docs/PLAN-Next-Milestones.md` dipindahkan ke `docs/archive/PLAN-Next-Milestones.md` setelah seluruh checklist terimplementasi & terverifikasi.
+
+### 2026-11-24 — Arsip plan yang sudah selesai (`docs/archive/`)
+
+- **Dipindah**: `PLANNING-AI-ASSISTANT.md` → `docs/archive/PLANNING-AI-ASSISTANT.md` (P0-P3 code-done, `ai-proxy` v9 ACTIVE). Sisa bukan implementasi: uji manual 20 pertanyaan (`docs/AI-EVAL.md`), verifikasi streaming live di browser, dan opsi ringkas history panjang.
+- **Dipindah**: `docs/PLAN-Fase5-Pusat.md` → `docs/archive/PLAN-Fase5-Pusat.md` (6 pusat code-done). Tabel sisa sub-item kini berstatus audit: QR dokumen, spiritual profile, import kemahiran, rekap angket = sudah; radar rapor, profil sekolah per-entity, URL sync tab Mapel = belum; push wali = sebagian (pengumuman jalan, SPP/rapor belum).
+- **Tetap aktif di `docs/`**: `PRD-Sidikmu-Replacement.md`, `GLOSSARY.md`, `AI-EVAL.md`, `PLAN-Admin-Improvements.md` (185 item `[ ]`, perlu rebaseline), `PLAN-Next-Milestones.md` (belum dieksekusi).
+- **Tautan**: rujukan Fase 5 di PRD diperbarui ke path arsip. Entri MEMORY historis masih menyebut path lama; dokumennya dipindah, bukan dihapus.
+- **Alasan**: `docs/` hanya berisi plan aktif, sementara plan yang tuntas tetap terbaca di arsip lengkap dengan sisa item.
+
 ### 2026-11-24 — Asisten AI P3: streaming SSE chat
 
 - **Edge `ai-proxy` v9**: `stream: true` hanya untuk `mode: 'chat'`. Payload Groq ikut `stream: true`; `response.body` diteruskan sebagai `text/event-stream` dengan `Cache-Control: no-cache, no-transform` + `X-Accel-Buffering: no`. Jalur non-streaming tidak berubah.

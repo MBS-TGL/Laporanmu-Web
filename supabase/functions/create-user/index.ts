@@ -20,9 +20,30 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const configuredOrigins = (Deno.env.get('APP_ORIGIN') ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  const allowOrigin =
+    configuredOrigins.length === 0 || configuredOrigins.includes('*')
+      ? '*'
+      : origin && configuredOrigins.includes(origin)
+        ? origin
+        : configuredOrigins[0]
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
+}
+
+function isOriginAllowed(origin: string | null): boolean {
+  if (!origin || configuredOrigins.length === 0) return true
+  if (configuredOrigins.includes('*')) return true
+  return configuredOrigins.includes(origin)
 }
 
 /** Role yang boleh dipilih saat membuat akun. 'developer' hanya untuk caller developer. */
@@ -41,19 +62,31 @@ interface CreateBody {
   password?: string
 }
 
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status = 200, origin: string | null = null): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
   })
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
-  if (req.method !== 'POST') return json({ error: 'Metode harus POST' }, 405)
+  const origin = req.headers.get('Origin')
+  if (!isOriginAllowed(origin)) {
+    return json({ error: 'Origin tidak diizinkan.' }, 403, origin)
+  }
+
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders(origin),
+    })
+  }
+
+  if (req.method !== 'POST') {
+    return json({ error: 'Metode harus POST' }, 405, origin)
+  }
 
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return json({ error: 'Token tidak ditemukan' }, 401)
+  if (!authHeader) return json({ error: 'Token tidak ditemukan' }, 401, origin)
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -63,7 +96,7 @@ Deno.serve(async (req) => {
 
   // 1) Role pemanggil harus developer/admin
   const { data: userData, error: userError } = await supabase.auth.getUser()
-  if (userError || !userData.user) return json({ error: 'Sesi tidak valid' }, 401)
+  if (userError || !userData.user) return json({ error: 'Sesi tidak valid' }, 401, origin)
   const { data: caller } = await supabase
     .from('profiles')
     .select('role')
@@ -71,7 +104,7 @@ Deno.serve(async (req) => {
     .maybeSingle()
   const callerRole = (caller?.role as string | undefined) ?? ''
   if (callerRole !== 'developer' && callerRole !== 'admin') {
-    return json({ error: 'Hanya developer & admin yang boleh membuat akun' }, 403)
+    return json({ error: 'Hanya developer & admin yang boleh membuat akun' }, 403, origin)
   }
 
   // 2) Validasi body
@@ -79,17 +112,17 @@ Deno.serve(async (req) => {
   const email = body.email?.trim().toLowerCase() ?? ''
   const name = body.name?.trim() ?? ''
   const role = ROLE_ALIASES[body.role?.trim() ?? ''] ?? body.role?.trim() ?? 'teacher'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'Email tidak valid' }, 400)
-  if (!name) return json({ error: 'Nama wajib diisi' }, 400)
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'Email tidak valid' }, 400, origin)
+  if (!name) return json({ error: 'Nama wajib diisi' }, 400, origin)
   if (role === 'developer' && callerRole !== 'developer') {
-    return json({ error: 'Hanya developer yang boleh membuat akun developer' }, 403)
+    return json({ error: 'Hanya developer yang boleh membuat akun developer' }, 403, origin)
   }
   if (role !== 'developer' && !STAFF_ROLES.has(role)) {
-    return json({ error: `Role tidak dikenal: ${role}` }, 400)
+    return json({ error: `Role tidak dikenal: ${role}` }, 400, origin)
   }
   const password = body.password?.trim() ?? ''
   if (password && password.length < 8) {
-    return json({ error: 'Password minimal 8 karakter' }, 400)
+    return json({ error: 'Password minimal 8 karakter' }, 400, origin)
   }
 
   // Service role: boleh menulis auth.users & tabel apa pun (RLS dilewati)
@@ -110,7 +143,7 @@ Deno.serve(async (req) => {
     const msg = createError.message.includes('already')
       ? 'Akun dengan email ini sudah ada'
       : createError.message
-    return json({ error: msg }, 400)
+    return json({ error: msg }, 400, origin)
   }
   const userId = created.user.id
 
@@ -119,7 +152,7 @@ Deno.serve(async (req) => {
     .from('profiles')
     .update({ role, name })
     .eq('id', userId)
-  if (roleError) return json({ error: roleError.message, userId }, 400)
+  if (roleError) return json({ error: roleError.message, userId }, 400, origin)
 
   // 5) Link guru bila diminta
   if (body.teacherId) {
@@ -127,7 +160,7 @@ Deno.serve(async (req) => {
       .from('teachers')
       .update({ profile_id: userId })
       .eq('id', body.teacherId)
-    if (linkError) return json({ error: linkError.message, userId }, 400)
+    if (linkError) return json({ error: linkError.message, userId }, 400, origin)
   }
 
   // 6) Link set-password (recovery) — hanya relevan tanpa password kustom
@@ -140,5 +173,5 @@ Deno.serve(async (req) => {
     actionLink = link?.properties?.action_link ?? null
   }
 
-  return json({ userId, email, role, actionLink, passwordSet: Boolean(password) })
+  return json({ userId, email, role, actionLink, passwordSet: Boolean(password) }, 200, origin)
 })

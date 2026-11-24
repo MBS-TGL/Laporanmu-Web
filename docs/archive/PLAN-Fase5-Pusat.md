@@ -1,5 +1,8 @@
 # PLAN — Fase 5: 6 Capability Centers (Beyond Sidikmu)
 
+> **Status 2026-11-24: selesai dan diarsipkan.** Enam pusat kemampuan sudah code-done.
+> Sisa sub-item kecil (3 belum, 1 sebagian) tetap tercatat di tabel §Sisa sub-item.
+
 > Single source of truth across sessions. Goal: **200% beyond Sidikmu** by leveraging
 > infrastructure Sidikmu lacks: realtime, public token portals, WA automation,
 > analytics + AI, approval flows, RBAC + audit.
@@ -96,16 +99,16 @@ Execution order approved by user: **P6 → P1 → P5 → P2 → P3 → P4**.
 
 Hasil audit ulang: status besar done, tapi sub-spesifikasi berikut belum terealisasi. Urut prioritas:
 
-| Batch | Sub-item | Catatan |
+| Batch | Sub-item | Status (audit 2026-11-24) |
 |---|---|---|
-| P4 | Per-student achievement radar (recharts) di rapor | grafik capaian per santri |
-| P4 | QR verification pada dokumen (pola surat resmi) | kop sudah ada, QR belum |
-| P3 | Unified spiritual profile (integrasi tahfidz/halaqah di /worship) | data tahfidz sudah ada di DetailDrawer |
-| P3 | Import kemahiran (ImportWizard) | preset + manual dianggap cukup v1 |
-| P1 | Class recap angket (rekap per kelas di tab Hasil) | dimensi per santri sudah ada |
-| P5 | Push wali via /check + auto-fire push (pengumuman/SPP/rapor) | butuh VAPID + prod dulu |
-| P5 | Profil sekolah per-entity | tunggu restrukturisasi PK school_settings |
-| P2 | URL sync pilihan kelas/tanggal di tab Mapel | deep-link grid |
+| P4 | Per-student achievement radar (recharts) di rapor | **Belum**: belum ada `RadarChart` di report-cards |
+| P4 | QR verification pada dokumen (pola surat resmi) | **Sudah**: `print/PrintCard` + `SignatureBlock` (QRCodeSVG) + `/verify` |
+| P3 | Unified spiritual profile (integrasi tahfidz/halaqah di /worship) | **Sudah**: `WorshipDrawer` punya tab Tahfidz |
+| P3 | Import kemahiran (ImportWizard) | **Sudah**: `WorshipImportModal` |
+| P1 | Class recap angket (rekap per kelas di tab Hasil) | **Sudah**: `evaluation/analysis.ts` + `ResultsTab` |
+| P5 | Push wali via /check + auto-fire push (pengumuman/SPP/rapor) | **Sebagian**: push pengumuman sudah, SPP/rapor belum |
+| P5 | Profil sekolah per-entity | **Belum**: `features/settings` belum membaca entity |
+| P2 | URL sync pilihan kelas/tanggal di tab Mapel | **Belum**: `SubjectsTab` masih state lokal |
 
 ## Definition of done per batch
 

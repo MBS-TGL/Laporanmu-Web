@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
-import { Button, Card, Skeleton, Tag, Typography, theme } from 'antd'
+import { Button, Card, Popconfirm, Skeleton, Switch, Tag, Typography, message, theme } from 'antd'
 import { ApiOutlined, LockOutlined, ToolOutlined, WarningOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useQuery } from '@tanstack/react-query'
-import { useFlag } from '../../../shared/hooks/useFeatureFlags'
+import { useFeatureFlags, useToggleFlag } from '../../../shared/hooks/useFeatureFlags'
+import { useRbac } from '../../../shared/rbac/useRbac'
 import { fetchTableCount } from '../api'
 import { useAutomationRuns, useIntegrityIssues } from '../hooks'
 import { AUTOMATIONS } from '../automation'
@@ -20,7 +21,16 @@ interface SystemHealthProps {
  */
 export function SystemHealth({ active, onOpenDatabase }: SystemHealthProps) {
   const { token } = theme.useToken()
-  const maintenance = useFlag('system.maintenance', false)
+  const { role } = useRbac()
+  const isDeveloper = role === 'developer'
+  const flagsQuery = useFeatureFlags()
+  const toggleMutation = useToggleFlag()
+
+  const maintenanceFlag = useMemo(
+    () => flagsQuery.data?.find((f) => f.key === 'system.maintenance'),
+    [flagsQuery.data],
+  )
+  const maintenance = maintenanceFlag?.enabled ?? false
 
   // Ping = durasi head-count tabel kecil — proksi latensi DB dari browser
   const pingQuery = useQuery({
@@ -70,9 +80,44 @@ export function SystemHealth({ active, onOpenDatabase }: SystemHealthProps) {
         </Row>
 
         <Row icon={<LockOutlined />} label="Mode Maintenance" token={token}>
-          <Tag color={maintenance ? 'error' : 'default'} style={{ borderRadius: 999, marginInlineEnd: 0 }}>
-            {maintenance ? 'Aktif' : 'Nonaktif'}
-          </Tag>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Tag color={maintenance ? 'error' : 'default'} style={{ borderRadius: 999, marginInlineEnd: 0 }}>
+              {maintenance ? 'Aktif' : 'Nonaktif'}
+            </Tag>
+            {isDeveloper && maintenanceFlag && (
+              <Popconfirm
+                title={maintenance ? 'Matikan Mode Maintenance?' : 'Aktifkan Mode Maintenance?'}
+                description={
+                  maintenance
+                    ? 'Aplikasi akan kembali dibuka untuk semua pengguna.'
+                    : 'Akses publik dan staf non-developer akan ditutup.'
+                }
+                okText={maintenance ? 'Buka Akses' : 'Tutup Akses'}
+                cancelText="Batal"
+                okButtonProps={{ danger: !maintenance, loading: toggleMutation.isPending }}
+                onConfirm={() => {
+                  toggleMutation.mutate(
+                    { id: maintenanceFlag.id, enabled: !maintenance, key: maintenanceFlag.key },
+                    {
+                      onSuccess: () =>
+                        message.success(
+                          `Mode maintenance ${!maintenance ? 'diaktifkan' : 'dinonaktifkan'}`,
+                        ),
+                      onError: (err: Error) =>
+                        message.error(err.message || 'Gagal mengubah mode maintenance'),
+                    },
+                  )
+                }}
+              >
+                <Switch
+                  size="small"
+                  checked={maintenance}
+                  loading={toggleMutation.isPending}
+                  aria-label="Toggle mode maintenance"
+                />
+              </Popconfirm>
+            )}
+          </span>
         </Row>
 
         <Row icon={<WarningOutlined />} label="Temuan Integritas" token={token}>

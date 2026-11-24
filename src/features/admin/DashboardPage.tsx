@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Card, Col, Empty, List, Row, Segmented, Tag, Tooltip, Typography, theme } from 'antd'
 import {
   AuditOutlined,
@@ -77,6 +77,7 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
   const { token } = theme.useToken()
   const navigate = useNavigate()
   const [range, setRange] = useState(7)
+  const [excludeLogs, setExcludeLogs] = useState(true)
 
   const statsQuery = useTableStats()
   const activityQuery = useAuditActivity(range)
@@ -90,11 +91,14 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
     [tableStats],
   )
   const pieData = useMemo(() => {
-    const sorted = [...tableStats].sort((a, b) => b.total - a.total)
+    const filtered = excludeLogs
+      ? tableStats.filter((t) => t.key !== 'audit_logs' && t.key !== 'api_request_log')
+      : tableStats
+    const sorted = [...filtered].sort((a, b) => b.total - a.total)
     const top = sorted.slice(0, PIE_TOP_N).map((t) => ({ name: t.label, value: t.total }))
     const restTotal = sorted.slice(PIE_TOP_N).reduce((sum, t) => sum + t.total, 0)
     return restTotal > 0 ? [...top, { name: 'Lainnya', value: restTotal }] : top
-  }, [tableStats])
+  }, [tableStats, excludeLogs])
   const activityData = useMemo(
     () => (activityQuery.data ?? []).map((d) => ({ ...d, label: dayjs(d.date).format('DD/MM') })),
     [activityQuery.data],
@@ -109,12 +113,14 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
   // shortcutItems dibuat stabil: refetch dibungkus ref agar memo tidak
   // ter-buang tiap transisi isFetching query
   const refreshRef = useRef<() => void>(() => {})
-  refreshRef.current = () => {
-    void statsQuery.refetch()
-    void activityQuery.refetch()
-    void integrityQuery.refetch()
-    void recentQuery.refetch()
-  }
+  useEffect(() => {
+    refreshRef.current = () => {
+      void statsQuery.refetch()
+      void activityQuery.refetch()
+      void integrityQuery.refetch()
+      void recentQuery.refetch()
+    }
+  })
   const shortcutItems = useMemo<ShortcutItem[]>(
     () => [
       {
@@ -125,7 +131,6 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
         run: () => refreshRef.current(),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
   const shortcuts = useShortcuts({ items: shortcutItems })
@@ -145,9 +150,15 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
     </>,
   )
 
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(timer)
+  }, [])
+
   // Freshness: umur cache stats (menit) — indikator data diperbarui kapan
   const statsAgeMin = statsQuery.dataUpdatedAt
-    ? Math.max(0, Math.floor((Date.now() - statsQuery.dataUpdatedAt) / 60_000))
+    ? Math.max(0, Math.floor((now - statsQuery.dataUpdatedAt) / 60_000))
     : null
 
   return (
@@ -312,7 +323,22 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
           </Card>
         </Col>
         <Col xs={24} lg={10}>
-          <Card title="Distribusi Baris per Tabel" size="small" style={{ height: '100%' }}>
+          <Card
+            title="Distribusi Baris per Tabel"
+            size="small"
+            style={{ height: '100%' }}
+            extra={
+              <Button
+                size="small"
+                type={excludeLogs ? 'primary' : 'default'}
+                ghost={excludeLogs}
+                onClick={() => setExcludeLogs((prev) => !prev)}
+                style={{ fontSize: 11, height: 24, paddingInline: 8 }}
+              >
+                {excludeLogs ? 'Tanpa Log' : 'Semua'}
+              </Button>
+            }
+          >
             {/* Chart + legend lega di kotak 240px — pembaca tahu milik siapa
                 tiap slice tanpa harus hover, jumlahnya terbaca langsung */}
             <div style={{ width: '100%', height: 176 }}>
