@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Button, Card, Col, Empty, List, Row, Segmented, Tag, Tooltip, Typography, theme } from 'antd'
+import { Alert, Button, Card, Col, Empty, Grid, List, Row, Segmented, Tag, Tooltip, Typography, theme } from 'antd'
 import {
   AuditOutlined,
   CrownFilled,
@@ -75,6 +75,8 @@ const QUICK_LINKS: QuickLink[] = [
 
 export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (tab: string) => void; active: boolean }) {
   const { token } = theme.useToken()
+  const screens = Grid.useBreakpoint()
+  const isMobile = !screens.md
   const navigate = useNavigate()
   const [range, setRange] = useState(7)
   const [excludeLogs, setExcludeLogs] = useState(true)
@@ -142,10 +144,20 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
     active,
     <>
       <Tooltip title="Segarkan semua data (R)">
-        <Button icon={<ThunderboltOutlined spin={isRefreshing} />} aria-label="Segarkan semua data" onClick={() => shortcutItems[0].run()} />
+        <Button
+          icon={<ThunderboltOutlined spin={isRefreshing} />}
+          aria-label="Segarkan semua data"
+          onClick={() => shortcutItems[0].run()}
+          style={isMobile ? { width: 44, height: 44 } : undefined}
+        />
       </Tooltip>
       <Tooltip title="Shortcut keyboard (?)">
-        <Button aria-label="Bantuan shortcut keyboard" icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+        <Button
+          aria-label="Bantuan shortcut keyboard"
+          icon={<QuestionCircleOutlined />}
+          onClick={shortcuts.open}
+          style={isMobile ? { width: 44, height: 44 } : undefined}
+        />
       </Tooltip>
     </>,
   )
@@ -245,9 +257,10 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: isMobile ? 'flex-start' : 'center',
             flexWrap: 'wrap',
-            gap: '4px 20px',
+            gap: isMobile ? 8 : '4px 20px',
             padding: '7px 14px',
             borderRadius: 10,
             border: `1px solid ${token.colorBorderSecondary}`,
@@ -260,7 +273,7 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
             <button
               type="button"
               onClick={() => onNavigateTab('database')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+              style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', textAlign: 'left', maxWidth: '100%', gap: 6, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
               title="Lihat kesehatan database"
             >
               <CrownFilled style={{ color: '#f59e0b' }} />
@@ -273,7 +286,7 @@ export function AdminDashboardTab({ onNavigateTab, active }: { onNavigateTab: (t
             <button
               type="button"
               onClick={() => onNavigateTab('database')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
+              style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', textAlign: 'left', maxWidth: '100%', gap: 6, background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
               title="Lihat cek integritas"
             >
               <WarningOutlined style={{ color: '#dc2626' }} />

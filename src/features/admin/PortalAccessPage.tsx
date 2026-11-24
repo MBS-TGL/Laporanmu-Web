@@ -1,7 +1,18 @@
-import { Alert, Button, Card, Popconfirm, Space, Table, Tag, Typography } from 'antd'
+import { useMemo, useState } from 'react'
+import { Alert, Button, Card, Input, Popconfirm, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, LogoutOutlined, ReloadOutlined } from '@ant-design/icons'
+import {
+  BellOutlined,
+  CheckCircleOutlined,
+  DeleteOutlined,
+  LogoutOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  SendOutlined,
+  WarningOutlined,
+} from '@ant-design/icons'
 import { StatChip } from '../../shared/components/StatChip'
+import { SendPushModal } from './components/SendPushModal'
 import {
   useDeletePushSubscription,
   usePortalAttempts,
@@ -28,16 +39,47 @@ function formatTime(value: string | null): string {
 }
 
 export function PortalAccessPage({ active }: PortalAccessPageProps) {
+  const [search, setSearch] = useState('')
+  const [sendPushOpen, setSendPushOpen] = useState(false)
+
   const sessions = usePortalSessions(active)
   const attempts = usePortalAttempts(active)
   const subscriptions = usePushSubscriptions(active)
   const revoke = useRevokePortalSession()
   const removePush = useDeletePushSubscription()
 
-  const sessionRows = sessions.data ?? []
-  const activeSessions = sessionRows.filter((s) => s.is_active).length
-  const attemptRows = attempts.data ?? []
-  const pushRows = subscriptions.data ?? []
+  const sessionRows = useMemo(() => sessions.data ?? [], [sessions.data])
+  const activeSessions = useMemo(() => sessionRows.filter((s) => s.is_active).length, [sessionRows])
+  const attemptRows = useMemo(() => attempts.data ?? [], [attempts.data])
+  const pushRows = useMemo(() => subscriptions.data ?? [], [subscriptions.data])
+
+  // Deteksi brute-force: prefix kode yang gagal >= 3 kali dalam riwayat
+  const bruteForceAlerts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const a of attemptRows) {
+      counts.set(a.code_prefix, (counts.get(a.code_prefix) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .filter(([, count]) => count >= 3)
+      .map(([prefix, count]) => ({ prefix, count }))
+  }, [attemptRows])
+
+  // Filter sesi & push berdasarkan pencarian nama santri / kelas
+  const filteredSessions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return sessionRows
+    return sessionRows.filter(
+      (s) =>
+        s.student_name.toLowerCase().includes(q) ||
+        (s.class_name && s.class_name.toLowerCase().includes(q)),
+    )
+  }, [sessionRows, search])
+
+  const filteredPushRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return pushRows
+    return pushRows.filter((p) => p.student_name.toLowerCase().includes(q))
+  }, [pushRows, search])
 
   const sessionColumns: ColumnsType<PortalSession> = [
     {
@@ -135,37 +177,94 @@ export function PortalAccessPage({ active }: PortalAccessPageProps) {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Space wrap>
-        <StatChip
-          icon={<LogoutOutlined />}
-          label="Sesi aktif"
-          value={activeSessions}
-          color="emerald"
-          loading={sessions.isLoading}
+      {/* Peringatan percobaan login brute-force */}
+      {bruteForceAlerts.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<WarningOutlined />}
+          message="Terdeteksi Lonjakan Percobaan Login Gagal"
+          description={
+            <div>
+              <span>Terdapat pola kegagalan login berulang pada prefix berikut: </span>
+              {bruteForceAlerts.map((b) => (
+                <Tag key={b.prefix} color="volcano" style={{ marginInline: 4 }}>
+                  Kode: {b.prefix} ({b.count}x gagal)
+                </Tag>
+              ))}
+              <div style={{ marginTop: 4, fontSize: 12, color: '#64748b' }}>
+                Sistem secara otomatis menerapkan pembatasan frekuensi (rate limiting) per prefix kode.
+              </div>
+            </div>
+          }
         />
-        <StatChip
-          icon={<LogoutOutlined />}
-          label="Percobaan gagal 7 hari"
-          value={attemptRows.length}
-          color="rose"
-          loading={attempts.isLoading}
-        />
-        <StatChip
-          icon={<LogoutOutlined />}
-          label="Langganan push"
-          value={pushRows.length}
-          color="indigo"
-          loading={subscriptions.isLoading}
-        />
-        <Button icon={<ReloadOutlined />} onClick={reloadAll}>
-          Muat Ulang
-        </Button>
-      </Space>
+      )}
+
+      {/* Header bar statistik & aksi */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <Space wrap>
+          <StatChip
+            icon={<CheckCircleOutlined />}
+            label="Sesi aktif"
+            value={activeSessions}
+            color="emerald"
+            loading={sessions.isLoading}
+          />
+          <StatChip
+            icon={<WarningOutlined />}
+            label="Gagal (7 hari)"
+            value={attemptRows.length}
+            color={attemptRows.length > 0 ? 'rose' : 'slate'}
+            loading={attempts.isLoading}
+          />
+          <StatChip
+            icon={<BellOutlined />}
+            label="Langganan push"
+            value={pushRows.length}
+            color="indigo"
+            loading={subscriptions.isLoading}
+          />
+        </Space>
+
+        <Space wrap>
+          <Input
+            placeholder="Cari santri atau kelas..."
+            prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            allowClear
+            style={{ width: 220 }}
+          />
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            onClick={() => setSendPushOpen(true)}
+            disabled={pushRows.length === 0}
+          >
+            Kirim Push
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={reloadAll}>
+            Muat Ulang
+          </Button>
+        </Space>
+      </div>
 
       <Card
         size="small"
         title="Sesi Portal Aktif"
-        extra={<Typography.Text type="secondary">Diperbarui tiap 30 detik</Typography.Text>}
+        extra={
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {search ? `Menampilkan ${filteredSessions.length} dari ${sessionRows.length} sesi` : 'Diperbarui tiap 30 detik'}
+          </Typography.Text>
+        }
       >
         {sessions.isError ? (
           <Alert
@@ -180,11 +279,11 @@ export function PortalAccessPage({ active }: PortalAccessPageProps) {
             rowKey="id"
             size="small"
             columns={sessionColumns}
-            dataSource={sessionRows}
+            dataSource={filteredSessions}
             loading={sessions.isLoading}
             pagination={{ pageSize: 10, hideOnSinglePage: true }}
             scroll={{ x: 720 }}
-            locale={{ emptyText: 'Belum ada sesi portal.' }}
+            locale={{ emptyText: search ? 'Tidak ada sesi yang cocok dengan pencarian.' : 'Belum ada sesi portal.' }}
           />
         )}
       </Card>
@@ -211,7 +310,15 @@ export function PortalAccessPage({ active }: PortalAccessPageProps) {
         )}
       </Card>
 
-      <Card size="small" title="Langganan Push Portal">
+      <Card
+        size="small"
+        title="Langganan Push Portal"
+        extra={
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {search ? `Menampilkan ${filteredPushRows.length} dari ${pushRows.length} perangkat` : `${pushRows.length} perangkat terdaftar`}
+          </Typography.Text>
+        }
+      >
         {subscriptions.isError ? (
           <Alert
             type="error"
@@ -225,14 +332,25 @@ export function PortalAccessPage({ active }: PortalAccessPageProps) {
             rowKey="id"
             size="small"
             columns={pushColumns}
-            dataSource={pushRows}
+            dataSource={filteredPushRows}
             loading={subscriptions.isLoading}
             pagination={{ pageSize: 10, hideOnSinglePage: true }}
             scroll={{ x: 640 }}
-            locale={{ emptyText: 'Belum ada perangkat yang mengaktifkan notifikasi.' }}
+            locale={{
+              emptyText: search
+                ? 'Tidak ada perangkat yang cocok dengan pencarian.'
+                : 'Belum ada perangkat yang mengaktifkan notifikasi.',
+            }}
           />
         )}
       </Card>
+
+      {/* Modal kirim notifikasi push manual */}
+      <SendPushModal
+        open={sendPushOpen}
+        onClose={() => setSendPushOpen(false)}
+        subscriptions={pushRows}
+      />
     </Space>
   )
 }

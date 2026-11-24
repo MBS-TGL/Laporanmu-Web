@@ -6,6 +6,16 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 
 ## Keputusan arsitektur
 
+### 2026-11-24 — Pusat Push Notification & Monitoring Portal Santri (`/admin?tab=portal`)
+
+- **Modal Kirim Push Manual**: `src/features/admin/components/SendPushModal.tsx` + hook `useSendPushNotification` di `src/features/admin/portal.ts`. Admin/developer/manager kini dapat membroadcast pesan push ke semua perangkat santri terdaftar atau memilih santri spesifik langsung dari dashboard admin, tercatat di audit log.
+- **Monitoring Portal Santri (`PortalAccessPage.tsx`)**:
+  - Filter pencarian instan nama santri & kelas pada tabel sesi aktif dan langganan perangkat push.
+  - Deteksi dini brute-force login: memunculkan alert peringatan jika ada prefix kode yang gagal login $\ge 3$ kali dalam 7 hari terakhir.
+  - StatChip menggunakan animasi pulse saat loading data awal.
+- **Auto-Fire Push Tagihan SPP**: `src/features/finance/push.ts` + `generateSppObligations` di `src/features/finance/api.ts`. Setiap penerbitan kewajiban SPP massal kini secara otomatis mengirim notifikasi push web (fire-and-forget) ke perangkat santri terkait.
+- **Verifikasi**: build sukses, eslint bersih, vitest 339/339 lulus.
+
 ### 2026-11-24 — Next Milestones selesai & diarsipkan (`docs/archive/PLAN-Next-Milestones.md`)
 
 - **Edge `create-user` v8**: CORS di-hardening membaca secret `APP_ORIGIN` (whitelist origin tunggal/terdaftar, tolak origin asing dengan 403). Deployed status ACTIVE v8.

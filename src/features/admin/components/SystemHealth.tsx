@@ -109,12 +109,24 @@ export function SystemHealth({ active, onOpenDatabase }: SystemHealthProps) {
                   )
                 }}
               >
-                <Switch
-                  size="small"
-                  checked={maintenance}
-                  loading={toggleMutation.isPending}
-                  aria-label="Toggle mode maintenance"
-                />
+                {/* Area sentuh 44px: span pembungkus, switch tetap kecil secara visual */}
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 11,
+                    margin: -11,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Switch
+                    size="small"
+                    checked={maintenance}
+                    loading={toggleMutation.isPending}
+                    aria-label="Toggle mode maintenance"
+                  />
+                </span>
               </Popconfirm>
             )}
           </span>

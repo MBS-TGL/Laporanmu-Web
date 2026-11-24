@@ -99,6 +99,53 @@ export function useRevokePortalSession() {
   })
 }
 
+export interface SendPushPayload {
+  title: string
+  body: string
+  url?: string
+  kind?: 'announcement' | 'spp' | 'report' | 'general'
+  studentIds?: string[]
+}
+
+export interface SendPushResult {
+  ok: boolean
+  sent?: number
+  failed?: number
+  deleted?: number
+  total?: number
+  reason?: string
+}
+
+export async function sendBroadcastPush(payload: SendPushPayload): Promise<SendPushResult> {
+  const { data, error } = await supabase.functions.invoke('push-send', {
+    body: payload,
+  })
+  if (error) throw error
+  return data as SendPushResult
+}
+
+export function useSendPushNotification() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: sendBroadcastPush,
+    onSuccess: (data, variables) => {
+      void logAudit({
+        action: 'EXECUTE',
+        source: 'SYSTEM',
+        tableName: 'push_subscriptions',
+        recordId: 'broadcast',
+        newData: {
+          title: variables.title,
+          kind: variables.kind ?? 'general',
+          targetCount: variables.studentIds?.length ?? 'all',
+          sentCount: data.sent ?? 0,
+        },
+      })
+      void qc.invalidateQueries({ queryKey: ['admin', 'push-subscriptions'] })
+    },
+  })
+}
+
 export function useDeletePushSubscription() {
   const qc = useQueryClient()
   return useMutation({

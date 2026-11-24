@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import { softDelete } from '../../shared/api/crud'
+import { sendSppObligationPush } from './push'
 import type {
   ComponentFormValues,
   PaymentFormValues,
@@ -126,6 +127,30 @@ export async function generateSppObligations(params: {
       ignoreDuplicates: true,
     })
   if (error) throw error
+
+  // Notifikasi web push otomatis (fire-and-forget) ke santri yang bersangkutan
+  void (async () => {
+    try {
+      const { data: comp } = await supabase
+        .from('spp_components')
+        .select('name')
+        .eq('id', params.componentId)
+        .maybeSingle()
+      const compName = comp?.name || 'SPP'
+      const studentIds = Array.from(new Set(targets.map((t) => t.id)))
+      for (const period of params.periods) {
+        await sendSppObligationPush({
+          studentIds,
+          componentName: compName,
+          period,
+          amount: params.amount,
+        })
+      }
+    } catch {
+      // diam jika background push gagal
+    }
+  })()
+
   return rows.length
 }
 
