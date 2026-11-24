@@ -1,5 +1,6 @@
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
+import { chunk } from '../../shared/utils/array'
 import { findOrphanIds, type AutomationRun } from './automation'
 import type {
   AdminProfile,
@@ -543,8 +544,8 @@ export async function runDetachRefs(): Promise<{ classRefs: number; dormRefs: nu
       (await supabase.from('classes').select('id').not('deleted_at', 'is', null)).data?.map((r) => r.id) ?? [],
     )
     const ids = findOrphanIds((studentsRes.data ?? []).map((s) => s.class_id), deadClassIds)
-    if (ids.length > 0) {
-      const { error } = await supabase.from('students').update({ class_id: null }).in('id', ids)
+    for (const part of chunk(ids, 500)) {
+      const { error } = await supabase.from('students').update({ class_id: null }).in('id', part)
       if (error) throw error
     }
   }
@@ -559,8 +560,8 @@ export async function runDetachRefs(): Promise<{ classRefs: number; dormRefs: nu
       (await supabase.from('dorms').select('id').not('deleted_at', 'is', null)).data?.map((r) => r.id) ?? [],
     )
     const ids = findOrphanIds((studentsRes.data ?? []).map((s) => s.dorm_id), deadDormIds)
-    if (ids.length > 0) {
-      const { error } = await supabase.from('students').update({ dorm_id: null }).in('id', ids)
+    for (const part of chunk(ids, 500)) {
+      const { error } = await supabase.from('students').update({ dorm_id: null }).in('id', part)
       if (error) throw error
     }
   }

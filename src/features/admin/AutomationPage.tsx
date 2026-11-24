@@ -30,6 +30,7 @@ import dayjs from 'dayjs'
 import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
+import { useProfile } from '../../shared/hooks/useProfile'
 import { logAudit } from '../../shared/utils/auditLogger'
 import { insertAutomationRun, runDetachRefs, runRotateAuditLogs, runSyncStats } from './api'
 import { useAutomationRuns, useImportAutomationRuns, useIntegrityIssues, useRotationPreview } from './hooks'
@@ -51,6 +52,8 @@ const ROTATION_OPTIONS = [
   { value: 90, label: '90 hari' },
 ]
 
+const now = () => Date.now()
+
 function summarizeStats(stats: Record<string, number>): string {
   return Object.entries(stats)
     .map(([key, value]) => `${key}=${value}`)
@@ -61,6 +64,9 @@ export function AutomationPage({ active }: { active: boolean }) {
   const { message } = App.useApp()
   const { token } = theme.useToken()
   const qc = useQueryClient()
+  const { role } = useProfile()
+  // RBAC per task: destruktif hanya developer/admin (guard UI + handler)
+  const canRunDestructive = role === 'developer' || role === 'admin'
   const [runningId, setRunningId] = useState<AutomationId | null>(null)
   const [progress, setProgress] = useState(0)
   const [rotationDays, setRotationDays] = useState(45)
@@ -110,7 +116,7 @@ export function AutomationPage({ active }: { active: boolean }) {
     setRunningId(null)
     setProgress(0)
     message.success(`${automation.label} selesai — ${summary}`)
-    recordRun(automation, true, Date.now() - startedAt, summary, affected)
+    recordRun(automation, true, now() - startedAt, summary, affected)
     void logAudit({
       action: 'EXECUTE',
       source: 'SYSTEM',
@@ -121,7 +127,11 @@ export function AutomationPage({ active }: { active: boolean }) {
   }
 
   const runAutomation = (automation: Automation) => {
-    const startedAt = Date.now()
+    if (automation.destructive && !canRunDestructive) {
+      message.error('Tugas destruktif hanya untuk developer/admin.')
+      return
+    }
+    const startedAt = now()
     setRunningId(automation.id)
     setProgress(20)
 
@@ -151,7 +161,7 @@ export function AutomationPage({ active }: { active: boolean }) {
         setProgress(0)
         const detail = err instanceof Error ? err.message : 'Gagal menjalankan tugas'
         message.error(detail)
-        recordRun(automation, false, Date.now() - startedAt, detail, null)
+        recordRun(automation, false, now() - startedAt, detail, null)
       })
   }
 
@@ -309,8 +319,21 @@ export function AutomationPage({ active }: { active: boolean }) {
                         {isRunning ? (
                           <Progress percent={progress} size="small" strokeColor={token.colorPrimary} />
                         ) : automation.destructive ? (
-                          <Tooltip title="Perlu konfirmasi ketik JALANKAN + pratinjau dampak">
-                            <Button type="default" danger icon={<CaretRightOutlined />} block disabled={runningId !== null} onClick={() => setConfirmAutomation(automation)}>
+                          <Tooltip
+                            title={
+                              canRunDestructive
+                                ? 'Perlu konfirmasi ketik JALANKAN + pratinjau dampak'
+                                : 'Hanya developer/admin yang boleh menjalankan tugas destruktif'
+                            }
+                          >
+                            <Button
+                              type="default"
+                              danger
+                              icon={<CaretRightOutlined />}
+                              block
+                              disabled={runningId !== null || !canRunDestructive}
+                              onClick={() => setConfirmAutomation(automation)}
+                            >
                               Jalankan
                             </Button>
                           </Tooltip>
