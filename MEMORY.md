@@ -1030,6 +1030,14 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 - SystemHealth "3 temuan" → "3 jenis" (konsisten: chip 146 = total baris bermasalah, widget = jumlah jenis temuan).
 - Verifikasi: tsc 0, build sukses; pengukuran rect per card + screenshot runtime.
 
+### 2026-11-24: P2 kecepatan Asisten AI (cache FAQ sessionStorage)
+- **`shared/lib/aiCache.ts`**: cache jawaban di `sessionStorage` key `ai:faq:v1`, TTL 24 jam, maks 40 entri, kunci pertanyaan dinormalisasi (huruf kecil, tanda baca dibuang). Semua operasi fail-soft: storage penuh/diblokir tidak melempar error.
+- **Scope role**: key cache memakai prefix role (`admin|apa itu poin santri`), sehingga chip Sumber milik admin tidak bocor ke guru di tab yang sama.
+- **Aturan cache**: hanya pertanyaan yang punya knowledge match, pertanyaan saran, atau pertanyaan mandiri tanpa penanda follow-up (`lanjut`, `lebih`, `jelaskan`, `tadi`, `contohnya`, dan sejenisnya).
+- **`ChatAssistant`**: cache hit langsung menambah bubble user + asisten tanpa `isLoading` dan tanpa request network; cache miss menyimpan teks + sources setelah sukses. Log DEV mencatat `durationMs` dan `estimatedTokens` tanpa isi percakapan.
+- **Gotcha**: jangan cache semua pertanyaan. Jawaban lanjutan yang bergantung pada history harus tetap memanggil model.
+- **Verifikasi**: vitest **332/332**, `npm run build` sukses, eslint file P2 0. Uji klik saran dua kali di browser belum dijalankan.
+
 ### 2026-11-23: P1 akurasi Asisten AI (knowledge base + menu sadar-role + chip Sumber)
 - **Akar masalah**: `ChatAssistant` tidak pernah mengirim `context`; server hanya memakai `body.context` untuk mode `chat`, sementara `APP_CONTEXT` di `ai.ts` tidak terkirim dan sudah usang (`/cek`, "Cek Poin Santri"). Model lalu mengarang menu "Data Wali" dan "Kontak Wali".
 - **`shared/lib/aiKnowledge.ts`**: 50 entri FAQ dengan `id/title/keywords/answer/route/perm/flag/isPublic`; `retrieveKnowledge` menormalkan teks, memberi skor judul + keyword (termasuk sinonim), memfilter permission/flag, dan mengambil top 4. `toSources` hanya mengembalikan entri yang punya route.

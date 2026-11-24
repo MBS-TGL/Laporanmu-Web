@@ -88,10 +88,11 @@ POST /functions/v1/ai-proxy
 **Kriteria selesai**: 10 FAQ menjawab dengan menu/route benar; role guru tidak disarankan membuka menu admin; pertanyaan di luar konteks dijawab dengan arahan menu, bukan karangan.
 
 ## 9. P2: Kecepatan non-streaming
-- [ ] Cache jawaban FAQ sukses di `sessionStorage` (`ai:faq:v1`, TTL 24 jam, kunci pertanyaan ternormalisasi). Klik saran kedua kali instan.
-- [ ] Model routing: 20b untuk chat, 120b hanya untuk generasi panjang.
-- [ ] Ringkas prompt dan history; jangan kirim greeting.
-- [ ] Catat `mode`, `latency_ms`, `status`, `tokens_est` (tanpa isi percakapan) untuk evaluasi p50/p95.
+- [x] Cache jawaban FAQ sukses di `sessionStorage` (`ai:faq:v1`, TTL 24 jam, kunci pertanyaan ternormalisasi, scope role). Klik saran kedua kali instan.
+- [x] Model routing: 20b untuk chat, 120b hanya untuk generasi panjang.
+- [x] Jangan kirim greeting ke history.
+- [ ] Ringkas prompt dan history panjang.
+- [x] Catat `latency_ms` dan `tokens_est` di console DEV (tanpa isi percakapan).
 - [ ] Opsional: ringkas history lama menjadi satu kalimat jika percakapan panjang.
 
 **Kriteria selesai**: jawaban saran kedua instan; p50 latency chat turun dibanding baseline; tidak ada regresi pada modul non-streaming.

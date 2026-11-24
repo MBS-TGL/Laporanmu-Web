@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Drawer, Input } from 'antd'
 import { RobotOutlined, SendOutlined } from '@ant-design/icons'
-import { askAi, type AiChatMessage } from '../shared/lib/ai'
+import { askAi, estimateTokens, type AiChatMessage } from '../shared/lib/ai'
+import {
+  getCachedAnswer,
+  isCacheableQuestion,
+  normalizeCacheKey,
+  setCachedAnswer,
+} from '../shared/lib/aiCache'
 import { buildChatContext } from '../shared/lib/aiContext'
 import { retrieveKnowledge, toSources, type AiSource } from '../shared/lib/aiKnowledge'
 import { useFlagMap } from '../shared/hooks/useFeatureFlags'
@@ -102,6 +108,36 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
       .slice(-6)
       .map((message) => ({ role: message.role, content: message.content }))
 
+    const knowledge = retrieveKnowledge(text, { can: contextCan, flags: flagMap })
+    const sources = toSources(knowledge)
+    const normalized = normalizeCacheKey(text)
+    const isSuggestion = SUGGESTIONS.some(
+      (suggestion) => normalizeCacheKey(suggestion) === normalized,
+    )
+    const cacheable = isCacheableQuestion(text, knowledge.length, history.length, isSuggestion)
+    const cacheScope = role ?? 'staff'
+    const cached = cacheable ? getCachedAnswer(text, { scope: cacheScope }) : null
+
+    if (cached) {
+      if (appendUser) {
+        setMessages((prev) => [...prev, { role: 'user', content: text }])
+      }
+      setInput('')
+      setError(null)
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: cached.text,
+          sources: cached.sources.length > 0 ? cached.sources : undefined,
+        },
+      ])
+      if (import.meta.env.DEV) {
+        console.info('[ai] cache hit', { estimatedTokens: estimateTokens(cached.text) })
+      }
+      return
+    }
+
     if (appendUser) {
       setMessages((prev) => [...prev, { role: 'user', content: text }])
     }
@@ -114,9 +150,10 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     const controller = new AbortController()
     abortRef.current = controller
 
-    const knowledge = retrieveKnowledge(text, { can: contextCan, flags: flagMap })
     const context = buildChatContext({ role, flags: flagMap, can: contextCan, knowledge })
+    const startedAt = performance.now()
     const result = await askAi(text, { history, context, signal: controller.signal })
+    const durationMs = Math.round(performance.now() - startedAt)
 
     if (controller.signal.aborted || requestId !== requestIdRef.current) {
       if (requestId === requestIdRef.current) {
@@ -132,7 +169,16 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     setIsLoading(false)
 
     if (result.ok) {
-      const sources = toSources(knowledge)
+      if (cacheable) {
+        setCachedAnswer(text, { text: result.text, sources }, { scope: cacheScope })
+      }
+      if (import.meta.env.DEV) {
+        console.info('[ai] chat selesai', {
+          durationMs,
+          cached: false,
+          estimatedTokens: estimateTokens(context, text, result.text),
+        })
+      }
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: result.text, sources: sources.length > 0 ? sources : undefined },
