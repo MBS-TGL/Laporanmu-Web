@@ -49,3 +49,33 @@ describe('yudisiumChecks', () => {
     expect(fail.filter((r) => !r.pass).map((r) => r.key)).toEqual(['tahfidz', 'spp', 'points'])
   })
 })
+
+describe('formatRadarSubjectName', () => {
+  it('singkat nama mapel standar', async () => {
+    const { formatRadarSubjectName } = await import('./raporUtil')
+    expect(formatRadarSubjectName('Matematika')).toBe('MTK')
+    expect(formatRadarSubjectName('Pendidikan Agama Islam')).toBe('PAI')
+    expect(formatRadarSubjectName('Bahasa Indonesia')).toBe('B. Indo')
+    expect(formatRadarSubjectName('Pendidikan Pancasila dan Kewarganegaraan')).toBe('PPKn')
+  })
+
+  it('memotong nama mapel kustom yang terlalu panjang', async () => {
+    const { formatRadarSubjectName } = await import('./raporUtil')
+    expect(formatRadarSubjectName('Fiqih Sunnah Praktis')).toBe('Fiqih Sunnah…')
+    expect(formatRadarSubjectName('Kajian')).toBe('Kajian')
+  })
+})
+
+describe('transformToRadarData', () => {
+  it('memetakan baris nilai ke titik radar dengan fallback nilai 0 dan kkm default 75', async () => {
+    const { transformToRadarData } = await import('./raporUtil')
+    const res = transformToRadarData([
+      { subject: 'Matematika', score: 85, kkm: 70 },
+      { subject: 'Bahasa Indonesia', score: null, kkm: 75 },
+    ])
+    expect(res).toEqual([
+      { subject: 'MTK', fullName: 'Matematika', score: 85, kkm: 70 },
+      { subject: 'B. Indo', fullName: 'Bahasa Indonesia', score: 0, kkm: 75 },
+    ])
+  })
+})

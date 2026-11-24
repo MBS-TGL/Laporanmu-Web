@@ -8,8 +8,11 @@ import {
   App,
   Button,
   Card,
+  Checkbox,
+  Col,
   Empty,
   Input,
+  Row,
   Segmented,
   Select,
   Space,
@@ -31,6 +34,7 @@ import {
 import { callAi } from '../../../shared/lib/ai'
 import { usePermissions } from '../../../shared/hooks/useProfile'
 import { DocPrintModal } from '../components/DocPrintModal'
+import { RaporRadarChart } from '../components/RaporRadarChart'
 import { autoDescription, predikatLabel, predikatOf } from '../raporUtil'
 
 const AI_SYSTEM =
@@ -55,6 +59,7 @@ export function RaporTab() {
   const [studentId, setStudentId] = useState<string | undefined>(undefined)
   const [semester, setSemester] = useState<'1' | '2'>('1')
   const [printOpen, setPrintOpen] = useState(false)
+  const [printWithRadar, setPrintWithRadar] = useState(true)
   const [aiDraft, setAiDraft] = useState<Record<string, string>>({})
   const [aiLoading, setAiLoading] = useState(false)
 
@@ -80,23 +85,21 @@ export function RaporTab() {
     queryFn: () => fetchSemesterScoresForClass(classId!, ayId!, Number(semester) as 1 | 2),
     enabled: Boolean(classId) && Boolean(ayId),
   })
-  const scoresByStudent = scoresQuery.data ?? {}
   const student = students.find((s) => s.id === studentId)
-  const studentScores = studentId ? (scoresByStudent[studentId] ?? {}) : {}
 
-  const rows = useMemo<SubjectRow[]>(
-    () =>
-      classSubjects.map((cs) => {
-        const subjectId = cs.subject_id
-        const score = studentScores[subjectId] ?? null
-        return {
-          subject: cs.subjects?.name ?? 'Tanpa mapel',
-          score: typeof score === 'number' ? score : null,
-          kkm: cs.kkm_override ?? cs.subjects?.kkm ?? 75,
-        }
-      }),
-    [classSubjects, studentScores],
-  )
+  const rows = useMemo<SubjectRow[]>(() => {
+    const scoresByStudent = scoresQuery.data ?? {}
+    const studentScores = studentId ? (scoresByStudent[studentId] ?? {}) : {}
+    return classSubjects.map((cs) => {
+      const subjectId = cs.subject_id
+      const score = studentScores[subjectId] ?? null
+      return {
+        subject: cs.subjects?.name ?? 'Tanpa mapel',
+        score: typeof score === 'number' ? score : null,
+        kkm: cs.kkm_override ?? cs.subjects?.kkm ?? 75,
+      }
+    })
+  }, [classSubjects, scoresQuery.data, studentId])
 
   const avg = useMemo(() => {
     const nums = rows.filter((r) => r.score !== null).map((r) => r.score as number)
@@ -241,28 +244,43 @@ export function RaporTab() {
           </div>
         </Card>
       ) : (
-        <Card title={`Rapor Semester ${semester === '1' ? '1 (Ganjil)' : '2 (Genap)'} · ${student?.name ?? ''}`} styles={{ body: { padding: '8px 12px' } }}>
-          <Table rowKey="subject" size="small" columns={columns} dataSource={rows} pagination={false} />
-          <div style={{ marginTop: 12 }}>
-            <Typography.Text strong style={{ fontSize: 12.5 }}>
-              Deskripsi per mapel {Object.keys(aiDraft).length > 0 && '(hasil polesan AI, dapat diedit)'}
-            </Typography.Text>
-            <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-              {rows.map((r) => (
-                <div key={r.subject}>
-                  <Typography.Text style={{ fontSize: 12, fontWeight: 600 }}>{r.subject}</Typography.Text>
-                  <Input.TextArea
-                    rows={2}
-                    value={descFor(r)}
-                    onChange={(e) => setAiDraft((prev) => ({ ...prev, [r.subject]: e.target.value }))}
-                    disabled={!canWrite}
-                    style={{ marginTop: 4 }}
-                  />
+        <Row gutter={[16, 16]} align="top">
+          <Col xs={24} lg={rows.length >= 3 ? 14 : 24}>
+            <Card
+              title={`Rapor Semester ${semester === '1' ? '1 (Ganjil)' : '2 (Genap)'} · ${student?.name ?? ''}`}
+              styles={{ body: { padding: '8px 12px' } }}
+            >
+              <Table rowKey="subject" size="small" columns={columns} dataSource={rows} pagination={false} />
+              <div style={{ marginTop: 12 }}>
+                <Typography.Text strong style={{ fontSize: 12.5 }}>
+                  Deskripsi per mapel {Object.keys(aiDraft).length > 0 && '(hasil polesan AI, dapat diedit)'}
+                </Typography.Text>
+                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                  {rows.map((r) => (
+                    <div key={r.subject}>
+                      <Typography.Text style={{ fontSize: 12, fontWeight: 600 }}>{r.subject}</Typography.Text>
+                      <Input.TextArea
+                        rows={2}
+                        value={descFor(r)}
+                        onChange={(e) => setAiDraft((prev) => ({ ...prev, [r.subject]: e.target.value }))}
+                        disabled={!canWrite}
+                        style={{ marginTop: 4 }}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        </Card>
+              </div>
+            </Card>
+          </Col>
+
+          {rows.length >= 3 && (
+            <Col xs={24} lg={10}>
+              <div style={{ position: 'sticky', top: 76 }}>
+                <RaporRadarChart data={rows} height={340} />
+              </div>
+            </Col>
+          )}
+        </Row>
       )}
 
       <DocPrintModal
@@ -271,7 +289,29 @@ export function RaporTab() {
         title="RAPORT CAPAIAN PEMBELAJARAN"
         subtitle={`Semester ${semester === '1' ? '1 (Ganjil)' : '2 (Genap)'}${activeYear.data?.name ? ` · Tahun Ajaran ${activeYear.data.name}` : ''}`}
       >
-        <div style={{ fontSize: 12, marginBottom: 10 }}>Nama: <b>{student?.name ?? ''}</b></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 12 }}>Nama: <b>{student?.name ?? ''}</b></div>
+          {rows.length >= 3 && (
+            <div className="no-print">
+              <Checkbox
+                checked={printWithRadar}
+                onChange={(e) => setPrintWithRadar(e.target.checked)}
+              >
+                Sertakan Grafik Capaian
+              </Checkbox>
+            </div>
+          )}
+        </div>
+
+        {printWithRadar && rows.length >= 3 && (
+          <div style={{ marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#334155', marginBottom: 6, textAlign: 'center' }}>
+              DIAGRAM CAPAIAN KOMPETENSI SISWA VS STANDAR KKM
+            </div>
+            <RaporRadarChart data={rows} height={260} isPrint />
+          </div>
+        )}
+
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
           <thead>
             <tr style={{ background: '#f1f5f9' }}>

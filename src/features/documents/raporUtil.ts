@@ -99,3 +99,55 @@ export function yudisiumChecks(input: YudisiumInput): YudisiumRequirement[] {
 export function yudisiumPassed(requirements: YudisiumRequirement[]): boolean {
   return requirements.every((r) => r.pass)
 }
+
+/** Peta singkatan cerdas untuk nama mapel panjang di diagram grafik (agar tidak terpotong) */
+const COMMON_SUBJECT_SHORTEN: Record<string, string> = {
+  'pendidikan agama islam': 'PAI',
+  'pendidikan agama islam dan budi pekerti': 'PAI & BP',
+  'pendidikan pancasila dan kewarganegaraan': 'PPKn',
+  'pendidikan pancasila': 'Pancasila',
+  'bahasa indonesia': 'B. Indo',
+  'bahasa inggris': 'B. Inggris',
+  'bahasa arab': 'B. Arab',
+  'matematika': 'MTK',
+  'ilmu pengetahuan alam': 'IPA',
+  'ilmu pengetahuan sosial': 'IPS',
+  'pendidikan jasmani, olahraga, dan kesehatan': 'PJOK',
+  'seni budaya dan prakarya': 'SBdP',
+  'seni budaya': 'Seni Budaya',
+  'teknologi informasi dan komunikasi': 'TIK',
+  'informatika': 'Informatika',
+  'bimbingan dan konseling': 'BK',
+}
+
+export function formatRadarSubjectName(name: string): string {
+  const clean = name.trim()
+  const lower = clean.toLowerCase()
+  if (COMMON_SUBJECT_SHORTEN[lower]) return COMMON_SUBJECT_SHORTEN[lower]
+  if (clean.length <= 13) return clean
+  // Jika lebih dari 13 karakter dan ada kata pertama & kedua, ambil ringkasan
+  const words = clean.split(/\s+/)
+  if (words.length > 2) {
+    return words.slice(0, 2).join(' ') + '…'
+  }
+  return clean.slice(0, 11) + '…'
+}
+
+export interface RadarDataPoint {
+  subject: string
+  fullName: string
+  score: number
+  kkm: number
+}
+
+export function transformToRadarData(
+  items: Array<{ subject: string; score: number | null; kkm: number }>,
+): RadarDataPoint[] {
+  return items.map((item) => ({
+    subject: formatRadarSubjectName(item.subject),
+    fullName: item.subject,
+    score: item.score ?? 0,
+    kkm: item.kkm ?? 75,
+  }))
+}
+

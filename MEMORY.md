@@ -6,6 +6,18 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 
 ## Keputusan arsitektur
 
+### 2026-11-24 — Radar Chart capaian kompetensi santri di Rapor Kurmer (`/documents?tab=report-card`)
+
+- **Komponen Reusable `RaporRadarChart.tsx`**: Diagram jaring laba-laba (*spider/radar chart*) berbasis `recharts` yang memvisualisasikan sebaran nilai santri vs batas KKM per mata pelajaran.
+- **Helper Cerdas `raporUtil.ts`**:
+  - `formatRadarSubjectName`: menyingkat nama mapel panjang secara otomatis (misal: "Pendidikan Agama Islam dan Budi Pekerti" $\rightarrow$ "PAI & BP") agar label sudut poligon tidak saling bertumpuk.
+  - `transformToRadarData`: normalisasi nilai dan KKM dengan proteksi minimal 3 titik/sudut untuk membentuk poligon valid.
+- **Layout Responsif & Cetak Berkop**:
+  - Desktop: layout split 2 kolom (tabel nilai & deskripsi AI di kiri, sticky radar chart di kanan).
+  - Mobile (390px): reflow vertikal mulus (*stack*).
+  - Modal Cetak (`DocPrintModal`): opsi centang *"Sertakan Grafik Capaian"* sebelum cetak fisik lembar rapor, dirender tajam dengan kontras tinggi (*print-safe*).
+- **Verifikasi**: Vitest 342/342 (3 tes baru untuk `formatRadarSubjectName` & `transformToRadarData`), ESLint 0 error/warning, `npm run build` sukses.
+
 ### 2026-11-24 — Topbar mobile ergonomis: full search overlay & entity di menu profil
 
 - **Pencarian Mobile**: Ikon kaca pembesar (`SearchOutlined`) saat diklik kini membuka *Full-Width Search Overlay* (100% selebar layar) dengan tombol kembali (`LeftOutlined`) dan `autoFocus`. Logo dan kontrol lain disembunyikan sementara, sehingga pengguna mendapatkan area input yang luas tanpa terpotong di layar 360–390px.
