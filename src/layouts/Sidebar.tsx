@@ -16,6 +16,7 @@ import { useProfile } from '../shared/hooks/useProfile'
 import { useRbac } from '../shared/rbac/useRbac'
 import { useFlagMap } from '../shared/hooks/useFeatureFlags'
 import { collapseTransition, collapseVariants, railTransition } from '../shared/motion'
+import { EntitySwitcher } from './EntitySwitcher'
 import { supabase } from '../lib/supabase'
 
 /** Tahun akademik aktif untuk subjudul brand di sidebar (mis. "TA 2026/2027"). */
@@ -147,9 +148,11 @@ interface SidebarProps {
   collapsed?: boolean
   /** Dipanggil setelah item diklik — dipakai drawer mobile untuk menutup diri */
   onNavigate?: () => void
+  /** Tampilkan pemilih lembaga di bawah brand (dipakai drawer mobile). */
+  showEntity?: boolean
 }
 
-export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
+export function Sidebar({ collapsed = false, onNavigate, showEntity = false }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { profile } = useProfile()
@@ -435,6 +438,7 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {brand}
+      {showEntity && !collapsed && <EntitySwitcher fullWidth />}
       {nav}
     </div>
   )

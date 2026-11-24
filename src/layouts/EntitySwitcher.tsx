@@ -12,7 +12,12 @@ import { EntityModal } from '../features/entities/EntityModal'
  * dengan satu entity (default) UI tidak berubah sama sekali.
  * Kelola Entity hanya untuk developer/admin (RLS entities menegakkan).
  */
-export function EntitySwitcher({ isMobile }: { isMobile: boolean }) {
+interface EntitySwitcherProps {
+  /** Blok penuh di drawer/sidebar (ada label, select selebar kontainer). */
+  fullWidth?: boolean
+}
+
+export function EntitySwitcher({ fullWidth = false }: EntitySwitcherProps) {
   const { message } = App.useApp()
   const enabled = useFlag('system.multi_entity')
   const { profile } = useProfile()
@@ -26,37 +31,64 @@ export function EntitySwitcher({ isMobile }: { isMobile: boolean }) {
 
   return (
     <>
-      <Select
-        size="small"
-        value={entityId ?? undefined}
-        loading={entities.length === 0}
-        onChange={(id) => {
-          switchEntity(id)
-          message.success(`Beralih ke ${entities.find((e) => e.id === id)?.name ?? 'entity'}`)
-        }}
-        options={switchable.map((e) => ({ value: e.id, label: e.name }))}
-        prefix={<AppstoreOutlined style={{ color: '#64748b', fontSize: 12 }} />}
-        // Mobile: menyusut saat ruang mepet (nama terpotong elipsis) —
-        // mencegah klaster kanan topbar menimpa tombol pencarian di 390px.
+      <div
         style={
-          isMobile
-            ? { width: 84, minWidth: 64, flexShrink: 1 }
-            : { width: 180, flexShrink: 0 }
+          fullWidth
+            ? {
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 6,
+                padding: '10px 12px',
+                borderBottom: '1px solid #eef2f7',
+                flexShrink: 0,
+              }
+            : { display: 'contents' }
         }
-        aria-label="Pilih entity lembaga"
-      />
-      {isAdmin && (
-        <Tooltip title="Kelola entity">
-          <Button
-            type="text"
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {fullWidth && (
+            <div
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: '#94a3b8',
+                marginBottom: 4,
+              }}
+            >
+              Lembaga
+            </div>
+          )}
+          <Select
             size="small"
-            icon={<SettingOutlined style={{ fontSize: 13 }} />}
-            onClick={() => setManageOpen(true)}
-            aria-label="Kelola entity"
-            style={{ width: 28, height: 28, color: '#64748b', flexShrink: 0 }}
+            value={entityId ?? undefined}
+            loading={entities.length === 0}
+            onChange={(id) => {
+              switchEntity(id)
+              message.success(`Beralih ke ${entities.find((e) => e.id === id)?.name ?? 'entity'}`)
+            }}
+            options={switchable.map((e) => ({ value: e.id, label: e.name }))}
+            prefix={<AppstoreOutlined style={{ color: '#64748b', fontSize: 12 }} />}
+            // Topbar: menyusut saat ruang mepet (nama terpotong elipsis).
+            // Drawer: memenuhi lebar kontainer karena ruangnya lega.
+            style={fullWidth ? { width: '100%' } : { width: 180, flexShrink: 0 }}
+            aria-label="Pilih entity lembaga"
           />
-        </Tooltip>
-      )}
+        </div>
+        {isAdmin && (
+          <Tooltip title="Kelola entity">
+            <Button
+              type="text"
+              size="small"
+              icon={<SettingOutlined style={{ fontSize: 13 }} />}
+              onClick={() => setManageOpen(true)}
+              aria-label="Kelola entity"
+              style={{ width: 28, height: 28, color: '#64748b', flexShrink: 0 }}
+            />
+          </Tooltip>
+        )}
+      </div>
       <EntityModal open={manageOpen} onClose={() => setManageOpen(false)} currentId={entityId} />
     </>
   )

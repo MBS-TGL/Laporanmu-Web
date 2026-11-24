@@ -41,7 +41,7 @@ export function MainLayout() {
         size="min(270px, 86vw)"
         styles={{ body: { padding: 0, scrollbarWidth: 'none' } }}
       >
-        <Sidebar onNavigate={() => setDrawerOpen(false)} />
+        <Sidebar onNavigate={() => setDrawerOpen(false)} showEntity />
       </Drawer>
 
       <Layout>

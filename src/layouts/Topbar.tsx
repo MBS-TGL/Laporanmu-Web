@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Dropdown,
+  Grid,
   Input,
   Layout,
   Popover,
@@ -220,6 +221,11 @@ export function Topbar({
 }: TopbarProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const screens = Grid.useBreakpoint()
+  // Di ponsel, bottom nav ("Lainnya") sudah membuka drawer menu yang sama,
+  // jadi hamburger di topbar hanya duplikat dan memakan lebar. Di tablet
+  // (768-991) bottom nav tidak dirender, sehingga hamburger tetap perlu.
+  const hasBottomNav = screens.md === false
   const { profile } = useProfile()
   const { menu: profileMenu } = useProfileMenu(onCloseDrawer)
   const { notifications, loading, refreshing, dismiss, refresh } = useNotifications()
@@ -503,12 +509,14 @@ export function Topbar({
               // sanggup memuat wordmark + 4 kontrol kanan tanpa saling menimpa;
               // nama brand lengkap hidup di drawer menu (hamburger).
               <Space size={4} align="center">
-                <Button
-                  type="text"
-                  icon={<MenuOutlined />}
-                  onClick={onOpenDrawer}
-                  aria-label="Buka menu"
-                />
+                {!hasBottomNav && (
+                  <Button
+                    type="text"
+                    icon={<MenuOutlined />}
+                    onClick={onOpenDrawer}
+                    aria-label="Buka menu"
+                  />
+                )}
                 <img
                   src="/logo-icon.png"
                   alt="Logo Laporanmu"
@@ -634,7 +642,9 @@ export function Topbar({
 
         {/* ── Kanan: entity, asisten AI, notifikasi, profil ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 8, flexShrink: 0 }}>
-          <EntitySwitcher isMobile={isMobile} />
+          {/* Entity hanya di desktop. Di mobile pindah ke drawer menu (di bawah brand)
+              agar topbar tidak memuat 6 kontrol sekaligus. */}
+          {!isMobile && <EntitySwitcher />}
           <Button
             icon={<RobotOutlined style={{ fontSize: 14 }} />}
             onClick={() => setChatOpen(true)}
