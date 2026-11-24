@@ -1029,3 +1029,21 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 - **Audit Terbaru**: gap 8 antara Tag aksi & subjek (dulu tempel "DELETEstudent_semester_reports") dan subjek kini lewat `TABLE_LABELS` ("Rapor Semester", konsisten AuditPage — dulu nama tabel mentah).
 - SystemHealth "3 temuan" → "3 jenis" (konsisten: chip 146 = total baris bermasalah, widget = jumlah jenis temuan).
 - Verifikasi: tsc 0, build sukses; pengukuran rect per card + screenshot runtime.
+
+### 2026-11-23: P1 akurasi Asisten AI (knowledge base + menu sadar-role + chip Sumber)
+- **Akar masalah**: `ChatAssistant` tidak pernah mengirim `context`; server hanya memakai `body.context` untuk mode `chat`, sementara `APP_CONTEXT` di `ai.ts` tidak terkirim dan sudah usang (`/cek`, "Cek Poin Santri"). Model lalu mengarang menu "Data Wali" dan "Kontak Wali".
+- **`shared/lib/aiKnowledge.ts`**: 50 entri FAQ dengan `id/title/keywords/answer/route/perm/flag/isPublic`; `retrieveKnowledge` menormalkan teks, memberi skor judul + keyword (termasuk sinonim), memfilter permission/flag, dan mengambil top 4. `toSources` hanya mengembalikan entri yang punya route.
+- **`shared/lib/aiContext.ts`**: `buildChatContext` memakai `filterNavGroups` + `filterNavItems` sehingga menu admin tidak terkirim ke guru; selalu menyertakan halaman publik `/check`, `/verify`, `/login`.
+- **`ChatAssistant`**: kirim `context` ke `askAi`, tampilkan chip Sumber (route app menutup drawer lalu navigate; halaman publik buka tab baru), tombol saran "Di mana data wali?", dan perbaikan kontras teks footer/loading. Target sentuh mobile 44px untuk chip Sumber, saran cepat, input, kirim, dan Coba lagi; desktop kembali 28-32px.
+- **`ai.ts`**: hapus `APP_CONTEXT`/`CHAT_FALLBACK_SYSTEM` yang tidak terpakai; `askAi` sekarang bergantung pada prompt server + context.
+- **`ai-proxy`**: guardrail diperketat: hanya sebut menu/route yang ada di `<konteks_aplikasi>`, dilarang mengarang nama menu/route/nama orang/nomor/nilai. Deployed sebagai versi 8 (ACTIVE).
+- **Dokumen**: `docs/AI-EVAL.md` berisi 20 pertanyaan uji + jebakan; `PLANNING-AI-ASSISTANT.md` P1 ditandai selesai.
+- **Gotcha**: `retrieveKnowledge` sengaja memakai keyword phrase + token, bukan embedding; tambah sinonim di `keywords` bila ada istilah baru. Entry `akses-admin` sengaja tanpa `perm` agar guru tetap mendapat jawaban "hanya untuk akun berizin" tanpa disarankan membuka `/admin`.
+- **Verifikasi**: eslint file P1 0, `npm run build` sukses, vitest **325/325**. Uji visual 390px/768px dan uji jawaban live masih perlu dilakukan di 5174 dengan akun login.
+
+### 2026-11-23 — P0 guardrail Asisten AI (model lock + kuota + error state)
+- **Edge `ai-proxy`**: `mode` allowlist (`chat|cbt|counseling|health|insights|rapor`), model dikunci server (`gpt-oss-20b` untuk chat/insights, `gpt-oss-120b` untuk sisanya), `BASE_GUARDRAILS` + tag `<konteks_aplikasi>`/`<pertanyaan_pengguna>`, timeout 25 detik, CORS `APP_ORIGIN`. Jalur legacy (`system` + `prompt`) tetap didukung agar 5 consumer modul tidak putus sebelum migrasi.
+- **Migrasi `0070_ai_guardrails.sql`** (0069 sudah dipakai guardian portal): tabel `ai_usage` + RPC `ai_consume_quota` (5 permintaan/menit, 30/hari per user; 24.000 token/menit, 180.000 token/hari global). Batas token sengaja di atas 8.192 agar satu generasi CBT tidak langsung ditolak.
+- **`shared/lib/ai.ts`**: `askAi` kini `AiResult` (`ok/code/message`); `callAi` tetap mengembalikan string untuk consumer lama; `AbortSignal` diteruskan ke `functions.invoke`. `ChatAssistant`: error bubble + tombol Coba lagi, abort saat drawer ditutup, history 6 pesan tanpa greeting, `requestIdRef` mencegah race antar-request.
+- **Gotcha**: `supabase.functions.invoke` mendukung `signal`; jangan `setState` di body effect (pakai `abortOnly` ref-only, reset state di handler async). 52 error lint yang tersisa sudah ada sebelum P0 (Topbar/useTablePagination/AppModal/ImportWizard).
+- **Verifikasi**: eslint `ai.ts` + `ChatAssistant` 0, `npm run build` sukses, vitest **315/315**. Belum deploy edge/migrasi; urutan aman: jalankan `0070` → deploy `ai-proxy` → frontend.

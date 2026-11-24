@@ -1,82 +1,129 @@
-// Klien AI untuk Asisten AI topbar & modul AI.
-// Panggilan diteruskan ke Edge Function `ai-proxy` supaya API key provider
-// TIDAK pernah ikut terkompilasi ke bundle browser.
-
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 
-// Model free-tier Groq (aktif Nov 2026): 30 RPM, 1K RPD, 8K TPM, 200K TPD.
 export const MODEL = 'openai/gpt-oss-120b'
+export const CHAT_MODEL = 'openai/gpt-oss-20b'
 
-const APP_CONTEXT = `
-IDENTITAS:
-- Platform: Laporanmu (sistem informasi manajemen pondok/sekolah santri).
-- Fitur: data santri & guru, poin santri (pelanggaran & prestasi), asrama, kesehatan,
-  bimbingan konseling, izin keluar, skorsing, laporan gerbang, presensi & jadwal KBM,
-  halaqah, rapor bulanan & semester, tahun akademik, audit log.
+export type AiMode = 'chat' | 'cbt' | 'counseling' | 'health' | 'insights' | 'rapor'
 
-FAKTA PENTING (FAQ):
-1. PIN santri didapatkan dari wali kelas atau musyrif.
-2. Orang tua/wali cek poin & rapor dengan Kode Registrasi (REG-XXXX) + PIN di halaman "Cek Poin Santri" (route /cek).
-3. Sistem poin: poin minus untuk pelanggaran, poin plus untuk prestasi; total poin terlihat di data santri.
-4. Rapor diisi per kelas per periode (bulanan & semester), lalu dapat dipratinjau dan diarsipkan.
-5. Role pengguna aplikasi: developer, admin, pengurus, guru.
-`
+export type AiErrorCode =
+  | 'aborted'
+  | 'auth'
+  | 'empty'
+  | 'invalid'
+  | 'network'
+  | 'quota'
+  | 'server'
 
-const SYSTEM_PROMPT = `Kamu adalah Asisten Laporanmu yang ramah dan membantu.
-ATURAN KETAT:
-1. Jawab HANYA berdasarkan konteks aplikasi ini: ${APP_CONTEXT}
-2. Jika data spesifik tidak ada (nama guru, nomor telepon, nilai santri tertentu), sarankan pengguna mengecek langsung di menu terkait.
-3. DILARANG KERAS mengarang/asumsi nomor telepon, nama, atau angka data.
-4. Jawab ringkas dengan bahasa Indonesia yang jelas; gunakan bullet (-) atau angka bila perlu.`
+export type AiResult =
+  | { ok: true; text: string }
+  | { ok: false; code: AiErrorCode; message: string }
 
 export interface AiChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
 
-/** Pemanggilan Groq generik — dipakai askAi dan modul AI (CBT, konseling, health, insights). */
-export async function callAi(options: {
-  system: string
+export interface CallAiOptions {
+  system?: string
   prompt: string
+  mode?: AiMode
   history?: AiChatMessage[]
   maxOutputTokens?: number
-}): Promise<string> {
+  context?: string
+  signal?: AbortSignal
+}
+
+const NETWORK_MESSAGE = 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
+const SERVER_MESSAGE = 'Maaf, layanan AI tidak dapat diakses. Coba lagi sebentar.'
+const EMPTY_MESSAGE = 'Maaf, saya belum menemukan jawabannya. Coba tanyakan dengan kalimat lain.'
+
+export function estimateTokens(...parts: (string | undefined)[]): number {
+  const chars = parts.reduce((sum, part) => sum + (part?.length ?? 0), 0)
+  return Math.ceil(chars / 4)
+}
+
+async function mapInvokeError(error: unknown): Promise<{ code: AiErrorCode; message: string }> {
+  let status = 0
+  let detail = ''
+
+  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
+    status = error.context.status
+    try {
+      const body = (await error.context.json()) as { error?: string }
+      detail = body.error ?? ''
+    } catch {
+      /* body bukan JSON */
+    }
+  }
+
+  const message = error instanceof Error ? error.message : ''
+  if (/abort/i.test(message)) {
+    return { code: 'aborted', message: 'Permintaan AI dibatalkan.' }
+  }
+  if (/failed to send|network|fetch/i.test(message)) {
+    return { code: 'network', message: NETWORK_MESSAGE }
+  }
+  if (status === 401 || status === 403) {
+    return { code: 'auth', message: detail || 'Sesi AI tidak valid. Login ulang lalu coba lagi.' }
+  }
+  if (status === 429) {
+    return { code: 'quota', message: detail || 'Kuota AI sedang penuh. Coba lagi beberapa menit.' }
+  }
+  if (status === 400) {
+    return { code: 'invalid', message: detail || 'Permintaan AI tidak valid.' }
+  }
+  return { code: 'server', message: detail || SERVER_MESSAGE }
+}
+
+async function invokeAi(options: CallAiOptions): Promise<AiResult> {
+  const body = {
+    mode: options.mode,
+    system: options.system,
+    prompt: options.prompt,
+    input: options.prompt,
+    context: options.context,
+    history: options.history ?? [],
+    maxOutputTokens: options.maxOutputTokens,
+  }
+
   try {
     const { data, error } = await supabase.functions.invoke('ai-proxy', {
-      body: {
-        system: options.system,
-        prompt: options.prompt,
-        history: options.history ?? [],
-        maxOutputTokens: options.maxOutputTokens ?? 512,
-        model: MODEL,
-      },
+      body,
+      signal: options.signal,
     })
 
     if (error) {
-      let detail = ''
-      if (error instanceof FunctionsHttpError && error.context instanceof Response) {
-        try {
-          const body = (await error.context.json()) as { error?: string }
-          detail = body.error ?? ''
-        } catch {
-          /* body bukan JSON */
-        }
-      }
-      if (!detail && /failed to send|network|fetch/i.test(error.message ?? '')) {
-        return 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
-      }
-      return `Maaf, layanan AI tidak dapat diakses${detail ? `: ${detail}` : ''}.`
+      return { ok: false, ...(await mapInvokeError(error)) }
     }
 
-    const text = (data as { text?: string } | null)?.text ?? ''
-    return text || 'Maaf, saya belum menemukan jawabannya. Coba tanyakan dengan kalimat lain.'
-  } catch {
-    return 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
+    const text = (data as { text?: string } | null)?.text?.trim() ?? ''
+    if (!text) {
+      return { ok: false, code: 'empty', message: EMPTY_MESSAGE }
+    }
+
+    return { ok: true, text }
+  } catch (error) {
+    return { ok: false, ...(await mapInvokeError(error)) }
   }
 }
 
-/** Kirim prompt ke Groq dan balas teks jawaban (atau pesan kesalahan yang ramah). */
-export async function askAi(prompt: string, history: AiChatMessage[] = []): Promise<string> {
-  return callAi({ system: SYSTEM_PROMPT, prompt, history })
+/** Pemanggilan AI generik untuk modul (CBT, konseling, health, insights, rapor). */
+export async function callAi(options: CallAiOptions): Promise<string> {
+  const result = await invokeAi(options)
+  return result.ok ? result.text : result.message
+}
+
+/** Chat asisten: hasil terstruktur agar error tidak tampil sebagai jawaban. */
+export async function askAi(
+  prompt: string,
+  options: { history?: AiChatMessage[]; context?: string; signal?: AbortSignal } = {},
+): Promise<AiResult> {
+  return invokeAi({
+    mode: 'chat',
+    prompt,
+    history: options.history,
+    context: options.context,
+    signal: options.signal,
+  })
 }

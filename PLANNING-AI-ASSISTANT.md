@@ -7,7 +7,7 @@ Asisten AI sudah aman dari sisi API key (Edge Function `ai-proxy`), tetapi masih
 - Model `openai/gpt-oss-20b` diasumsikan tersedia; verifikasi saat implementasi.
 - Riwayat chat hanya di memori React. Tidak ada persistensi antar sesi atau antar reload.
 - Streaming dikerjakan paling akhir, setelah P0 dan P1 stabil.
-- Kuota awal: 5 permintaan/menit, 30 permintaan/hari per user, 6.000 token/menit, 150.000 token/hari global. Configurable via env.
+- Kuota awal: 5 permintaan/menit, 30 permintaan/hari per user, 24.000 token/menit, 180.000 token/hari global. Configurable via env.
 
 ## 3. Tujuan dan metrik
 - **Safety**: client tidak bisa memilih model atau mengirim system prompt bebas; ada kuota per user; error tidak menyamar sebagai jawaban.
@@ -68,7 +68,7 @@ POST /functions/v1/ai-proxy
 - [ ] Timeout Groq 25 detik (`AbortSignal.timeout`) dan `AbortController` di client; batalkan saat drawer ditutup.
 - [ ] Ubah `askAi` menjadi `AiResult` (`{ ok: true, text } | { ok: false, code, message }`). Error tampil sebagai state dengan tombol **Coba lagi**, bukan bubble asisten.
 - [ ] CORS allowlist dari env `APP_ORIGIN` (localhost:5174 + domain produksi).
-- [ ] Rate limit per user lewat migrasi `0069_ai_guardrails.sql`.
+- [ ] Rate limit per user lewat migrasi `0070_ai_guardrails.sql` (nomor 0069 sudah dipakai guardian portal).
 - [ ] Cooldown client 30 detik saat kena 429.
 - [ ] Hapus greeting dari history; kirim maksimal 6 pesan terakhir.
 - [ ] Estimasi token: `ceil((system + context + history + input) / 4) + maxOutputTokens`, kirim ke RPC kuota.
@@ -76,13 +76,14 @@ POST /functions/v1/ai-proxy
 **Kriteria selesai**: client tidak bisa mengganti model; error punya tombol retry; request berhenti saat drawer ditutup; 5 pertanyaan uji tidak menghasilkan nama/nomor karangan; kuota menolak permintaan ke-6 dalam satu menit.
 
 ## 8. P1: Akurasi jawaban
-- [ ] Buat `src/shared/lib/aiKnowledge.ts`: `AiKnowledgeEntry { id, title, keywords, answer, route, perm, flag }`. Isi awal 20-30 FAQ dari `NAV_GROUPS`, `docs/GLOSSARY.md`, dan alur nyata (poin, rapor, izin, SPP, halaqah).
-- [ ] Buat `retrieveKnowledge(question, entries)`: normalisasi teks, skor keyword + judul, ambil top 4. Tanpa embedding, cukup untuk <100 entri.
-- [ ] Buat `src/shared/lib/aiContext.ts`: `buildChatContext({ role, flagMap, can, today })` yang memfilter menu berdasarkan role, permission, dan flag.
-- [ ] Kirim ringkasan menu yang tersedia + panduan relevan ke server. Jawaban menyebut route konkret, misalnya "Buka **Poin & Disiplin** (`/discipline`)".
-- [ ] Tampilkan chip **Sumber** di bawah jawaban dari entri knowledge yang dipakai. Klik chip menutup drawer dan pindah route.
-- [ ] Guardrail: jika tidak ada di knowledge, jawab "belum ada di panduan" dan arahkan ke menu; dilarang mengarang.
-- [ ] Buat `docs/AI-EVAL.md` berisi 20 pertanyaan, termasuk jebakan (nama guru, nomor HP, nilai santri). Uji manual sebelum rilis.
+- [x] Buat `src/shared/lib/aiKnowledge.ts`: `AiKnowledgeEntry { id, title, keywords, answer, route, perm, flag, isPublic }`. Isi awal 20-30 FAQ dari `NAV_GROUPS`, `docs/GLOSSARY.md`, dan alur nyata (poin, rapor, izin, SPP, halaqah).
+- [x] Buat `retrieveKnowledge(question, filters)`: normalisasi teks, skor keyword + judul, filter akses, ambil top 4. Tanpa embedding, cukup untuk <100 entri.
+- [x] Buat `src/shared/lib/aiContext.ts`: `buildChatContext({ role, flags, can, knowledge })` yang memfilter menu berdasarkan role, permission, dan flag.
+- [x] Kirim ringkasan menu yang tersedia + panduan relevan ke server. Jawaban menyebut route konkret, misalnya "Buka **Poin & Disiplin** (`/discipline`)".
+- [x] Tampilkan chip **Sumber** di bawah jawaban dari entri knowledge yang dipakai. Klik chip menutup drawer dan pindah route; halaman publik dibuka di tab baru.
+- [x] Guardrail: jika tidak ada di knowledge, jawab "belum ada di panduan" dan arahkan ke menu; dilarang mengarang.
+- [x] Buat `docs/AI-EVAL.md` berisi 20 pertanyaan, termasuk jebakan (nama guru, nomor HP, nilai santri).
+- [ ] Uji manual 20 pertanyaan di `localhost:5174` sebagai admin dan guru sebelum rilis.
 
 **Kriteria selesai**: 10 FAQ menjawab dengan menu/route benar; role guru tidak disarankan membuka menu admin; pertanyaan di luar konteks dijawab dengan arahan menu, bukan karangan.
 
@@ -111,7 +112,7 @@ src/shared/lib/aiContext.ts          buildChatContext (role/flag/permission)
 src/layouts/ChatAssistant.tsx        error+retry, stop, sumber, cache (streaming di P3)
 supabase/functions/ai-proxy/index.ts mode, model lock, quota, timeout, CORS, SSE
 supabase/functions/ai-proxy/prompts.ts  prompt kanonik per mode (opsional)
-supabase/migrations/0069_ai_guardrails.sql  ai_usage + ai_consume_quota
+supabase/migrations/0070_ai_guardrails.sql  ai_usage + ai_consume_quota
 src/shared/lib/aiKnowledge.test.ts   unit test retrieval
 src/shared/lib/ai.test.ts            unit test parser SSE + mapping error
 docs/AI-EVAL.md                      20 pertanyaan evaluasi
@@ -136,8 +137,8 @@ create or replace function public.ai_consume_quota(
   p_tokens int,
   p_minute_limit int default 5,
   p_day_limit int default 30,
-  p_minute_tokens int default 6000,
-  p_day_tokens int default 150000
+  p_minute_tokens int default 24000,
+  p_day_tokens int default 180000
 ) returns text
 language plpgsql
 security definer
@@ -184,10 +185,10 @@ revoke execute on function public.ai_consume_quota(int, int, int, int, int)
 grant execute on function public.ai_consume_quota(int, int, int, int, int)
   to authenticated;
 ```
-Env default: `AI_MINUTE_LIMIT=5`, `AI_DAY_LIMIT=30`, `AI_MINUTE_TOKENS=6000`, `AI_DAY_TOKENS=150000`. Jika staf aktif sedikit, naikkan ke 10/50. Jika pemakaian tinggi, pertimbangkan upgrade Groq.
+Env default: `AI_MINUTE_LIMIT=5`, `AI_DAY_LIMIT=30`, `AI_MINUTE_TOKENS=24000`, `AI_DAY_TOKENS=180000`. Batas token lebih longgar agar satu generasi CBT (hingga 8.192 token output) tidak langsung ditolak. Jika staf aktif sedikit, naikkan permintaan ke 10/50. Jika pemakaian tinggi, pertimbangkan upgrade Groq.
 
 ## 13. Deploy
-1. Jalankan `0069_ai_guardrails.sql` di SQL Editor.
+1. Jalankan `0070_ai_guardrails.sql` di SQL Editor.
 2. `supabase functions deploy ai-proxy`.
 3. Deploy frontend.
 4. Verifikasi manual di `http://localhost:5174`.

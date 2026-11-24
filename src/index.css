@@ -1540,3 +1540,35 @@ body {
   scrollbar-color: #94a3b8 #f1f5f9 !important;
 }
 
+.ai-source-chip.ant-btn {
+  min-height: 44px;
+  height: auto;
+  padding-block: 6px;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.3;
+}
+
+.ai-send-button.ant-btn,
+.ai-retry-button.ant-btn,
+.ai-suggestion-chip.ant-btn {
+  min-height: 44px;
+}
+
+.ai-chat-input.ant-input {
+  min-height: 44px;
+}
+
+@media (min-width: 768px) {
+  .ai-source-chip.ant-btn {
+    min-height: 32px;
+  }
+
+  .ai-send-button.ant-btn,
+  .ai-retry-button.ant-btn,
+  .ai-suggestion-chip.ant-btn,
+  .ai-chat-input.ant-input {
+    min-height: 28px;
+  }
+}
+
