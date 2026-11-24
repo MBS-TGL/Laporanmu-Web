@@ -2,6 +2,8 @@
 
 > Katalog saran lengkap untuk semua tab di `src/features/admin/AdminPage.tsx` + saran khusus `src/features/admin/DashboardPage.tsx`.
 > Status ditandai: `[ ]` belum, `[x]` selesai, `[~]` sedang. Prioritas: **P0** bug nyata, **P1** penting, **P2** penyempurnaan, **P3** nice-to-have.
+>
+> **Sweep status 2026-11-24**: item yang terverifikasi di kode (ronde 0062, portal/push, dsb) ditandai `[x]` meski katalog lama belum di-update. Ronde berjalan: lihat "Ronde 2026-11-24" di bawah.
 
 ## Bug nyata (P0, lintas tab)
 
@@ -17,12 +19,12 @@
 ## Tab Ringkasan / `DashboardPage.tsx` (AdminDashboardTab)
 
 1. `[x]` **P0** Perbaiki QUICK_LINKS legacy → `onNavigateTab`.
-2. `[ ]` **P1** RPC Supabase untuk table stats (saat ini ±36 request per refresh di `fetchTableStats`; kini ±78 dengan 26 tabel — makin penting).
-3. `[ ]` **P1** Skeleton loading untuk StatChip (bukan nilai "–" saat loading).
-4. `[ ]` **P2** Pie chart distribusi baris: buang slice dominan (audit_logs), tampilkan persen + tooltip.
-5. `[ ]` **P2** Konsistenkan navigasi chip (semua via `onNavigateTab`).
-6. `[ ]` **P1** Widget "Kesehatan Sistem": latency DB, status maintenance, storage terpakai, task terakhir.
-7. `[ ]` **P1** Toggle maintenance cepat di ringkasan (developer only, Popconfirm).
+2. `[x]` **P1** RPC Supabase untuk table stats (saat ini ±36 request per refresh di `fetchTableStats`; kini ±78 dengan 26 tabel — makin penting). — **Ronde 0062**: RPC `admin_table_stats()`, 1 request/refresh.
+3. `[x]` **P1** Skeleton loading untuk StatChip (bukan nilai "–" saat loading). — `StatChip` `loading` prop (skeleton pulse).
+4. `[x]` **P2** Pie chart distribusi baris: buang slice dominan (audit_logs), tampilkan persen + tooltip. — Ronde 0062: pie top-7 + "Lainnya".
+5. `[x]` **P2** Konsistenkan navigasi chip (semua via `onNavigateTab`).
+6. `[x]` **P1** Widget "Kesehatan Sistem": latency DB, status maintenance, storage terpakai, task terakhir. — `SystemHealth.tsx`.
+7. `[x]` **P1** Toggle maintenance cepat di ringkasan (developer only, Popconfirm).
 8. `[ ]` **P3** Grafik audit-activity: marker saat task dijalankan.
 9. `[ ]` **P2** Range 7/14/30 hari persist ke URL (`?range=`).
 10. `[ ]` **P2** Pembanding minggu ini vs minggu lalu (delta ±%) di StatChip.
@@ -36,10 +38,10 @@
 18. `[ ]` **P3** Checklist onboarding setup sekolah (profil, kelas, guru, flag) dengan progress.
 19. `[ ]` **P2** Export ringkasan ke XLSX (reuse `downloadXlsx`).
 20. `[ ]` **P3** Search global lintas tab (audit/users/tabel).
-21. `[ ]` **P1** Empty/error state + retry per widget (antislop R-27).
+21. `[x]` **P1** Empty/error state + retry per widget (antislop R-27). — Alert global + retry per query.
 22. `[ ]` **P1** Responsif mobile untuk grid chart (R-03).
 23. `[ ]` **P3** Prefetch tab admin lain saat hover QUICK_LINKS.
-24. `[ ]` **P2** Indikator freshness data ("diperbarui x mnt lalu").
+24. `[x]` **P2** Indikator freshness data ("diperbarui x mnt lalu").
 25. `[ ]` **P3** Persist state collapse kartu ke localStorage.
 
 ## Tab Pengaturan / `FeatureFlagsPage.tsx`
@@ -73,14 +75,14 @@
 ## Tab Pengguna / `UsersPage.tsx`
 
 1. `[~]` **P1** Pagination + filter server-side untuk profiles (jumlah akun masih kecil; modal link guru kini 2 jalur: buat akun baru / existing).
-2. `[~]` **P1** Edge Function invite user baru — frontend + `supabase/functions/create-user` SELESAI (modal buat-akun: email/nama/role, guru auto-link, hasilkan link set-password); **menunggu deploy**: `supabase functions deploy create-user`.
+2. `[x]` **P1** Edge Function invite user baru — frontend + `supabase/functions/create-user` SELESAI (modal buat-akun: email/nama/role, guru auto-link, hasilkan link set-password); **deployed v8** (CORS `APP_ORIGIN`).
 3. `[ ]` **P2** Edge Function hapus/nonaktifkan user.
 4. `[x]` **P1** Guard keras: role akun sendiri tidak bisa diubah (Select disabled + blokir di handler).
 5. `[ ]` **P2** Bulk action: ganti role massal, link guru massal (reuse `BulkActionBar`).
 6. `[ ]` **P2** Filter persist ke URL (`?q=`, `?role=`).
-7. `[ ]` **P2** Kolom login terakhir (dari audit LOGIN).
+7. `[x]` **P2** Kolom login terakhir (dari audit LOGIN). — RPC `admin_last_logins`.
 8. `[ ]` **P3** Force logout semua sesi (admin API via Edge Function).
-9. `[ ]` **P2** Ekspor daftar pengguna XLSX (reuse `ExportModal`).
+9. `[x]` **P2** Ekspor daftar pengguna XLSX (reuse `ExportModal`).
 10. `[ ]` **P2** Toggle status aktif/nonaktif per akun.
 11. `[ ]` **P3** Kolom status verifikasi email.
 12. `[ ]` **P3** Tooltip deskripsi per role (`ROLE_META`).
@@ -102,9 +104,9 @@
 
 ## Tab AI Insights / `InsightsPage.tsx`
 
-1. `[ ]` **P1** Hapus cap `students.limit(1000)`, `savings.limit(1000)`, `book_loans.limit(500)` (paginate loop atau RPC agregat).
+1. `[x]` **P1** Hapus cap `students.limit(1000)`, `savings.limit(1000)`, `book_loans.limit(500)` (paginate loop atau RPC agregat). — `fetchAllPages` (ronde 0062).
 2. `[ ]` **P1** RPC agregat server-side (poin per kelas/asrama) mengganti agregasi client.
-3. `[ ]` **P2** Riwayat insight persist (tabel `insight_logs`) + daftar hasil sebelumnya.
+3. `[x]` **P2** Riwayat insight persist (tabel `insight_logs`) + daftar hasil sebelumnya.
 4. `[ ]` **P3** Streaming respons Gemini.
 5. `[ ]` **P2** Deteksi error AI terstruktur (bukan sniffing prefix "Maaf").
 6. `[ ]` **P3** Tampilkan usage token/cost + retry dengan backoff.
@@ -117,7 +119,7 @@
 13. `[ ]` **P3** Pilihan model (flash/pro) di pengaturan.
 14. `[ ]` **P2** Sertakan data behavior rules & counseling dalam snapshot.
 15. `[ ]` **P1** Tabel top-N santri berisiko dengan alasan (bukan hanya donut).
-16. `[ ]` **P2** Loading skeleton chart, bukan Spin tunggal.
+16. `[~]` **P2** Loading skeleton chart, bukan Spin tunggal. — chips skeleton via `StatChip loading`; chart disembunyikan saat pending (belum skeleton chart).
 17. `[ ]` **P3** Download chart sebagai PNG.
 18. `[ ]` **P2** Perbandingan periode (delta minggu ke minggu).
 19. `[ ]` **P2** Renderer markdown lebih baik (bold, tabel, heading lain).
@@ -131,11 +133,11 @@
 ## Tab Otomatisasi / `AutomationPage.tsx`
 
 1. `[ ]` **P1** Progress bar nyata: proses per-chunk dengan progress proporsional.
-2. `[ ]` **P1** Riwayat eksekusi persist server-side (tabel `task_runs`), bukan localStorage.
+2. `[x]` **P1** Riwayat eksekusi persist server-side (tabel `task_runs`), bukan localStorage. — ronde 0062.
 3. `[ ]` **P1** Gunakan `chunk()` di `runDetachRefs` (saat ini hanya dipakai test).
 4. `[ ]` **P2** `rotate_logs`: arsip/ekspor ke Storage sebelum delete.
-5. `[ ]` **P1** Mode dry-run untuk task destruktif (preview baris terdampak).
-6. `[ ]` **P2** Konfirmasi ketik "JALANKAN" untuk task destruktif.
+5. `[x]` **P1** Mode dry-run untuk task destruktif (preview baris terdampak). — `ConfirmRunModal`.
+6. `[x]` **P2** Konfirmasi ketik "JALANKAN" untuk task destruktif.
 7. `[ ]` **P2** Task baru: pembersih file orphan Storage (reuse orphan scan).
 8. `[ ]` **P3** Task baru: recompute rekap kelas/asrama.
 9. `[ ]` **P3** Task baru: deteksi & anonimisasi guardian token kedaluwarsa.
@@ -158,7 +160,7 @@
 
 ## Tab Database / `DatabasePage.tsx`
 
-1. `[ ]` **P1** Pindahkan 7 cek integritas ke Postgres RPC (tanpa download tabel penuh).
+1. `[x]` **P1** Pindahkan 7 cek integritas ke Postgres RPC (tanpa download tabel penuh). — RPC `admin_integrity_checks` (0062).
 2. `[ ]` **P2** Skor integritas berbobot per tingkat keparahan.
 3. `[ ]` **P2** Cek integritas config-driven (tambah cek via migrasi, tanpa ubah kode).
 4. `[x]` **P1** Ganti setInterval manual dengan `refetchInterval` react-query (hapus stale closure).
@@ -175,8 +177,8 @@
 15. `[ ]` **P2** Cek constraint unik (NIS duplikat).
 16. `[ ]` **P3** Integrasi task cleanup soft-delete tua.
 17. `[ ]` **P3** Indikator perubahan row count realtime.
-18. `[ ]` **P2** Skeleton loading per kartu.
-19. `[ ]` **P1** Empty/error state + retry.
+18. `[x]` **P2** Skeleton loading per kartu. — `loading` props pada StatChip/integritas.
+19. `[x]` **P1** Empty/error state + retry. — Alert "Gagal memuat data database" + Coba lagi.
 20. `[ ]` **P2** Persist search & auto-refresh ke URL.
 21. `[ ]` **P3** Sort kolom persist.
 22. `[ ]` **P3** Masking PII konsisten dengan `auditLogger`.
@@ -186,10 +188,10 @@
 
 ## Tab Penyimpanan / `StoragePage.tsx`
 
-1. `[ ]` **P1** Listing rekursif folder untuk file terbesar & orphan scan (gap terbesar tab ini).
+1. `[x]` **P1** Listing rekursif folder untuk file terbesar & orphan scan (gap terbesar tab ini). — `walkBucketFiles` depth 3 (0062).
 2. `[ ]` **P2** Progress scan chunked.
 3. `[ ]` **P2** Total ukuran per bucket + estimasi kuota.
-4. `[ ]` **P1** Orphan scan mencakup semua kolom URL (admissions, inventory, dll).
+4. `[ ]` **P1** Orphan scan mencakup semua kolom URL (admissions, inventory, dll). — RPC `admin_storage_refs` baru 3 kolom (perlu 0071).
 5. `[ ]` **P3** Opsi scan termasuk referensi soft-deleted.
 6. `[ ]` **P1** Orphan dipindah ke folder `_trash` alih-alih hard remove.
 7. `[ ]` **P3** Restore dari trash.
@@ -203,11 +205,11 @@
 15. `[ ]` **P3** Integrasi auto-scan sebagai task Otomatisasi.
 16. `[ ]` **P2** Konfirmasi ketik untuk hapus massal.
 17. `[ ]` **P3** Jumlah file per bucket + ringkasan pohon folder.
-18. `[ ]` **P1** Skeleton/empty/error state per kartu bucket.
+18. `[x]` **P1** Skeleton/empty/error state per kartu bucket. — bucket error vs kosong terpisah.
 19. `[ ]` **P2** Test `extractStorageRef` untuk varian URL.
 20. `[ ]` **P3** Navigasi keyboard tabel.
 21. `[ ]` **P3** Responsif mobile.
-22. `[ ]` **P2** Invalidate query ter-target setelah delete.
+22. `[x]` **P2** Invalidate query ter-target setelah delete. — `storage-largest`/`storage-orphan`/`buckets`.
 23. `[ ]` **P3** StatChip bucket klik → filter tabel.
 24. `[ ]` **P2** Freshness indikator hasil scan.
 25. `[ ]` **P3** Link dari widget Kesehatan Sistem Ringkasan.
@@ -215,17 +217,17 @@
 ## Tab Audit Log / `AuditPage.tsx`
 
 1. `[x]` **P1** Filter persist ke URL (`?q=`, `?source=`, `?action=`, `?table=`, `?user=`, `?from=`, `?to=`, `?p=`).
-2. `[ ]` **P2** Ekspor CSV/JSON hasil filter (tercatat sebagai action EXPORT).
+2. `[x]` **P2** Ekspor CSV/JSON hasil filter (tercatat sebagai action EXPORT). — batch 1000 (ronde 0062).
 3. `[x]` **P1** Filter pengguna (select actor) di UI (param `user_id` sudah ada di api).
 4. `[ ]` **P2** Input deep-link `record_id`.
-5. `[ ]` **P2** Tampilkan `user_agent` di forensik (ada di tipe, tak pernah ditampilkan).
+5. `[x]` **P2** Tampilkan `user_agent` di forensik (ada di tipe, tak pernah ditampilkan).
 6. `[ ]` **P3** Mode live via Supabase Realtime (stream INSERT).
 7. `[ ]` **P2** PageSize opsional 20/50/100.
-8. `[ ]` **P2** Preset tanggal cepat (hari ini/7/30 hari).
+8. `[x]` **P2** Preset tanggal cepat (hari ini/7/30 hari).
 9. `[ ]` **P3** Preset filter tersimpan per user (localStorage).
 10. `[ ]` **P3** Deteksi anomali sederhana (lonjakan DELETE massal).
 11. `[ ]` **P3** Ringkasan chip group by tabel/aksi.
-12. `[ ]` **P2** Diff JSON terstruktur old vs new (bukan `<pre>` mentah).
+12. `[x]` **P2** Diff JSON terstruktur old vs new (bukan `<pre>` mentah).
 13. `[ ]` **P3** Tombol copy JSON.
 14. `[ ]` **P2** Masking nilai sensitif konsisten dengan `auditLogger`.
 15. `[ ]` **P3** Filter berdasarkan role pelaku.
@@ -234,8 +236,8 @@
 18. `[ ]` **P3** Sticky header tabel.
 19. `[ ]` **P2** Forensik jadi Drawer di mobile (bukan expanded row).
 20. `[ ]` **P2** Skeleton loading baris.
-21. `[ ]` **P1** Error state + retry.
-22. `[~]` **P2** Shortcut R untuk refetch (konsisten tab lain).
+21. `[ ]` **P1** Error state + retry. — logsQuery.error kini hanya jadi tabel kosong.
+22. `[ ]` **P2** Shortcut R untuk refetch (konsisten tab lain).
 
 > **Redesain layout 2026-11-14 (batch tab lain)**: kartu filter & tabel audit digabung 1 kartu; Otomatisasi jadi 2 kolom (tugas kiri, riwayat kanan); Storage bedakan error vs kosong bucket + Alert retry file; Database & Ringkasan dapat Alert error + retry; semua tabel diberi `scroll.x max-content` — cek overflow mobile 390px lolos di 5 tab (382=382).
 23. `[ ]` **P2** Kelengkapan `TABLE_LABELS` (validasi terhadap tabel nyata).
@@ -298,8 +300,51 @@ Ronde eksekusi langsung atas gabungan: performa + katalog N1–N3 + fitur baru +
 - `fetchAuditActivity` tetap client bucketing (bound 2000 baris, dampak kecil).
 
 ### Deferred (kandidat ronde berikutnya)
-- `[ ]` **P1** Pusat push notification + auto-fire dari pengumuman/SPP (`push_subscriptions` sudah masuk TABLE_CONFIG; Edge `push-send` sudah ada).
-- `[ ]` **P2** Monitor `portal_sessions` / `portal_login_attempts` (tabel sudah terpantau di Database, belum ada UI detail).
+- `[x]` **P1** Pusat push notification + auto-fire dari pengumuman/SPP — selesai ronde 2026-11-24 (`SendPushModal`, auto-fire SPP).
+- `[x]` **P2** Monitor `portal_sessions` / `portal_login_attempts` — selesai ronde 2026-11-24 (`PortalAccessPage` + deteksi brute-force).
 - `[x]` **P1** Insights limit cap (selesai ronde ini); `[ ]` **P2** RPC agregat poin per kelas/asrama + top-N santri berisiko + streaming.
 - `[ ]` **P2** Delta mingguan StatChip (butuh query historis); force logout sesi; bulk role change; orphan → folder `_trash`; RBAC per task; role bypass maintenance.
 - `[ ]` **P3** Onboarding checklist kaya aksi inline; sparkline pertumbuhan baris; realtime audit ticker.
+
+---
+
+## Ronde 2026-11-24 — Full batch (Fase 0–8)
+
+Migrasi 0064–0070 **sudah diterapkan** user (konfirmasi sesi ini). Scope: sweep status katalog + sisa P1 lintas tab + P2 Pengguna/Flags/Audit + P1 Insights.
+
+### Fase 1 — Ringkasan / `DashboardPage.tsx`
+- `[ ]` Quick actions dropdown: segarkan, jalankan `sync_stats`, buang cache query admin.
+- `[ ]` Widget Temuan Integritas: 3 teratas + tombol "Perbaiki" inline (ekstrak `useDetachRefs` ke `hooks.ts`).
+- `[ ]` Verifikasi/perbaiki responsif grid chart 390px.
+
+### Fase 2 — Otomatisasi / `AutomationPage.tsx`, `api.ts`
+- `[ ]` RBAC per task: destruktif hanya developer/admin (guard di UI + handler).
+- `[ ]` `chunk()` di `runDetachRefs` (`.in('id', ids)` per 500).
+
+### Fase 3 — Penyimpanan / `StoragePage.tsx`, `api.ts`, migrasi `0071`
+- `[ ]` Orphan → pindah ke folder `_trash` (copy + remove), tombol "Hapus permanen" terpisah.
+- `[ ]` Migrasi `0071_storage_refs.sql`: UNION kolom URL modul baru ke `admin_storage_refs()`.
+- `[ ]` Teks paragraf scan disesuaikan (kini menyebut root-only, padahal walk depth 3).
+
+### Fase 4 — Pengguna / `UsersPage.tsx`
+- `[ ]` Filter persist ke URL (`?q=`, `?role=`).
+- `[ ]` Bulk ganti role (`rowSelection` + `ActionBar`), guard akun sendiri/developer, `logAudit` per baris.
+
+### Fase 5 — Pengaturan / `FlagsPage.tsx`
+- `[ ]` `updated_by` + `updated_at` per baris.
+- `[ ]` Invalidasi ter-target (ganti `qc.invalidateQueries()` blanket).
+- `[ ]` Popconfirm flag kritis `system.*`; sort `updated_at`; skeleton list.
+
+### Fase 6 — Audit / `AuditPage.tsx`
+- `[ ]` Input deep-link `record_id` (param URL + api).
+- `[ ]` Error state + retry `logsQuery`.
+- `[ ]` Shortcut R refetch.
+
+### Fase 7 — Insights / `InsightsPage.tsx`
+- `[ ]` Tabel top-N santri berisiko + alasan (client-side dari snapshot).
+
+### Ditunda (butuh migrasi/Edge lanjutan)
+- RPC agregat Insights poin per kelas/asrama (server-side).
+- Delta mingguan StatChip (query historis audit/reports).
+- Force logout sesi (Edge Function admin API).
+- Penjadwalan maintenance otomatis + role bypass (tabel `app_settings` lanjutan).
