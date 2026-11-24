@@ -14,6 +14,7 @@ import {
   fetchProfiles,
   fetchTableStats,
   importAutomationRuns,
+  moveStorageFilesToTrash,
   previewRotateAuditLogs,
   runDetachRefs,
   sendPasswordResetEmail,
@@ -218,6 +219,18 @@ export function useDeleteStorageFiles() {
       void qc.invalidateQueries({ queryKey: ['admin', 'storage-largest'] })
       void qc.invalidateQueries({ queryKey: ['admin', 'storage-orphan'] })
       void qc.invalidateQueries({ queryKey: ['admin', 'buckets'] })
+    },
+  })
+}
+
+export function useMoveStorageFiles() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ bucket, names }: { bucket: string; names: string[] }) =>
+      moveStorageFilesToTrash(bucket, names),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['admin', 'storage-largest'] })
+      void qc.invalidateQueries({ queryKey: ['admin', 'storage-orphan'] })
     },
   })
 }

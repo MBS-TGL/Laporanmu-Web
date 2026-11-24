@@ -21,6 +21,7 @@ import {
   CloudServerOutlined,
   DeleteOutlined,
   FileOutlined,
+  InboxOutlined,
   ReloadOutlined,
   ScanOutlined,
   SearchOutlined,
@@ -31,7 +32,13 @@ import { StatChip } from '../../shared/components/StatChip'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { logAudit } from '../../shared/utils/auditLogger'
-import { useBuckets, useDeleteStorageFiles, useLargestFiles, useOrphanScan } from './hooks'
+import {
+  useBuckets,
+  useDeleteStorageFiles,
+  useLargestFiles,
+  useMoveStorageFiles,
+  useOrphanScan,
+} from './hooks'
 import type { StorageFileInfo } from './types'
 
 function formatSize(bytes: number): string {
@@ -54,12 +61,14 @@ export function StoragePage({ active }: { active: boolean }) {
   const largestQuery = useLargestFiles()
   const orphanScan = useOrphanScan()
   const deleteMutation = useDeleteStorageFiles()
+  const moveMutation = useMoveStorageFiles()
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [moving, setMoving] = useState(false)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
 
   const buckets = bucketsQuery.data ?? []
-  const largest = largestQuery.data ?? []
+  const largest = useMemo(() => largestQuery.data ?? [], [largestQuery.data])
   const orphans = orphanScan.data ?? []
 
   const filteredLargest = useMemo(() => {
@@ -84,6 +93,30 @@ export function StoragePage({ active }: { active: boolean }) {
       message.success(files.length > 1 ? `${files.length} file dihapus` : 'File dihapus')
     } catch (err) {
       message.error(err instanceof Error ? err.message : 'Gagal menghapus file')
+    }
+  }
+
+  // Pindah ke folder _trash/ — reversible (P3 restore) dan tidak
+  // menghilangkan data, jadi jadi aksi utama untuk orphan
+  const handleMoveToTrash = async (files: StorageFileInfo[]) => {
+    const byBucket = new Map<string, string[]>()
+    for (const f of files) byBucket.set(f.bucket, [...(byBucket.get(f.bucket) ?? []), f.name])
+    setMoving(true)
+    try {
+      for (const [bucket, names] of byBucket) {
+        await moveMutation.mutateAsync({ bucket, names })
+      }
+      void logAudit({
+        action: 'DELETE',
+        source: 'SYSTEM',
+        tableName: 'storage.objects',
+        newData: { aksi: 'pindah_ke_trash', jumlah: files.length },
+      })
+      message.success(`${files.length} file dipindahkan ke folder _trash`)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : 'Gagal memindahkan file')
+    } finally {
+      setMoving(false)
     }
   }
 
@@ -331,11 +364,10 @@ export function StoragePage({ active }: { active: boolean }) {
             }
           >
             <Typography.Paragraph type="secondary" style={{ fontSize: 12.5 }}>
-              Memindai file root-level di setiap bucket dan mencocokkannya dengan URL yang dirujuk kolom
-              <code style={{ margin: '0 4px' }}>profiles.avatar_url</code>,
-              <code style={{ margin: '0 4px' }}>students.photo_url</code>, dan
-              <code style={{ margin: '0 4px' }}>teachers.photo_url</code>.
-              {orphanScan.isFetched && ' Pemindaian hanya menjangkau file di tingkat akar (root).'}
+              Memindai seluruh folder tiap bucket (maks 3 level) dan mencocokkannya dengan URL yang
+              dirujuk kolom <code style={{ margin: '0 4px' }}>profiles.avatar_url</code>,
+              <code style={{ margin: '0 4px' }}>students/teachers.photo_url</code>, lampiran tugas
+              pembinaan, dan logo sekolah. File di folder <code>_trash</code> diabaikan.
             </Typography.Paragraph>
             <Table<StorageFileInfo>
               rowKey={(f) => `${f.bucket}/${f.name}`}
@@ -360,22 +392,32 @@ export function StoragePage({ active }: { active: boolean }) {
               footer={
                 orphans.length > 0
                   ? () => (
-                      <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                      <Space style={{ justifyContent: 'space-between', width: '100%' }} wrap>
                         <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
                           Total {orphans.length} file · {formatSize(orphans.reduce((sum, f) => sum + f.size, 0))}
                         </Typography.Text>
-                        <Popconfirm
-                          title="Hapus semua file orphan?"
-                          description={`${orphans.length} file akan dihapus permanen. Pastikan tidak ada yang masih dirujuk.`}
-                          okText="Hapus Semua"
-                          okButtonProps={{ danger: true }}
-                          cancelText="Batal"
-                          onConfirm={() => void handleDelete(orphans)}
-                        >
-                          <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending}>
-                            Hapus Semua Orphan
+                        <Space wrap>
+                          <Button
+                            type="primary"
+                            icon={<InboxOutlined />}
+                            loading={moving}
+                            onClick={() => void handleMoveToTrash(orphans)}
+                          >
+                            Pindahkan ke Sampah
                           </Button>
-                        </Popconfirm>
+                          <Popconfirm
+                            title="Hapus permanen semua file orphan?"
+                            description={`${orphans.length} file akan dihapus permanen. Saran: pindahkan ke sampah dulu agar bisa dipulihkan.`}
+                            okText="Hapus Permanen"
+                            okButtonProps={{ danger: true }}
+                            cancelText="Batal"
+                            onConfirm={() => void handleDelete(orphans)}
+                          >
+                            <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending}>
+                              Hapus Permanen
+                            </Button>
+                          </Popconfirm>
+                        </Space>
                       </Space>
                     )
                   : undefined

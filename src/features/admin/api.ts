@@ -453,6 +453,8 @@ async function walkBucketFiles(bucket: string, limitPerFolder = 200): Promise<St
     for (const entry of data ?? []) {
       const path = prefix ? `${prefix}/${entry.name}` : entry.name
       if (entry.id === null) {
+        // Folder _trash di root sengaja dilewati: bukan data aktif
+        if (path === '_trash') continue
         if (depth < WALK_MAX_DEPTH) queue.push({ prefix: path, depth: depth + 1 })
         continue
       }
@@ -488,9 +490,10 @@ export function extractStorageRef(url: string | null | undefined): { bucket: str
 
 /**
  * Pemindai file orphan: file di bucket yang tidak dirujuk kolom URL mana
- * pun (profiles.avatar_url, students.photo_url, teachers.photo_url).
- * Referensi diambil via RPC admin_storage_refs (migrasi 0062) — base64
- * foto tidak pernah keluar dari DB, sebelumnya 3 full-column select.
+ * pun (kini seluruh kolom URL aplikasi — profiles/students/teachers +
+ * lampiran pembinaan + logo sekolah, migrasi 0071).
+ * Referensi diambil via RPC admin_storage_refs — base64 foto tidak
+ * pernah keluar dari DB.
  */
 export async function fetchOrphanFiles(): Promise<StorageFileInfo[]> {
   const buckets = await fetchBuckets()
@@ -506,11 +509,31 @@ export async function fetchOrphanFiles(): Promise<StorageFileInfo[]> {
   return perBucket
     .flat()
     .filter((file) => !referenced.has(`${file.bucket}/${file.name}`))
+    // File di folder _trash bukan orphan — hasil pemindahan sebelumnya
+    .filter((file) => !file.name.startsWith('_trash/'))
 }
 
 export async function deleteStorageFiles(bucket: string, names: string[]): Promise<void> {
   const { error } = await supabase.storage.from(bucket).remove(names)
   if (error) throw error
+}
+
+/**
+ * Pindahkan file ke folder `_trash/` di bucket yang sama (copy + remove).
+ * Waktu eksekusi disimpan sebagai bagian path agar penghapusan sebelumnya
+ * tidak menimpa file yang sama di waktu berbeda.
+ */
+export async function moveStorageFilesToTrash(bucket: string, names: string[]): Promise<void> {
+  const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-')
+  const api = supabase.storage.from(bucket)
+  for (const part of chunk(names, 8)) {
+    for (const name of part) {
+      const { error: copyErr } = await api.copy(name, `_trash/${stamp}/${name}`)
+      if (copyErr) throw copyErr
+    }
+    const { error: rmErr } = await api.remove(part)
+    if (rmErr) throw rmErr
+  }
 }
 
 // ------------------------------------------------------------
