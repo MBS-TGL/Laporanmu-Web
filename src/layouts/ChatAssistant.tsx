@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Drawer, Input } from 'antd'
-import { RobotOutlined, SendOutlined } from '@ant-design/icons'
+import { RobotOutlined, SendOutlined, StopOutlined } from '@ant-design/icons'
 import { askAi, estimateTokens, type AiChatMessage } from '../shared/lib/ai'
 import {
   getCachedAnswer,
@@ -11,7 +11,8 @@ import {
 } from '../shared/lib/aiCache'
 import { buildChatContext } from '../shared/lib/aiContext'
 import { retrieveKnowledge, toSources, type AiSource } from '../shared/lib/aiKnowledge'
-import { useFlagMap } from '../shared/hooks/useFeatureFlags'
+import { streamAi } from '../shared/lib/aiStream'
+import { useFlag, useFlagMap } from '../shared/hooks/useFeatureFlags'
 import { useRbac } from '../shared/rbac/useRbac'
 
 const GREETING =
@@ -59,6 +60,7 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
   const [messages, setMessages] = useState<ChatMessageView[]>([{ role: 'assistant', content: GREETING }])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [streamingText, setStreamingText] = useState<string | null>(null)
   const [error, setError] = useState<ChatError | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -67,6 +69,8 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
   const navigate = useNavigate()
   const { role, can, isLoading: rbacLoading } = useRbac()
   const flagMap = useFlagMap()
+  const streamEnabled = useFlag('ai.chat.stream', true)
+  const busy = isLoading || streamingText !== null
   const contextCan = useCallback(
     (perm: string) =>
       rbacLoading && perm === 'admin:access'
@@ -76,8 +80,8 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
   )
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isLoading, error, open])
+    bottomRef.current?.scrollIntoView({ behavior: streamingText !== null ? 'auto' : 'smooth' })
+  }, [messages, isLoading, streamingText, error, open])
 
   const abortOnly = useCallback(() => {
     abortRef.current?.abort()
@@ -85,13 +89,11 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     sendingRef.current = false
   }, [])
 
-  const cancel = useCallback(() => {
-    abortOnly()
-    setIsLoading(false)
-  }, [abortOnly])
-
   useEffect(() => {
-    if (!open) abortOnly()
+    if (!open) {
+      requestIdRef.current += 1
+      abortOnly()
+    }
   }, [open, abortOnly])
 
   useEffect(() => () => abortOnly(), [abortOnly])
@@ -143,7 +145,6 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     }
     setInput('')
     setError(null)
-    setIsLoading(true)
     sendingRef.current = true
 
     abortRef.current?.abort()
@@ -151,6 +152,83 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     abortRef.current = controller
 
     const context = buildChatContext({ role, flags: flagMap, can: contextCan, knowledge })
+    const commit = (content: string, durationMs: number, shouldCache = true) => {
+      if (shouldCache && cacheable) {
+        setCachedAnswer(text, { text: content, sources }, { scope: cacheScope })
+      }
+      if (import.meta.env.DEV) {
+        console.info('[ai] chat selesai', {
+          durationMs,
+          cached: false,
+          estimatedTokens: estimateTokens(context, text, content),
+        })
+      }
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content, sources: sources.length > 0 ? sources : undefined },
+      ])
+    }
+
+    if (streamEnabled) {
+      setStreamingText('')
+      let received = ''
+      const startedAt = performance.now()
+      const streamed = await streamAi(text, {
+        history,
+        context,
+        signal: controller.signal,
+        onToken: (token) => {
+          received += token
+          setStreamingText(received)
+        },
+      })
+      const durationMs = Math.round(performance.now() - startedAt)
+
+      if (requestId !== requestIdRef.current) return
+
+      setStreamingText(null)
+      abortRef.current = null
+      sendingRef.current = false
+
+      if (streamed.ok) {
+        const finalText = streamed.text || received
+        if (finalText) commit(finalText, durationMs, !streamed.aborted)
+        if (import.meta.env.DEV) {
+          console.info('[ai] stream selesai', { durationMs, aborted: streamed.aborted })
+        }
+        return
+      }
+
+      if (received) {
+        commit(received, durationMs, false)
+        setError({ message: streamed.message, retry: text })
+        return
+      }
+
+      const canFallback =
+        streamed.code === 'network' ||
+        streamed.code === 'server' ||
+        streamed.code === 'invalid' ||
+        streamed.code === 'empty'
+      if (!canFallback) {
+        setError({ message: streamed.message, retry: text })
+        return
+      }
+
+      setIsLoading(true)
+      const fallbackStartedAt = performance.now()
+      const fallback = await askAi(text, { history, context, signal: controller.signal })
+      const fallbackDuration = Math.round(performance.now() - fallbackStartedAt)
+      if (requestId !== requestIdRef.current) return
+      abortRef.current = null
+      sendingRef.current = false
+      setIsLoading(false)
+      if (fallback.ok) commit(fallback.text, fallbackDuration)
+      else setError({ message: fallback.message, retry: text })
+      return
+    }
+
+    setIsLoading(true)
     const startedAt = performance.now()
     const result = await askAi(text, { history, context, signal: controller.signal })
     const durationMs = Math.round(performance.now() - startedAt)
@@ -168,33 +246,24 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
     sendingRef.current = false
     setIsLoading(false)
 
-    if (result.ok) {
-      if (cacheable) {
-        setCachedAnswer(text, { text: result.text, sources }, { scope: cacheScope })
-      }
-      if (import.meta.env.DEV) {
-        console.info('[ai] chat selesai', {
-          durationMs,
-          cached: false,
-          estimatedTokens: estimateTokens(context, text, result.text),
-        })
-      }
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: result.text, sources: sources.length > 0 ? sources : undefined },
-      ])
-    } else {
-      setError({ message: result.message, retry: text })
-    }
+    if (result.ok) commit(result.text, durationMs)
+    else setError({ message: result.message, retry: text })
   }
 
   const retry = () => {
-    if (!error || isLoading) return
+    if (!error || busy) return
     void send(error.retry, { appendUser: false })
   }
 
+  const stop = () => {
+    abortRef.current?.abort()
+  }
+
   const handleClose = () => {
-    cancel()
+    requestIdRef.current += 1
+    abortOnly()
+    setStreamingText(null)
+    setIsLoading(false)
     onClose()
   }
 
@@ -293,6 +362,28 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
               )}
             </div>
           ))}
+          {streamingText !== null && (
+            <div
+              style={{
+                alignSelf: 'flex-start',
+                maxWidth: '85%',
+                padding: '8px 12px',
+                borderRadius: '14px 14px 14px 4px',
+                background: '#fff',
+                color: '#334155',
+                border: '1px solid #e2e8f0',
+                fontSize: 13,
+                lineHeight: 1.55,
+                boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+              }}
+            >
+              {streamingText ? (
+                renderRichText(streamingText)
+              ) : (
+                <span style={{ color: '#64748b' }}>Mengetik…</span>
+              )}
+            </div>
+          )}
           {isLoading && (
             <div
               style={{
@@ -327,7 +418,7 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
                 size="small"
                 className="ai-retry-button"
                 onClick={retry}
-                disabled={isLoading}
+                disabled={busy}
                 style={{ marginTop: 6, fontSize: 11.5 }}
               >
                 Coba lagi
@@ -347,7 +438,7 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
             shape="round"
             className="ai-suggestion-chip"
             onClick={() => void send(suggestion)}
-            disabled={isLoading}
+            disabled={busy}
             style={{ fontSize: 11.5, fontWeight: 500, color: '#475569' }}
           >
             {suggestion}
@@ -363,18 +454,30 @@ export function ChatAssistant({ open, onClose }: ChatAssistantProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onPressEnter={() => void send(input)}
-            disabled={isLoading}
+            disabled={busy}
             size="middle"
             className="ai-chat-input"
           />
-          <Button
-            type="primary"
-            className="ai-send-button"
-            icon={<SendOutlined />}
-            onClick={() => void send(input)}
-            loading={isLoading}
-            aria-label="Kirim"
-          />
+          {streamingText !== null ? (
+            <Button
+              danger
+              className="ai-send-button"
+              icon={<StopOutlined />}
+              onClick={stop}
+              aria-label="Berhenti"
+              title="Berhenti"
+            />
+          ) : (
+            <Button
+              type="primary"
+              className="ai-send-button"
+              icon={<SendOutlined />}
+              onClick={() => void send(input)}
+              loading={isLoading}
+              disabled={isLoading}
+              aria-label="Kirim"
+            />
+          )}
         </div>
         <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
           Jawaban AI bisa salah. Verifikasi data penting di menu terkait.

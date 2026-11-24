@@ -34,9 +34,12 @@ export interface CallAiOptions {
   signal?: AbortSignal
 }
 
-const NETWORK_MESSAGE = 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
-const SERVER_MESSAGE = 'Maaf, layanan AI tidak dapat diakses. Coba lagi sebentar.'
-const EMPTY_MESSAGE = 'Maaf, saya belum menemukan jawabannya. Coba tanyakan dengan kalimat lain.'
+export const AI_NETWORK_MESSAGE = 'Tidak bisa terhubung ke layanan AI. Periksa koneksi internet kamu.'
+export const AI_SERVER_MESSAGE = 'Maaf, layanan AI tidak dapat diakses. Coba lagi sebentar.'
+export const AI_EMPTY_MESSAGE = 'Maaf, saya belum menemukan jawabannya. Coba tanyakan dengan kalimat lain.'
+export const AI_AUTH_MESSAGE = 'Sesi AI tidak valid. Login ulang lalu coba lagi.'
+export const AI_QUOTA_MESSAGE = 'Kuota AI sedang penuh. Coba lagi beberapa menit.'
+export const AI_INVALID_MESSAGE = 'Permintaan AI tidak valid.'
 
 export function estimateTokens(...parts: (string | undefined)[]): number {
   const chars = parts.reduce((sum, part) => sum + (part?.length ?? 0), 0)
@@ -62,18 +65,18 @@ async function mapInvokeError(error: unknown): Promise<{ code: AiErrorCode; mess
     return { code: 'aborted', message: 'Permintaan AI dibatalkan.' }
   }
   if (/failed to send|network|fetch/i.test(message)) {
-    return { code: 'network', message: NETWORK_MESSAGE }
+    return { code: 'network', message: AI_NETWORK_MESSAGE }
   }
   if (status === 401 || status === 403) {
-    return { code: 'auth', message: detail || 'Sesi AI tidak valid. Login ulang lalu coba lagi.' }
+    return { code: 'auth', message: detail || AI_AUTH_MESSAGE }
   }
   if (status === 429) {
-    return { code: 'quota', message: detail || 'Kuota AI sedang penuh. Coba lagi beberapa menit.' }
+    return { code: 'quota', message: detail || AI_QUOTA_MESSAGE }
   }
   if (status === 400) {
-    return { code: 'invalid', message: detail || 'Permintaan AI tidak valid.' }
+    return { code: 'invalid', message: detail || AI_INVALID_MESSAGE }
   }
-  return { code: 'server', message: detail || SERVER_MESSAGE }
+  return { code: 'server', message: detail || AI_SERVER_MESSAGE }
 }
 
 async function invokeAi(options: CallAiOptions): Promise<AiResult> {
@@ -99,7 +102,7 @@ async function invokeAi(options: CallAiOptions): Promise<AiResult> {
 
     const text = (data as { text?: string } | null)?.text?.trim() ?? ''
     if (!text) {
-      return { ok: false, code: 'empty', message: EMPTY_MESSAGE }
+      return { ok: false, code: 'empty', message: AI_EMPTY_MESSAGE }
     }
 
     return { ok: true, text }

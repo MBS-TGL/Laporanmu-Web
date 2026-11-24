@@ -216,6 +216,8 @@ Deno.serve(async (req) => {
     return json({ error: 'Mode AI tidak dikenal. Perbarui aplikasi lalu coba lagi.' }, 400, origin)
   }
 
+  const wantsStream = mode === 'chat' && body.stream === true
+
   const input = String(body.input ?? body.prompt ?? '').trim()
   if (!input) {
     return json({ error: 'Pertanyaan tidak boleh kosong.' }, 400, origin)
@@ -311,8 +313,9 @@ Deno.serve(async (req) => {
         messages,
         temperature,
         max_tokens: maxTokens,
+        ...(wantsStream ? { stream: true } : {}),
       }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(wantsStream ? 45_000 : REQUEST_TIMEOUT_MS),
     })
   } catch (error) {
     const name = (error as { name?: string })?.name
@@ -346,6 +349,21 @@ Deno.serve(async (req) => {
       502,
       origin,
     )
+  }
+
+  if (wantsStream) {
+    if (!response.body) {
+      return json({ error: 'Layanan AI tidak mengirim stream. Coba lagi.' }, 502, origin)
+    }
+    return new Response(response.body, {
+      status: 200,
+      headers: {
+        ...corsHeaders(origin),
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+      },
+    })
   }
 
   const data = await response.json().catch(() => null)

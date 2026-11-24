@@ -98,10 +98,11 @@ POST /functions/v1/ai-proxy
 **Kriteria selesai**: jawaban saran kedua instan; p50 latency chat turun dibanding baseline; tidak ada regresi pada modul non-streaming.
 
 ## 10. P3: Streaming (setelah stabil)
-- [ ] Edge meneruskan `response.body` Groq; client memakai `fetch` langsung (bukan `functions.invoke`) dan parser SSE kecil.
-- [ ] Render token per token; tombol **Berhenti** saat streaming.
-- [ ] Fallback otomatis ke non-streaming jika stream gagal.
-- [ ] Gate dengan feature flag `ai.chat.stream` (default mati) sampai P0-P2 stabil.
+- [x] Edge meneruskan `response.body` Groq; client memakai `fetch` langsung (bukan `functions.invoke`) dan parser SSE kecil (`aiStream.ts`).
+- [x] Render token per token; tombol **Berhenti** saat streaming.
+- [x] Fallback otomatis ke non-streaming jika stream gagal.
+- [x] Gate dengan feature flag `ai.chat.stream` (default nyala; set `false` untuk mematikan).
+- [ ] Verifikasi live token bertahap dan Stop di browser setelah deploy edge v9.
 
 **Kriteria selesai**: token pertama < 1,5 detik p50 lokal; fallback berfungsi; tidak ada kebocoran state saat drawer ditutup.
 
@@ -110,12 +111,14 @@ POST /functions/v1/ai-proxy
 src/shared/lib/ai.ts                 kontrak AiResult, callAi, mode, estimasi token
 src/shared/lib/aiKnowledge.ts        entri FAQ + retrieveKnowledge
 src/shared/lib/aiContext.ts          buildChatContext (role/flag/permission)
-src/layouts/ChatAssistant.tsx        error+retry, stop, sumber, cache (streaming di P3)
+src/shared/lib/aiStream.ts           fetch SSE + parser + fallback result
+src/layouts/ChatAssistant.tsx        error+retry, stop, sumber, cache, streaming
 supabase/functions/ai-proxy/index.ts mode, model lock, quota, timeout, CORS, SSE
 supabase/functions/ai-proxy/prompts.ts  prompt kanonik per mode (opsional)
 supabase/migrations/0070_ai_guardrails.sql  ai_usage + ai_consume_quota
 src/shared/lib/aiKnowledge.test.ts   unit test retrieval
-src/shared/lib/ai.test.ts            unit test parser SSE + mapping error
+src/shared/lib/ai.test.ts            unit test mapping error
+src/shared/lib/aiStream.test.ts      unit test parser SSE
 docs/AI-EVAL.md                      20 pertanyaan evaluasi
 ```
 
