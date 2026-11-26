@@ -22,11 +22,11 @@ export const ORAL_GRADE_SCALE = [
   { min: 0, max: 49, ar: 'راسب', id: 'Tidak Lulus' },
 ] as const
 
-/** Predikat Praktik (A/B/C) seperti di Excel */
+/** Predikat Praktik (A/B/C) */
 export const ORAL_PRACTICAL_SCALE = [
-  { ar: 'أ', id: 'A', range: '90 - 95' },
+  { ar: 'أ', id: 'A', range: '90 - 100' },
   { ar: 'ب', id: 'B', range: '80 - 89' },
-  { ar: 'ج', id: 'C', range: '< 79' },
+  { ar: 'ج', id: 'C', range: '< 80' },
 ] as const
 
 export function toV1ReportType(type: ReportCardType): V1ReportType {

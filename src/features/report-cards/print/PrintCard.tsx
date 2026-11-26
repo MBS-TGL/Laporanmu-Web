@@ -212,6 +212,12 @@ export function PrintCard({
     fontSize: isAr ? '13.5pt' : '10.5pt',
     lineHeight: 1.2,
   }
+  // Baris Jumlah/Rata-rata disamakan tingginya dengan baris isi tabel utama
+  // (baris utama dipicu teks mapel Arab berukuran arMainFontSize).
+  const footCell: CSSProperties = {
+    ...bodyCell,
+    lineHeight: (lc.arMainFontSize * 1.2) / (isAr ? 13.5 : 10.5),
+  }
 
   const displayText = (value: PrintExtra[string]): string | number =>
     isAr && typeof value === 'string' && value.trim() ? translitToAr(value) : displayVal(value)
@@ -654,42 +660,42 @@ export function PrintCard({
               <tr>
                 {isAr ? (
                   <>
-                    <td style={bodyCell} />
-                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>
+                    <td style={footCell} />
+                    <td style={{ ...footCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>
                       {filledScores.length ? toArabicNum(total) : '—'}
                     </td>
-                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'right', fontWeight: 700, background: '#f0f4f8', fontFamily: RAPORT_AR_FONT }}>
+                    <td colSpan={3} style={{ ...footCell, padding: `${cellPadding} 10px`, textAlign: 'right', fontWeight: 700, background: '#f0f4f8', fontFamily: RAPORT_AR_FONT }}>
                       {RL.total_label.ar}
                     </td>
                   </>
                 ) : (
                   <>
-                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'left', fontWeight: 700, background: '#f0f4f8' }}>
+                    <td colSpan={3} style={{ ...footCell, padding: `${cellPadding} 10px`, textAlign: 'left', fontWeight: 700, background: '#f0f4f8' }}>
                       {RL.total_label.id}
                     </td>
-                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{filledScores.length ? total : '—'}</td>
-                    <td style={bodyCell} />
+                    <td style={{ ...footCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{filledScores.length ? total : '—'}</td>
+                    <td style={footCell} />
                   </>
                 )}
               </tr>
               <tr>
                 {isAr ? (
                   <>
-                    <td style={bodyCell} />
-                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700, fontFamily: RAPORT_AR_FONT }}>
+                    <td style={footCell} />
+                    <td style={{ ...footCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700, fontFamily: RAPORT_AR_FONT }}>
                       {averageText === '—' ? '—' : toArabicNum(averageText)}
                     </td>
-                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'right', fontWeight: 700, background: '#f0f4f8', fontFamily: RAPORT_AR_FONT }}>
+                    <td colSpan={3} style={{ ...footCell, padding: `${cellPadding} 10px`, textAlign: 'right', fontWeight: 700, background: '#f0f4f8', fontFamily: RAPORT_AR_FONT }}>
                       {RL.avg_label.ar}
                     </td>
                   </>
                 ) : (
                   <>
-                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'left', fontWeight: 700, background: '#f0f4f8' }}>
+                    <td colSpan={3} style={{ ...footCell, padding: `${cellPadding} 10px`, textAlign: 'left', fontWeight: 700, background: '#f0f4f8' }}>
                       {RL.avg_label.id}
                     </td>
-                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{averageText}</td>
-                    <td style={bodyCell} />
+                    <td style={{ ...footCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{averageText}</td>
+                    <td style={footCell} />
                   </>
                 )}
               </tr>

@@ -16,11 +16,11 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   arSecFontSize: 13.5,
   arScaleFontSize: 13.5,
   arValueFontSize: 13.5,
-  scoreColWidth: 10,
-  gradeColWidth: 15,
+  scoreColWidth: 8,
+  gradeColWidth: 12,
   numColWidth: 6,
-  subjectArWidth: 34.5,
-  subjectIdWidth: 34.5,
+  subjectArWidth: 37,
+  subjectIdWidth: 37,
   showCapaianHafalan: true,
 }
 

@@ -83,7 +83,7 @@ export function SignatureBlock({
       >
         <div
           style={{
-            height: '80px',
+            height: '58px',
             width: '100%',
             display: 'flex',
             alignItems: 'center',
@@ -93,7 +93,7 @@ export function SignatureBlock({
           {mode === 'qrcode' && qrValue && (
             <QRCodeSVG
               value={qrValue}
-              size={72}
+              size={52}
               level="M"
               bgColor="#ffffff"
               fgColor="#111827"
