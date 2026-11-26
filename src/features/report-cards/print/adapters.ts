@@ -1,3 +1,4 @@
+import { ORAL_LEGACY_KEY_MAP } from '../constants'
 import type {
   MonthlyReport,
   ReportCardStudent,
@@ -108,8 +109,16 @@ export function toPrintMonthly(row: MonthlyReport | null): PrintPayload {
 
 export function toPrintSemester(row: SemesterReport | null): PrintPayload {
   if (!row) return { scores: {}, extra: {} }
+  // Normalisasi key legacy (data lama masih memakai nama kolom sebelumnya)
+  const raw = row.scores ?? {}
+  const scores: Record<string, number | null> = { ...raw }
+  for (const [legacy, modern] of Object.entries(ORAL_LEGACY_KEY_MAP)) {
+    if (typeof raw[legacy] === 'number' && typeof raw[modern] !== 'number') {
+      scores[modern] = raw[legacy]
+    }
+  }
   return {
-    scores: row.scores ?? {},
+    scores,
     extra: {
       berat_badan: row.extras?.weight_kg ?? null,
       tinggi_badan: row.extras?.height_cm ?? null,
@@ -118,6 +127,7 @@ export function toPrintSemester(row: SemesterReport | null): PrintPayload {
       hari_alpa: row.extras?.absent_days ?? 0,
       hari_pulang: row.extras?.early_leave_days ?? 0,
       catatan: row.extras?.notes ?? null,
+      hafalan_note: row.extras?.hafalan_note ?? null,
       sholat: row.extras?.sholat ?? null,
     },
   }

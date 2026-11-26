@@ -1,11 +1,14 @@
-import { getCriteria } from '../constants'
+import { getCriteria, PRACTICAL_KEYS } from '../constants'
 import type { ReportCardType } from '../types'
+import { toArabicNum } from './labels'
 
 export interface PrintCriterion {
   key: string
   id: string
   ar?: string
   desc?: string
+  /** Materi praktik: dicetak di bagian "Ujian Praktik", tidak ikut jumlah/rata-rata */
+  practical?: boolean
 }
 
 export interface PrintFlags {
@@ -38,23 +41,35 @@ const AR_BY_KEY: Record<string, string> = {
   qawaid: 'القواعد',
   imla: 'الإملاء',
   wafa: 'تلاوة القرآن',
-  hadith_arbain: 'حديث الأربعين النووي',
+  hadith_arbain: 'حديث الأربعين',
   daily_prayers: 'الدعاء اليومي',
   daily_hadith: 'الحديث اليومي',
   post_prayer_dhikr: 'الذكر والدعاء بعد الصلاة',
   morning_evening_dhikr: 'ذكر الصباح والمساء',
-  tuhfatul_athfal: 'متن تحفة الأطفال',
+  tuhfatul_athfal: 'تحفة الأطفال',
   wudhu_practice: 'الوضوء',
-  prostration_practice: 'السجود',
+  prostration_practice: 'سجود السهو والتلاوة',
+  eid_prayer_practice: 'صلاة عيد الفطر',
 }
 
-export function getPrintCriteria(type: ReportCardType, grade: string | null): PrintCriterion[] {
+function arabicNameFor(key: string): string | undefined {
+  if (AR_BY_KEY[key]) return AR_BY_KEY[key]
+  const juz = key.match(/^tahfidz_juz_(\d+)$/)
+  return juz ? `تحفيظ القرآن الكريم جزء ${toArabicNum(juz[1])}` : undefined
+}
+
+export function getPrintCriteria(
+  type: ReportCardType,
+  grade: string | null,
+  className?: string | null,
+): PrintCriterion[] {
   if (type === 'monthly') return MONTHLY_CRITERIA
-  return getCriteria(type, grade).map((criterion) => ({
+  return getCriteria(type, grade, className).map((criterion) => ({
     key: criterion.key,
     id: criterion.label,
-    ar: AR_BY_KEY[criterion.key],
+    ar: arabicNameFor(criterion.key),
     desc: criterion.desc,
+    practical: PRACTICAL_KEYS.has(criterion.key),
   }))
 }
 

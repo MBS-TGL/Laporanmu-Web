@@ -115,6 +115,7 @@ export function semesterHasContent(scores: Record<string, number | null>, extras
         extras.excused_days ||
         extras.absent_days ||
         extras.early_leave_days ||
+        extras.hafalan_note ||
         (extras.ekskul && extras.ekskul.length > 0),
     )
   )
@@ -174,6 +175,7 @@ export function buildSemesterPayload(args: {
     absent_days: draft?.absent_days ?? saved?.extras?.absent_days ?? 0,
     early_leave_days: draft?.early_leave_days ?? saved?.extras?.early_leave_days ?? 0,
     notes: draft?.notes ?? saved?.extras?.notes ?? null,
+    hafalan_note: draft?.hafalan_note ?? saved?.extras?.hafalan_note ?? null,
     ekskul: draft?.ekskul ?? saved?.extras?.ekskul,
   }
   if (!saved && !semesterHasContent(scores, extras)) return null

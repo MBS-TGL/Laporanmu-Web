@@ -73,6 +73,8 @@ export interface SemesterReport {
     absent_days?: number
     early_leave_days?: number
     notes?: string | null
+    /** Ringkasan hafalan di luar Juz 30-26 (mis. "Juz 30–25, 1–5") — hanya tampil bila terisi. */
+    hafalan_note?: string | null
     /** Penilaian ekskul semester (Kurikulum Merdeka) — nama + keterangan/capaian */
     ekskul?: { name: string; note: string | null }[]
   }
@@ -177,5 +179,6 @@ export interface SemesterDraft {
   absent_days?: number
   early_leave_days?: number
   notes?: string
+  hafalan_note?: string
   ekskul?: { name: string; note: string | null }[]
 }

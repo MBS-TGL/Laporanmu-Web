@@ -2,12 +2,13 @@ import { useState, type KeyboardEvent } from 'react'
 import { Badge, Button, Empty, Select, Typography, theme } from 'antd'
 import {
   ArrowDownOutlined,
+  BookOutlined,
   CheckCircleFilled,
   FormOutlined,
   LeftOutlined,
   RightOutlined,
 } from '@ant-design/icons'
-import type { Criterion } from '../constants'
+import { isPracticalKey, type Criterion } from '../constants'
 import type { ReportCardStudent, ReportCardType } from '../types'
 
 type Token = ReturnType<typeof theme.useToken>['token']
@@ -27,8 +28,11 @@ interface MobileEntryProps {
   behaviorByStudent: Map<string, BehaviorInfo>
   hasClassStudents: boolean
   getScore: (studentId: string, key: string) => number | null
+  isRowComplete: (studentId: string) => boolean
+  hafalanById: Map<string, string>
   onCommitScore: (studentId: string, key: string, value: number | null) => void
   onOpenExtras: (student: ReportCardStudent) => void
+  onOpenHafalan: (student: ReportCardStudent) => void
   onClearFilters: () => void
 }
 
@@ -55,8 +59,11 @@ export function MobileEntry({
   behaviorByStudent,
   hasClassStudents,
   getScore,
+  isRowComplete,
+  hafalanById,
   onCommitScore,
   onOpenExtras,
+  onOpenHafalan,
   onClearFilters,
 }: MobileEntryProps) {
   const { token } = theme.useToken()
@@ -83,16 +90,20 @@ export function MobileEntry({
   const behavior = behaviorByStudent.get(student.id)
   const values = criteria.map((criterion) => getScore(student.id, criterion.key))
   const filled = values.filter((value) => typeof value === 'number').length
-  const averageValues = values.filter((value): value is number => typeof value === 'number')
+  const averageValues = values.filter(
+    (value, position) =>
+      typeof value === 'number' && !isPracticalKey(criteria[position]?.key ?? ''),
+  ) as number[]
   const average = averageValues.length
     ? Math.round((averageValues.reduce((sum, value) => sum + value, 0) / averageValues.length) * 100) / 100
     : null
+  const complete = isRowComplete(student.id)
+  const hafalanNote = hafalanById.get(student.id) ?? ''
 
   let nextIncomplete: number | null = null
   for (let offset = 1; offset < students.length; offset++) {
     const candidate = (clamped + offset) % students.length
-    const candidateStudent = students[candidate]
-    if (criteria.some((criterion) => typeof getScore(candidateStudent.id, criterion.key) !== 'number')) {
+    if (!isRowComplete(students[candidate].id)) {
       nextIncomplete = candidate
       break
     }
@@ -145,7 +156,7 @@ export function MobileEntry({
           <Typography.Text type="secondary" style={{ fontSize: 12.5 }}>
             {filled}/{criteria.length} terisi · rata-rata {average ?? '–'}
           </Typography.Text>
-          {filled === criteria.length && (
+          {complete && (
             <CheckCircleFilled style={{ color: token.colorSuccess }} aria-label="Lengkap" />
           )}
           {behavior && behavior.negative > 0 && (
@@ -178,15 +189,27 @@ export function MobileEntry({
           ))}
         </div>
 
-        <Button
-          block
-          icon={<FormOutlined />}
-          disabled={!canWrite}
-          onClick={() => onOpenExtras(student)}
-          style={{ marginTop: 14 }}
-        >
-          Data Pendukung (fisik, kehadiran, catatan)
-        </Button>
+        {type === 'pondok_oral' ? (
+          <Button
+            block
+            icon={<BookOutlined />}
+            disabled={!canWrite}
+            onClick={() => onOpenHafalan(student)}
+            style={{ marginTop: 14 }}
+          >
+            {hafalanNote ? `Hafalan: ${hafalanNote}` : 'Hafalan di luar Juz 30–26'}
+          </Button>
+        ) : (
+          <Button
+            block
+            icon={<FormOutlined />}
+            disabled={!canWrite}
+            onClick={() => onOpenExtras(student)}
+            style={{ marginTop: 14 }}
+          >
+            Data Pendukung (fisik, kehadiran, catatan)
+          </Button>
+        )}
       </div>
 
       <Button

@@ -209,9 +209,10 @@ function ReportCardsTab() {
     rows: Record<string, number | null>[],
     type: ReportCardType,
     grade: string | null,
+    className: string,
   ): number | null => {
     const avgs = rows
-      .map((r) => calcAverage(type, r, grade))
+      .map((r) => calcAverage(type, r, grade, className))
       .filter((v): v is number => v !== null)
     if (avgs.length === 0) return null
     return Math.round((avgs.reduce((a, b) => a + b, 0) / avgs.length) * 100) / 100
@@ -243,7 +244,7 @@ function ReportCardsTab() {
         musyrif: c.homeroom_teacher?.name ?? null,
         total: studentsInClass.get(c.id) ?? 0,
         complete,
-        avg: classAverage(rows, 'monthly', null),
+        avg: classAverage(rows, 'monthly', null, c.name),
       }
     })
   }, [monthlyQuery.data, studentClassMap, classes, studentsInClass])
@@ -262,14 +263,14 @@ function ReportCardsTab() {
     return classes.map((c) => {
       const grade = c.grade ?? null
       const rows = rowsByClass.get(c.id) ?? []
-      const complete = rows.filter((r) => isComplete(semesterType, r, grade)).length
+      const complete = rows.filter((r) => isComplete(semesterType, r, grade, c.name)).length
       return {
         id: c.id,
         name: c.name,
         musyrif: c.homeroom_teacher?.name ?? null,
         total: studentsInClass.get(c.id) ?? 0,
         complete,
-        avg: classAverage(rows, semesterType, grade),
+        avg: classAverage(rows, semesterType, grade, c.name),
       }
     })
   }, [semesterQuery.data, studentClassMap, classes, studentsInClass, semester, semesterType, ay])

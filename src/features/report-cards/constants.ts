@@ -37,81 +37,138 @@ export interface Criterion {
   desc?: string
 }
 
-// 9 Poin Penilaian Ujian Pondok (Lisan) dengan detail tingkatan per jenjang kelas (7-12)
-// Key menggunakan standar English naming, didukung pemetaan fallback legacy key
-export const PONDOK_ORAL_CRITERIA_BY_GRADE: Record<number, Criterion[]> = {
-  // --- KELAS 7 ---
-  7: [
-    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri' },
-    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 1 s/d 7' },
-    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 1 s/d 29' },
-    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 1 s/d 17' },
-    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
+// Ujian Pondok (Lisan) mengikuti file Excel RAPORT_LISAN_PAS:
+// - Boarding: 7 materi hafalan (termasuk Tuhfatul Athfal) + 5 juz tahfidz (30-26) = 12 baris.
+// - Reguler: 6 materi (tanpa Tuhfatul Athfal) + 5 juz = 11 baris.
+// Kedua program memakai 5 baris Juz 30-26 untuk semua tingkat, plus 0-1 materi praktik
+// per tingkat (VII Wudhu, VIII Sujud Sahwi & Tilawah, IX Shalat Idul Fitri, X-XII tidak ada).
+// Kriteria praktik tidak ikut jumlah dan rata-rata (lihat PRACTICAL_KEYS) tapi tetap wajib
+// untuk status Lengkap. Key memakai standar English naming + fallback legacy key.
+interface OralGradeSpec {
+  wafa: string
+  arbain: string
+  doa: string
+  hadith: string
+  tuhfah: string
+  practical: Criterion | null
+}
+
+export type OralProgram = 'boarding' | 'regular'
+
+/** Program lisan diturunkan dari nama kelas: "Reguler"/"Regular" → regular, selain itu boarding. */
+export function getOralProgram(className: string | null | undefined): OralProgram {
+  return className && /reguler|regular/i.test(className) ? 'regular' : 'boarding'
+}
+
+export const ORAL_TAHFIDZ_JUZ = [30, 29, 28, 27, 26]
+
+function buildOralCriteria(spec: OralGradeSpec, program: OralProgram): Criterion[] {
+  return [
+    { key: 'wafa', label: 'Wafa', desc: spec.wafa },
+    { key: 'daily_prayers', label: "Do'a Harian", desc: spec.doa },
+    { key: 'hadith_arbain', label: 'Hadist Arbain', desc: spec.arbain },
+    { key: 'daily_hadith', label: 'Hadist Harian', desc: spec.hadith },
+    { key: 'post_prayer_dhikr', label: 'Dzikir dan Doa Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
     { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
-    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Bait Mukaddimah & Hukum Nun Mati' },
-    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Rukun, sunnah, doa, dan tata cara wudhu' },
-    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Tata cara & bacaan Sujud Sahwi / Tilawah' },
-  ],
-  // --- KELAS 8 ---
-  8: [
-    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri' },
-    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 8 s/d 14' },
-    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 30 s/d 61' },
-    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 18 s/d 34' },
-    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
-    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
-    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Hukum Mim Mati & Idgham' },
-    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Pengujian rukun & sunnah wudhu sempurna' },
-    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
-  ],
-  // --- KELAS 9 ---
-  9: [
-    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri' },
-    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 15 s/d 21' },
-    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 62 s/d 88' },
-    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 35 s/d 50' },
-    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
-    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
-    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Hukum Mad dan Pembagiannya' },
-    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Praktek thaharah & tata cara sholat sunnah' },
-    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
-  ],
-  // --- KELAS 10 ---
-  10: [
-    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib tingkat lanjut' },
-    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 22 s/d 28' },
-    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 89 s/d 103' },
-    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 51 s/d 64' },
-    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
-    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
-    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Matan Tuhfatul Athfal lanjutan' },
-    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Fiqih thaharah & evaluasi wudhu' },
-    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
-  ],
-  // --- KELAS 11 ---
-  11: [
-    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib tingkat lanjut' },
-    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 29 s/d 35' },
-    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 104 s/d 121' },
-    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 65 s/d 73' },
-    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
-    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
-    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Matan Tuhfatul Athfal lanjutan' },
-    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Fiqih thaharah & evaluasi wudhu' },
-    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
-  ],
-  // --- KELAS 12 ---
-  12: [
-    { key: 'wafa', label: 'Wafa', desc: 'Tilawah/Tajwid/Ghorib tingkat mutqin' },
-    { key: 'hadith_arbain', label: 'Hadist Arbain An-Nawawi', desc: 'Hadits 36 s/d 42' },
-    { key: 'daily_prayers', label: "Do'a Sehari-hari", desc: 'Target Doa No. 122 s/d 142' },
-    { key: 'daily_hadith', label: 'Hadist Sehari-hari', desc: 'Target Hadits No. 74 s/d 82' },
-    { key: 'post_prayer_dhikr', label: 'Dzikir Setelah Sholat', desc: 'Dzikir Setelah Sholat' },
-    { key: 'morning_evening_dhikr', label: 'Dzikir Pagi dan Petang', desc: 'Dzikir Pagi dan Petang' },
-    { key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: 'Matan Tuhfatul Athfal tuntas' },
-    { key: 'wudhu_practice', label: 'Praktek Wudhu', desc: 'Evaluasi praktek thaharah komprehensif' },
-    { key: 'prostration_practice', label: 'Praktek Sujud', desc: 'Praktek Sujud Sahwi dan Sujud Tilawah' },
-  ],
+    ...(program === 'boarding'
+      ? [{ key: 'tuhfatul_athfal', label: 'Matan Tuhfatul Athfal', desc: spec.tuhfah }]
+      : []),
+    ...ORAL_TAHFIDZ_JUZ.map((juz) => ({
+      key: `tahfidz_juz_${juz}`,
+      label: `Tahfidz Al-Qur'an Juz ${juz}`,
+      desc: `Hafalan Juz ${juz}`,
+    })),
+    ...(spec.practical ? [spec.practical] : []),
+  ]
+}
+
+const WUDHU: Criterion = {
+  key: 'wudhu_practice',
+  label: 'Praktek Wudhu',
+  desc: 'Rukun, sunnah, doa, dan tata cara wudhu',
+}
+const SUJUD: Criterion = {
+  key: 'prostration_practice',
+  label: 'Praktek Sujud Sahwi dan Tilawah',
+  desc: 'Praktek Sujud Sahwi dan Sujud Tilawah',
+}
+const SHOLAT_IED: Criterion = {
+  key: 'eid_prayer_practice',
+  label: 'Praktek Shalat Idul Fitri',
+  desc: 'Tata cara Shalat Idul Fitri',
+}
+
+const ORAL_GRADE_SPECS: Record<number, OralGradeSpec> = {
+  7: {
+    wafa: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri',
+    arbain: 'Hadits 1 s/d 7',
+    doa: 'Target Doa No. 1 s/d 29',
+    hadith: 'Target Hadits No. 1 s/d 17',
+    tuhfah: 'Bait Mukaddimah & Hukum Nun Mati',
+    practical: WUDHU,
+  },
+  8: {
+    wafa: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri',
+    arbain: 'Hadits 8 s/d 14',
+    doa: 'Target Doa No. 30 s/d 61',
+    hadith: 'Target Hadits No. 18 s/d 34',
+    tuhfah: 'Hukum Mim Mati & Idgham',
+    practical: SUJUD,
+  },
+  9: {
+    wafa: 'Tilawah/Tajwid/Ghorib sesuai tingkatan santri',
+    arbain: 'Hadits 15 s/d 21',
+    doa: 'Target Doa No. 62 s/d 88',
+    hadith: 'Target Hadits No. 35 s/d 50',
+    tuhfah: 'Hukum Mad dan Pembagiannya',
+    practical: SHOLAT_IED,
+  },
+  10: {
+    wafa: 'Tilawah/Tajwid/Ghorib tingkat lanjut',
+    arbain: 'Hadits 22 s/d 28',
+    doa: 'Target Doa No. 89 s/d 103',
+    hadith: 'Target Hadits No. 51 s/d 64',
+    tuhfah: 'Matan Tuhfatul Athfal lanjutan',
+    practical: null,
+  },
+  11: {
+    wafa: 'Tilawah/Tajwid/Ghorib tingkat lanjut',
+    arbain: 'Hadits 29 s/d 35',
+    doa: 'Target Doa No. 104 s/d 121',
+    hadith: 'Target Hadits No. 65 s/d 73',
+    tuhfah: 'Matan Tuhfatul Athfal lanjutan',
+    practical: null,
+  },
+  12: {
+    wafa: 'Tilawah/Tajwid/Ghorib tingkat mutqin',
+    arbain: 'Hadits 36 s/d 42',
+    doa: 'Target Doa No. 122 s/d 142',
+    hadith: 'Target Hadits No. 74 s/d 82',
+    tuhfah: 'Matan Tuhfatul Athfal tuntas',
+    practical: null,
+  },
+}
+
+function buildCriteriaMap(program: OralProgram): Record<number, Criterion[]> {
+  const map: Record<number, Criterion[]> = {}
+  for (const [grade, spec] of Object.entries(ORAL_GRADE_SPECS)) {
+    map[Number(grade)] = buildOralCriteria(spec, program)
+  }
+  return map
+}
+
+export const PONDOK_ORAL_CRITERIA_BY_GRADE = buildCriteriaMap('boarding')
+export const PONDOK_ORAL_CRITERIA_REGULAR_BY_GRADE = buildCriteriaMap('regular')
+
+function getOralCriteriaMap(program: OralProgram): Record<number, Criterion[]> {
+  return program === 'regular' ? PONDOK_ORAL_CRITERIA_REGULAR_BY_GRADE : PONDOK_ORAL_CRITERIA_BY_GRADE
+}
+
+function getOralCriteria(grade: string | null, className?: string | null): Criterion[] {
+  const map = getOralCriteriaMap(getOralProgram(className))
+  const gNum = Number(grade)
+  if (gNum in map) return map[gNum]
+  return map[isSmaClass(grade) ? 10 : 7]
 }
 
 // Peta alias legacy key -> English key untuk kompatibilitas data nilai lama
@@ -205,16 +262,13 @@ export const SEMESTER_CRITERIA: Record<SemesterType, { smp: Criterion[]; sma: Cr
   },
 }
 
-export function getCriteria(type: ReportCardType, grade: string | null): Criterion[] {
+export function getCriteria(
+  type: ReportCardType,
+  grade: string | null,
+  className?: string | null,
+): Criterion[] {
   if (type === 'monthly') return BULANAN_CRITERIA
-  if (type === 'pondok_oral') {
-    const gNum = Number(grade)
-    if (gNum in PONDOK_ORAL_CRITERIA_BY_GRADE) {
-      return PONDOK_ORAL_CRITERIA_BY_GRADE[gNum]
-    }
-    const level = isSmaClass(grade) ? 'sma' : 'smp'
-    return SEMESTER_CRITERIA.pondok_oral[level]
-  }
+  if (type === 'pondok_oral') return getOralCriteria(grade, className)
   const level = isSmaClass(grade) ? 'sma' : 'smp'
   return SEMESTER_CRITERIA[type as SemesterType][level]
 }
@@ -246,18 +300,14 @@ export function getGeneralCriteriaFromSubjects(
 export function getCriteriaEnhanced(
   type: ReportCardType,
   grade: string | null,
+  className?: string | null,
   subjectsList?: { id: string; name: string; sort_order: number }[],
 ): Criterion[] {
   if (type === 'monthly') return BULANAN_CRITERIA
   if (type === 'general' && subjectsList && subjectsList.length > 0) {
     return getGeneralCriteriaFromSubjects(subjectsList)
   }
-  if (type === 'pondok_oral') {
-    const gNum = Number(grade)
-    if (gNum in PONDOK_ORAL_CRITERIA_BY_GRADE) {
-      return PONDOK_ORAL_CRITERIA_BY_GRADE[gNum]
-    }
-  }
+  if (type === 'pondok_oral') return getOralCriteria(grade, className)
   const level = isSmaClass(grade) ? 'sma' : 'smp'
   return SEMESTER_CRITERIA[type as SemesterType][level]
 }
@@ -274,7 +324,16 @@ export const PRACTICAL_KEYS = new Set([
   'wudhu_practice',
   'sujud_sahwi_tilawah',
   'prostration_practice',
+  'eid_prayer_practice',
 ])
+
+export function isTahfidzKey(key: string): boolean {
+  return key.startsWith('tahfidz_juz_')
+}
+
+export function isPracticalKey(key: string): boolean {
+  return PRACTICAL_KEYS.has(key)
+}
 
 export const HAFALAN_PRESETS = [
   '1/2 Halaman',
@@ -316,10 +375,20 @@ export function getGradePredicateSemester(score: number | null): string {
   return 'E - Kurang Baik'
 }
 
+// Predikat Ujian Lisan mengikuti "Sistem Penilaian" di Excel (batas 90/80/60/50)
+export function getGradePredicateOral(score: number | null): string {
+  if (score === null || Number.isNaN(score)) return '-'
+  if (score >= 90) return 'Istimewa'
+  if (score >= 80) return 'Sangat Baik'
+  if (score >= 60) return 'Baik'
+  if (score >= SEMESTER_KKM) return 'Cukup'
+  return 'Tidak Lulus'
+}
+
 export function getPredicate(type: ReportCardType, score: number | null): string {
-  return type === 'monthly'
-    ? getGradePredicateMonthly(score)
-    : getGradePredicateSemester(score)
+  if (type === 'monthly') return getGradePredicateMonthly(score)
+  if (type === 'pondok_oral') return getGradePredicateOral(score)
+  return getGradePredicateSemester(score)
 }
 
 // Tint latar sel nilai sesuai band predikat (pemisahan visual input ala V1).
@@ -341,26 +410,49 @@ export function calcAverage(
   type: ReportCardType,
   scores: Record<string, number | null>,
   grade: string | null,
+  className?: string | null,
   subjectsList?: { id: string; name: string; sort_order: number }[],
 ): number | null {
-  const criteria = getCriteriaEnhanced(type, grade, subjectsList)
+  const criteria = getCriteriaEnhanced(type, grade, className, subjectsList)
   const values = criteria
-    .filter((c) => !PRACTICAL_KEYS.has(c.key))
-    .map((c) => scores[c.key])
+    .filter((c) => !isPracticalKey(c.key))
+    .map((c) => getScoreWithFallback(scores, c.key))
     .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
   if (values.length === 0) return null
   const sum = values.reduce((a, b) => a + b, 0)
   return Math.round((sum / values.length) * 100) / 100
 }
 
+/**
+ * Status Lengkap.
+ * Non-lisan: semua kriteria wajib bernilai.
+ * Lisan: materi + praktik wajib; tahfidz Juz 30-26 wajib berurutan mulai dari awal —
+ * boleh berhenti di celah pertama (mis. baru Juz 30-29), tapi tidak boleh bolong
+ * (nilai setelah celah dianggap belum lengkap).
+ */
 export function isComplete(
   type: ReportCardType,
   scores: Record<string, number | null>,
   grade: string | null,
+  className?: string | null,
   subjectsList?: { id: string; name: string; sort_order: number }[],
 ): boolean {
-  const criteria = getCriteriaEnhanced(type, grade, subjectsList)
-  return criteria.every((c) => typeof scores[c.key] === 'number')
+  const criteria = getCriteriaEnhanced(type, grade, className, subjectsList)
+  const hasScore = (key: string) => typeof getScoreWithFallback(scores, key) === 'number'
+  if (type !== 'pondok_oral') return criteria.every((c) => hasScore(c.key))
+
+  const nonJuz = criteria.filter((c) => !isTahfidzKey(c.key))
+  if (!nonJuz.every((c) => hasScore(c.key))) return false
+
+  let gap = false
+  for (const criterion of criteria.filter((c) => isTahfidzKey(c.key))) {
+    if (hasScore(criterion.key)) {
+      if (gap) return false
+    } else {
+      gap = true
+    }
+  }
+  return true
 }
 
 // Akademik tahun ajaran dari bulan (≥ Juli = YYYY/YYYY+1)

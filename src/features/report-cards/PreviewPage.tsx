@@ -40,11 +40,16 @@ import { SetupBar } from './components/SetupBar'
 import {
   calcAverage,
   getCriteria,
+  getOralProgram,
   getPredicate,
+  getScoreWithFallback,
   isComplete,
+  isPracticalKey,
+  isTahfidzKey,
   MONTH_NAMES,
   REPORT_CARD_TYPE_LABEL,
 } from './constants'
+import type { Criterion } from './constants'
 import {
   buildReportNumber,
   buildVerifyUrl,
@@ -93,6 +98,42 @@ function initialsOf(name: string): string {
   return words.map((word) => word[0]).join('').toUpperCase() || '?'
 }
 
+// Kolom rekap digabung per kelompok (Materi/Tahfidz/Praktik) untuk lisan;
+// tipe lain tetap datar (groupOf mengembalikan null).
+function buildRekapColumns(
+  criteria: Criterion[],
+  scoresByStudent: Map<string, Record<string, number | null>>,
+  groupOf: (criterion: Criterion) => string | null,
+): TableColumnsType<ReportCardStudent> {
+  const cell = (criterion: Criterion): TableColumnsType<ReportCardStudent>[number] => ({
+    title: criterion.label,
+    key: criterion.key,
+    width: 86,
+    render: (_: unknown, row: ReportCardStudent) =>
+      scoresByStudent.get(row.id)?.[criterion.key] ?? '—',
+  })
+  const groups: { title: string; items: Criterion[] }[] = []
+  for (const criterion of criteria) {
+    const title = groupOf(criterion)
+    if (title === null) {
+      groups.push({ title: '', items: [criterion] })
+      continue
+    }
+    const last = groups[groups.length - 1]
+    if (last && last.title === title) last.items.push(criterion)
+    else groups.push({ title, items: [criterion] })
+  }
+  return groups.map((group) =>
+    group.title === ''
+      ? cell(group.items[0])
+      : {
+          title: group.title,
+          key: group.title,
+          children: group.items.map(cell),
+        },
+  )
+}
+
 export function PreviewPage() {
   const { message } = App.useApp()
   const { classId = '' } = useParams()
@@ -110,7 +151,7 @@ export function PreviewPage() {
   const [customZoom, setCustomZoom] = useState(1)
   const [printTarget, setPrintTarget] = useState<'all' | string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
-  const [lang, setLang] = useState<'id' | 'ar'>('id')
+  const [langOverride, setLangOverride] = useState<'id' | 'ar' | null>(null)
   const [pageSize, setPageSize] = useState<'a4' | 'f4'>('f4')
   const [signMode, setSignMode] = useState<'basah' | 'qrcode'>('basah')
   const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(loadLayoutConfig)
@@ -166,8 +207,10 @@ export function PreviewPage() {
       : (semesterQuery.data ?? []).find((r) => r.musyrif_name)?.musyrif_name) ?? null
   const musyrifName = musyrif || savedMusyrif || classRow?.homeroom_teacher?.name || null
 
-  const criteria = getCriteria(type, grade)
+  const criteria = getCriteria(type, grade, classRow?.name)
   const classNameLabel = classRow?.name ?? '—'
+  // Bahasa kartu mengikuti program kelas; override manual tetap lewat Segmented.
+  const lang = langOverride ?? (getOralProgram(classRow?.name) === 'regular' ? 'id' : 'ar')
   const period = isMonthly
     ? `${MONTH_NAMES[month - 1]} ${year}`
     : `Semester ${semester} · ${yearName ?? 'Tahun Ajaran'}`
@@ -175,18 +218,22 @@ export function PreviewPage() {
   const scoresByStudent = new Map<string, Record<string, number | null>>()
   for (const student of students) {
     const scores: Record<string, number | null> = {}
+    const saved = semesterById.get(student.id)?.scores ?? {}
     for (const criterion of criteria) {
       scores[criterion.key] = isMonthly
-        ? ((monthlyById.get(student.id) as unknown as Record<string, number | null> | undefined)?.[
+        ? (((monthlyById.get(student.id) as unknown as Record<string, number | null> | undefined)?.[
             criterion.key
-          ] ?? null)
-        : (semesterById.get(student.id)?.scores?.[criterion.key] ?? null)
+          ]) ?? null)
+        : getScoreWithFallback(saved, criterion.key)
     }
     scoresByStudent.set(student.id, scores)
   }
   const completeById = new Map<string, boolean>()
   for (const student of students) {
-    completeById.set(student.id, isComplete(type, scoresByStudent.get(student.id) ?? {}, grade))
+    completeById.set(
+      student.id,
+      isComplete(type, scoresByStudent.get(student.id) ?? {}, grade, classRow?.name),
+    )
   }
 
   const completedCount = students.reduce(
@@ -218,7 +265,7 @@ export function PreviewPage() {
   })
 
   const v1Type = toV1ReportType(type)
-  const printCriteria = getPrintCriteria(type, grade)
+  const printCriteria = getPrintCriteria(type, grade, classRow?.name)
   const printFlags = getPrintFlags(type)
   const printSettings = toPrintSettings(schoolQuery.data ?? null)
   const reportPrefix =
@@ -279,19 +326,24 @@ export function PreviewPage() {
       render: (_: unknown, row: ReportCardStudent) => students.indexOf(row) + 1,
     },
     { title: 'Nama', key: 'name', render: (_: unknown, row: ReportCardStudent) => row.name },
-    ...criteria.map((criterion) => ({
-      title: criterion.label,
-      key: criterion.key,
-      width: 86,
-      render: (_: unknown, row: ReportCardStudent) =>
-        scoresByStudent.get(row.id)?.[criterion.key] ?? '—',
-    })),
+    ...buildRekapColumns(
+      criteria,
+      scoresByStudent,
+      (criterion) =>
+        type === 'pondok_oral'
+          ? isTahfidzKey(criterion.key)
+            ? 'Tahfidz'
+            : isPracticalKey(criterion.key)
+              ? 'Praktik'
+              : 'Materi'
+          : null,
+    ),
     {
       title: 'Rata-rata',
       key: 'avg',
       width: 90,
       render: (_: unknown, row: ReportCardStudent) => {
-        const average = calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade)
+        const average = calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade, classRow?.name)
         return <Typography.Text strong>{average ?? '—'}</Typography.Text>
       },
     },
@@ -300,7 +352,7 @@ export function PreviewPage() {
       key: 'pred',
       width: 130,
       render: (_: unknown, row: ReportCardStudent) =>
-        getPredicate(type, calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade)),
+        getPredicate(type, calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade, classRow?.name)),
     },
   ]
 
@@ -315,13 +367,13 @@ export function PreviewPage() {
     {
       key: 'avg',
       header: 'Rata-rata',
-      value: (row) => calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade) ?? '',
+      value: (row) => calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade, classRow?.name) ?? '',
     },
     {
       key: 'pred',
       header: 'Predikat',
       value: (row) =>
-        getPredicate(type, calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade)),
+        getPredicate(type, calcAverage(type, scoresByStudent.get(row.id) ?? {}, grade, classRow?.name)),
     },
   ]
 
@@ -569,7 +621,7 @@ export function PreviewPage() {
                     <Segmented<'id' | 'ar'>
                       size="small"
                       value={lang}
-                      onChange={(value) => setLang(value)}
+                      onChange={(value) => setLangOverride(value)}
                       options={[
                         { value: 'id', label: 'ID' },
                         { value: 'ar', label: 'AR' },

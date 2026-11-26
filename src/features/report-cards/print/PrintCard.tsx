@@ -8,7 +8,12 @@ import {
   toArabicNum,
 } from './labels'
 import { DEFAULT_LAYOUT_CONFIG, type LayoutConfig } from './layout'
-import { getGradePredicate, type V1ReportType } from './predicates'
+import {
+  getGradePredicate,
+  ORAL_GRADE_SCALE,
+  ORAL_PRACTICAL_SCALE,
+  type V1ReportType,
+} from './predicates'
 import { RAPORT_AR_FONT, RAPORT_SANS, RAPORT_SERIF } from './fonts'
 import {
   formatPrintDate,
@@ -82,10 +87,15 @@ export function PrintCard({
   const kkmScore = 50
   const monthObj = BULAN[bulan - 1] ?? BULAN[0]
 
-  const gradeOf = (value: number | null | undefined) =>
-    getGradePredicate(value, reportType)
-  const gradeLabel = (value: number | null | undefined) =>
-    isAr ? gradeOf(value).label : gradeOf(value).id
+  const gradeOf = (value: number | null | undefined, criterionKey = '') =>
+    getGradePredicate(value, reportType, criterionKey)
+  const gradeLabel = (value: number | null | undefined, criterionKey = '') =>
+    isAr ? gradeOf(value, criterionKey).label : gradeOf(value, criterionKey).id
+
+  // Ujian Lisan: materi praktik dicetak di bagian sendiri dan tidak ikut jumlah/rata-rata
+  const lisanCriteria = isLisan ? criteria.filter((criterion) => !criterion.practical) : criteria
+  const practicalCriteria = isLisan ? criteria.filter((criterion) => criterion.practical) : []
+  const subjectHeader = isLisan ? L.subjectLisan : L.subject
 
   const displayName = isAr
     ? student.nameAr || titleCaseName(student.name)
@@ -103,11 +113,15 @@ export function PrintCard({
   const displayPengasuh = isAr ? settings.pengasuh_name_ar : settings.pengasuh_name_id
   const yearDisplay = getYearDisplay(bulan, year, lang, academicYear)
 
-  const filledScores = criteria
+  const filledScores = lisanCriteria
     .map((criterion) => scores[criterion.key])
     .filter((value): value is number => typeof value === 'number')
   const total = filledScores.reduce((sum, value) => sum + value, 0)
-  const average = filledScores.length ? Math.round(total / filledScores.length) : null
+  // Rata-rata mengikuti Excel (AVERAGE, 2 desimal) — praktik dikecualikan.
+  const average = filledScores.length
+    ? Math.round((total / filledScores.length) * 100) / 100
+    : null
+  const averageText = average === null ? '—' : average.toFixed(2)
 
   const rowPadding = isAr
     ? isSemesterExam
@@ -246,7 +260,7 @@ export function PrintCard({
         {
           key: 'pengasuh',
           label: isSemesterExam ? 'رئيس المدرسة' : settings.headmaster_title_ar || 'المشرف',
-          nama: displayPengasuh,
+          nama: isSemesterExam ? displayHeadmaster : displayPengasuh,
           topLabel: undefined as string | undefined,
           mode: signMode,
           qrValue: signatureQr('pengasuh'),
@@ -261,7 +275,7 @@ export function PrintCard({
         },
         {
           key: 'wali_santri',
-          label: L.guardian,
+          label: isLisan ? L.guardianLisan : L.guardian,
           nama: displayGuardian,
           topLabel: undefined as string | undefined,
           mode: 'basah' as const,
@@ -271,7 +285,7 @@ export function PrintCard({
     : [
         {
           key: 'wali_santri',
-          label: L.guardian,
+          label: isLisan ? L.guardianLisan : L.guardian,
           nama: displayGuardian,
           topLabel: undefined as string | undefined,
           mode: 'basah' as const,
@@ -288,13 +302,142 @@ export function PrintCard({
         {
           key: 'pengasuh',
           label: isSemesterExam ? 'Kepala Sekolah' : settings.headmaster_title_id,
-          nama: displayPengasuh,
+          nama: isSemesterExam ? displayHeadmaster : displayPengasuh,
           topLabel: undefined as string | undefined,
           mode: signMode,
           qrValue: signatureQr('pengasuh'),
         },
       ]
 
+  // Ringkasan Ujian Lisan seperti di Excel: Jumlah/Rata-rata + Ujian Praktik | Sistem Penilaian | Predikat Praktik
+  const lisanSummary = isLisan
+    ? (() => {
+        const numFmt = (value: number | string) => (isAr ? toArabicNum(value) : String(value))
+        const miniCell: CSSProperties = {
+          border,
+          padding: isAr ? '1px 6px' : '2px 6px',
+          fontSize: isAr ? '12.5pt' : '9.5pt',
+          fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
+          lineHeight: 1.2,
+          color: '#000',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+        }
+        const miniHead: CSSProperties = { ...miniCell, fontWeight: 800, background: '#f0f4f8' }
+        const miniTitle: CSSProperties = {
+          fontWeight: 700,
+          fontSize: isAr ? '13pt' : '10.5pt',
+          fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
+          textAlign: isAr ? 'right' : 'left',
+          lineHeight: 1.2,
+          margin: '6px 0 2px',
+        }
+        const miniTable: CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }
+        // Rentang angka selalu dibaca kiri-ke-kanan, juga di halaman RTL
+        const ltr = (text: string) => (
+          <span style={{ direction: 'ltr', unicodeBidi: 'isolate', display: 'inline-block' }}>{numFmt(text)}</span>
+        )
+        const hasPractical = practicalCriteria.length > 0
+
+        return (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              direction: isAr ? 'rtl' : 'ltr',
+              alignItems: 'flex-start',
+              gap: 8,
+              marginTop: 6,
+              marginBottom: isA4 ? 3 : 4,
+            }}
+          >
+            <div style={{ flex: '1 1 40%', minWidth: 0 }}>
+              <table style={miniTable}>
+                <tbody>
+                  <tr>
+                    <td style={{ ...miniCell, textAlign: isAr ? 'right' : 'left', fontWeight: 700 }}>{L.totalLisan}</td>
+                    <td style={{ ...miniHead, width: '28%' }}>{numFmt(total)}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ ...miniCell, textAlign: isAr ? 'right' : 'left', fontWeight: 700 }}>{L.avgLisan}</td>
+                    <td style={{ ...miniHead, width: '28%' }}>{numFmt(averageText)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {hasPractical && (
+                <>
+                  <div style={miniTitle}>{L.practicalTitle}</div>
+                  <table style={miniTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...miniHead, width: '12%' }}>{L.num}</th>
+                        <th style={miniHead}>{L.practicalSubject}</th>
+                        <th style={{ ...miniHead, width: '18%' }}>{L.score}</th>
+                        <th style={{ ...miniHead, width: '18%' }}>{L.grade}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {practicalCriteria.map((criterion, index) => {
+                        const value = scores[criterion.key] ?? null
+                        return (
+                          <tr key={criterion.key}>
+                            <td style={miniCell}>{numFmt(index + 1)}</td>
+                            <td style={{ ...miniCell, textAlign: isAr ? 'right' : 'left' }}>
+                              {isAr ? criterion.ar ?? criterion.id : criterion.id}
+                            </td>
+                            <td style={{ ...miniCell, fontWeight: 700 }}>{displayVal(value)}</td>
+                            <td style={{ ...miniCell, fontWeight: 700 }}>{gradeLabel(value, criterion.key)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </div>
+
+            <div style={{ flex: '1 1 32%', minWidth: 0, marginTop: 6 }}>
+              <table style={miniTable}>
+                <thead>
+                  <tr>
+                    <th colSpan={2} style={miniHead}>{L.gradeSystem}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ORAL_GRADE_SCALE.map((row) => (
+                    <tr key={row.min}>
+                      <td style={{ ...miniCell, fontWeight: 700 }}>{isAr ? row.ar : row.id}</td>
+                      <td style={miniCell}>{ltr(`${row.min} - ${row.max}`)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {hasPractical && (
+              <div style={{ flex: '1 1 28%', minWidth: 0, marginTop: 6 }}>
+                <table style={miniTable}>
+                  <thead>
+                    <tr>
+                      <th colSpan={2} style={miniHead}>{L.practicalPredicate}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ORAL_PRACTICAL_SCALE.map((row) => (
+                      <tr key={row.id}>
+                        <td style={{ ...miniCell, fontWeight: 700 }}>{isAr ? row.ar : row.id}</td>
+                        <td style={miniCell}>{ltr(row.range)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )
+      })()
+    : null
   return (
     <div
       className="raport-card"
@@ -370,10 +513,10 @@ export function PrintCard({
 
         {/* Judul laporan */}
         <div style={{ textAlign: 'center', margin: isSemesterExam ? (isA4 ? '2px 0' : '2px 0 4px') : isA4 ? '6px 0 8px' : '12px 0 16px', fontFamily: isAr ? RAPORT_AR_FONT : 'inherit' }}>
-          <div style={{ fontSize: isAr ? '28pt' : isSemesterExam ? '14pt' : '18pt', fontWeight: 900, direction: isAr ? 'rtl' : 'ltr', lineHeight: isAr ? 1.15 : 1.3 }}>
+          <div style={{ fontSize: isAr ? '28pt' : isSemesterExam ? '14pt' : '18pt', fontWeight: 900, direction: isAr ? 'rtl' : 'ltr', lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? 'uppercase' : undefined }}>
             {reportTitle}
           </div>
-          <div style={{ fontSize: isAr ? '22pt' : isSemesterExam ? '12pt' : '14pt', fontWeight: 700, direction: isAr ? 'rtl' : 'ltr', marginTop: isAr ? 4 : 10, lineHeight: isAr ? 1.15 : 1.3 }}>
+          <div style={{ fontSize: isAr ? '22pt' : isSemesterExam ? '12pt' : '14pt', fontWeight: 700, direction: isAr ? 'rtl' : 'ltr', marginTop: isAr ? 4 : 10, lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? 'uppercase' : undefined }}>
             {periodTitle}
           </div>
         </div>
@@ -446,21 +589,21 @@ export function PrintCard({
                     <th style={{ ...headerCell, width: `${lc.gradeColWidth}%` }}>{L.grade}</th>
                     <th style={{ ...headerCell, width: `${lc.scoreColWidth}%` }}>{L.score}</th>
                     <th style={{ ...headerCell, width: '8%' }}>{RL.kkm_label.ar}</th>
-                    <th style={headerCell} colSpan={2}>{L.subject}</th>
+                    <th style={headerCell} colSpan={2}>{subjectHeader}</th>
                     <th style={{ ...headerCell, width: `${lc.numColWidth}%` }}>{L.num}</th>
                   </>
                 ) : (
                   <>
                     <th style={{ ...headerCell, width: `${lc.gradeColWidth}%` }}>{L.grade}</th>
                     <th style={{ ...headerCell, width: `${lc.scoreColWidth}%` }}>{L.score}</th>
-                    <th style={headerCell} colSpan={2}>{L.subject}</th>
+                    <th style={headerCell} colSpan={2}>{subjectHeader}</th>
                     <th style={{ ...headerCell, width: `${lc.numColWidth}%` }}>{L.num}</th>
                   </>
                 )
               ) : isMapelPondok ? (
                 <>
                   <th style={{ ...headerCell, width: `${lc.numColWidth}%` }}>{L.num}</th>
-                  <th style={headerCell} colSpan={2}>{L.subject}</th>
+                  <th style={headerCell} colSpan={2}>{subjectHeader}</th>
                   <th style={{ ...headerCell, width: '8%' }}>{RL.kkm_label.id}</th>
                   <th style={{ ...headerCell, width: `${lc.scoreColWidth}%` }}>{L.score}</th>
                   <th style={{ ...headerCell, width: `${lc.gradeColWidth}%` }}>{L.grade}</th>
@@ -468,7 +611,7 @@ export function PrintCard({
               ) : (
                 <>
                   <th style={{ ...headerCell, width: `${lc.numColWidth}%` }}>{L.num}</th>
-                  <th style={headerCell} colSpan={2}>{L.subject}</th>
+                  <th style={headerCell} colSpan={2}>{subjectHeader}</th>
                   <th style={{ ...headerCell, width: `${lc.scoreColWidth}%` }}>{L.score}</th>
                   <th style={{ ...headerCell, width: `${lc.gradeColWidth}%` }}>{L.grade}</th>
                 </>
@@ -476,14 +619,14 @@ export function PrintCard({
             </tr>
           </thead>
           <tbody>
-            {criteria.map((criterion, index) => {
+            {lisanCriteria.map((criterion, index) => {
               const value = scores[criterion.key] ?? null
               const subjectAr = criterion.ar
               return (
                 <tr key={criterion.key}>
                   {isAr ? (
                     <>
-                      <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 8px`, fontWeight: 700 }}>{gradeLabel(value)}</td>
+                      <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 8px`, fontWeight: 700 }}>{gradeLabel(value, criterion.key)}</td>
                       <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 6px`, fontWeight: 700 }}>{displayVal(value)}</td>
                       {isMapelPondok && (
                         <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 6px`, fontWeight: 700 }}>{displayVal(kkmScore)}</td>
@@ -517,7 +660,7 @@ export function PrintCard({
                         <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 6px`, fontWeight: 700 }}>{kkmScore}</td>
                       )}
                       <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 6px`, fontWeight: 700 }}>{displayVal(value)}</td>
-                      <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 8px`, fontWeight: 700 }}>{gradeLabel(value)}</td>
+                      <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 8px`, fontWeight: 700 }}>{gradeLabel(value, criterion.key)}</td>
                     </>
                   )}
                 </tr>
@@ -526,7 +669,7 @@ export function PrintCard({
           </tbody>
         </table>
 
-        {isSemesterExam && filledScores.length > 0 && (
+        {isSemesterExam && !isLisan && filledScores.length > 0 && (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt', marginBottom: 6, marginTop: -1, direction: isAr ? 'rtl' : 'ltr' }}>
             <tbody>
               <tr>
@@ -545,19 +688,64 @@ export function PrintCard({
               <tr>
                 {isAr ? (
                   <>
-                    <td style={{ border, padding: '4px 16px', textAlign: 'center', fontWeight: 700, background: '#f0f4f8', width: '25%', fontFamily: RAPORT_AR_FONT }}>{toArabicNum(average ?? 0)}</td>
+                    <td style={{ border, padding: '4px 16px', textAlign: 'center', fontWeight: 700, background: '#f0f4f8', width: '25%', fontFamily: RAPORT_AR_FONT }}>{toArabicNum(averageText === '—' ? '0' : averageText)}</td>
                     <td style={{ border, padding: '4px 14px', textAlign: 'right', fontFamily: RAPORT_AR_FONT, fontWeight: 700 }}>{RL.avg_label.ar}</td>
                   </>
                 ) : (
                   <>
                     <td style={{ border, padding: '4px 14px', textAlign: 'left', fontWeight: 700 }}>{RL.avg_label.id}</td>
-                    <td style={{ border, padding: '4px 16px', textAlign: 'center', fontWeight: 700, background: '#f0f4f8', width: '25%' }}>{average ?? '—'}</td>
+                    <td style={{ border, padding: '4px 16px', textAlign: 'center', fontWeight: 700, background: '#f0f4f8', width: '25%' }}>{averageText}</td>
                   </>
                 )}
               </tr>
             </tbody>
           </table>
         )}
+
+        {isLisan && extra.hafalan_note ? (
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              tableLayout: 'fixed',
+              fontSize: '10.5pt',
+              marginBottom: isA4 ? 3 : 4,
+              direction: isAr ? 'rtl' : 'ltr',
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
+                  style={{
+                    border,
+                    padding: isAr ? '1px 6px' : '2px 6px',
+                    fontWeight: 700,
+                    background: '#f0f4f8',
+                    width: '18%',
+                    textAlign: isAr ? 'right' : 'left',
+                    fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
+                    fontSize: isAr ? '12.5pt' : '9.5pt',
+                  }}
+                >
+                  {L.hafalanLisan}
+                </td>
+                <td
+                  style={{
+                    border,
+                    padding: isAr ? '1px 6px' : '2px 6px',
+                    textAlign: isAr ? 'right' : 'left',
+                    fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
+                    fontSize: isAr ? '12.5pt' : '9.5pt',
+                  }}
+                >
+                  {displayVal(extra.hafalan_note)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        ) : null}
+
+        {lisanSummary}
 
         {showBlocks && (
           <>

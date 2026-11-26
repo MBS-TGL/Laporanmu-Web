@@ -2,7 +2,7 @@ import { Form, Input, InputNumber, Typography } from 'antd'
 import { AppModal } from '../../../shared/components/AppModal'
 import { ModalFooter } from '../../../shared/components/ModalFooter'
 import { SectionDivider } from '../../../shared/components/SectionDivider'
-import type { Criterion } from '../constants'
+import { isPracticalKey, type Criterion } from '../constants'
 import type { ReportCardType } from '../types'
 
 export interface BulkFillValues {
@@ -35,6 +35,10 @@ const FORM_NAMES_ATTENDANCE = ['sick_days', 'excused_days', 'absent_days', 'earl
 export function BulkFillModal({ open, type, criteria, maxScore, onClose, onApply }: BulkFillModalProps) {
   const [form] = Form.useForm()
   const isMonthly = type === 'monthly'
+  const isOral = type === 'pondok_oral'
+  // Ujian lisan: fisik/kehadiran tidak dicetak — disembunyikan, kecuali catatan musyrif.
+  const valueCriteria = criteria.filter((c) => !isPracticalKey(c.key))
+  const practicalCriteria = criteria.filter((c) => isPracticalKey(c.key))
 
   const handleApply = async () => {
     const values = await form.validateFields()
@@ -81,63 +85,84 @@ export function BulkFillModal({ open, type, criteria, maxScore, onClose, onApply
       </Typography.Paragraph>
 
       <Form form={form} layout="vertical">
-        <SectionDivider>Nilai (skala 0-{maxScore})</SectionDivider>
+        <SectionDivider>{isOral ? 'Nilai' : `Nilai (skala 0-${maxScore})`}</SectionDivider>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px 12px' }}>
-          {criteria.map((c) => (
+          {valueCriteria.map((c) => (
             <Form.Item key={c.key} name={['scores', c.key]} label={c.label} style={{ marginBottom: 8 }}>
               <InputNumber<number> style={{ width: '100%' }} min={0} max={maxScore} placeholder="Lewati" />
             </Form.Item>
           ))}
         </div>
 
-        <SectionDivider>Kehadiran (hari)</SectionDivider>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))',
-            gap: 12,
-          }}
-        >
-          {FORM_NAMES_ATTENDANCE.map((name, i) => (
-            <Form.Item
-              key={name}
-              name={name}
-              label={['Sakit', 'Izin', 'Alpa', 'Pulang'][i]}
-              style={{ marginBottom: 8 }}
-            >
-              <InputNumber<number> style={{ width: '100%' }} min={0} max={365} precision={0} placeholder="Lewati" />
-            </Form.Item>
-          ))}
-        </div>
+        {practicalCriteria.length > 0 && (
+          <>
+            <SectionDivider>Praktik</SectionDivider>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px 12px' }}>
+              {practicalCriteria.map((c) => (
+                <Form.Item key={c.key} name={['scores', c.key]} label={c.label} style={{ marginBottom: 8 }}>
+                  <InputNumber<number> style={{ width: '100%' }} min={0} max={maxScore} placeholder="Lewati" />
+                </Form.Item>
+              ))}
+            </div>
+          </>
+        )}
 
-        <SectionDivider>{isMonthly ? 'Hafalan & Ibadah' : 'Fisik'}</SectionDivider>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))',
-            gap: 12,
-          }}
-        >
-          {isMonthly ? (
-            FORM_NAMES_MONTHLY_EXTRA.map((name) => (
-              <Form.Item key={name} name={name} label={name === 'sholat' ? 'Sholat' : name === 'ziyadah' ? 'Ziyadah' : "Muroja'ah"} style={{ marginBottom: 8 }}>
-                <Input placeholder="Lewati" maxLength={60} />
-              </Form.Item>
-            ))
-          ) : (
-            <>
-              <Form.Item name="weight_kg" label="Berat Badan (kg)" style={{ marginBottom: 8 }}>
-                <InputNumber<number> style={{ width: '100%' }} min={0} max={300} placeholder="Lewati" />
-              </Form.Item>
-              <Form.Item name="height_cm" label="Tinggi Badan (cm)" style={{ marginBottom: 8 }}>
-                <InputNumber<number> style={{ width: '100%' }} min={0} max={250} placeholder="Lewati" />
-              </Form.Item>
-              <Form.Item name="sholat" label="Sholat" style={{ marginBottom: 8 }}>
-                <Input placeholder="Lewati" maxLength={60} />
-              </Form.Item>
-            </>
-          )}
-        </div>
+        {!isOral && (
+          <>
+            <SectionDivider>Kehadiran (hari)</SectionDivider>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))',
+                gap: 12,
+              }}
+            >
+              {FORM_NAMES_ATTENDANCE.map((name, i) => (
+                <Form.Item
+                  key={name}
+                  name={name}
+                  label={['Sakit', 'Izin', 'Alpa', 'Pulang'][i]}
+                  style={{ marginBottom: 8 }}
+                >
+                  <InputNumber<number> style={{ width: '100%' }} min={0} max={365} precision={0} placeholder="Lewati" />
+                </Form.Item>
+              ))}
+            </div>
+          </>
+        )}
+
+        {!isOral && (
+          <>
+            <SectionDivider>{isMonthly ? 'Hafalan & Ibadah' : 'Fisik'}</SectionDivider>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))',
+                gap: 12,
+              }}
+            >
+              {isMonthly ? (
+                FORM_NAMES_MONTHLY_EXTRA.map((name) => (
+                  <Form.Item key={name} name={name} label={name === 'sholat' ? 'Sholat' : name === 'ziyadah' ? 'Ziyadah' : "Muroja'ah"} style={{ marginBottom: 8 }}>
+                    <Input placeholder="Lewati" maxLength={60} />
+                  </Form.Item>
+                ))
+              ) : (
+                <>
+                  <Form.Item name="weight_kg" label="Berat Badan (kg)" style={{ marginBottom: 8 }}>
+                    <InputNumber<number> style={{ width: '100%' }} min={0} max={300} placeholder="Lewati" />
+                  </Form.Item>
+                  <Form.Item name="height_cm" label="Tinggi Badan (cm)" style={{ marginBottom: 8 }}>
+                    <InputNumber<number> style={{ width: '100%' }} min={0} max={250} placeholder="Lewati" />
+                  </Form.Item>
+                  <Form.Item name="sholat" label="Sholat" style={{ marginBottom: 8 }}>
+                    <Input placeholder="Lewati" maxLength={60} />
+                  </Form.Item>
+                </>
+              )}
+            </div>
+          </>
+        )}
 
         <Form.Item name="notes" label="Catatan Musyrif" style={{ marginTop: 12 }}>
           <Input.TextArea rows={2} placeholder="Lewati" maxLength={500} />

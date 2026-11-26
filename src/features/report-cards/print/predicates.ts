@@ -1,3 +1,4 @@
+import { PRACTICAL_KEYS } from '../constants'
 import type { ReportCardType } from '../types'
 
 export type V1ReportType = 'bulanan' | 'pondok_lisan' | 'pondok_mapel' | 'umum'
@@ -11,6 +12,22 @@ export interface GradeInfo {
   color?: string
   letter?: string
 }
+
+/** Sistem Penilaian Ujian Lisan (sama dengan tabel di Excel) */
+export const ORAL_GRADE_SCALE = [
+  { min: 90, max: 100, ar: 'ممتاز', id: 'Istimewa' },
+  { min: 80, max: 89, ar: 'جيد جدا', id: 'Sangat Baik' },
+  { min: 60, max: 79, ar: 'جيد', id: 'Baik' },
+  { min: 50, max: 59, ar: 'مقبول', id: 'Cukup' },
+  { min: 0, max: 49, ar: 'راسب', id: 'Tidak Lulus' },
+] as const
+
+/** Predikat Praktik (A/B/C) seperti di Excel */
+export const ORAL_PRACTICAL_SCALE = [
+  { ar: 'أ', id: 'A', range: '90 - 95' },
+  { ar: 'ب', id: 'B', range: '80 - 89' },
+  { ar: 'ج', id: 'C', range: '< 79' },
+] as const
 
 export function toV1ReportType(type: ReportCardType): V1ReportType {
   if (type === 'pondok_oral') return 'pondok_lisan'
@@ -79,10 +96,18 @@ export function getGradePredicate(
     return { label: 'د / D', id: 'Kurang', bg: '#ef444415', border: '#ef444440', uiColor: '#ef4444', color: '#ef4444', letter: 'D' }
   }
 
-  if (reportType === 'pondok_lisan' && criterionKey === 'praktek') {
+  if (reportType === 'pondok_lisan' && (criterionKey === 'praktek' || PRACTICAL_KEYS.has(criterionKey))) {
     if (value >= 90) return { label: 'أ', id: 'A', bg: '#10b98115', border: '#10b98140', uiColor: '#10b981', color: '#000', letter: 'أ' }
     if (value >= 80) return { label: 'ب', id: 'B', bg: '#3b82f615', border: '#3b82f640', uiColor: '#3b82f6', color: '#000', letter: 'ب' }
     return { label: 'ج', id: 'C', bg: '#f59e0b15', border: '#f59e0b40', uiColor: '#f59e0b', color: '#000', letter: 'ج' }
+  }
+
+  if (reportType === 'pondok_lisan') {
+    if (value >= 90) return { label: 'ممتاز', id: 'Istimewa', bg: '#10b98115', border: '#10b98140', uiColor: '#10b981', color: '#000', letter: 'أ' }
+    if (value >= 80) return { label: 'جيد جدا', id: 'Sangat Baik', bg: '#3b82f615', border: '#3b82f640', uiColor: '#3b82f6', color: '#000', letter: 'ب' }
+    if (value >= 60) return { label: 'جيد', id: 'Baik', bg: '#6366f115', border: '#6366f140', uiColor: '#6366f1', color: '#000', letter: 'ج' }
+    if (value >= 50) return { label: 'مقبول', id: 'Cukup', bg: '#f59e0b15', border: '#f59e0b40', uiColor: '#f59e0b', color: '#000', letter: 'د' }
+    return { label: 'راسب', id: 'Tidak Lulus', bg: '#ef444415', border: '#ef444440', uiColor: '#ef4444', color: '#ef4444', letter: 'هـ' }
   }
 
   if (value >= 90) return { label: 'ممتاز جدا', id: 'Sangat Baik', bg: '#10b98115', border: '#10b98140', uiColor: '#10b981', color: '#000', letter: 'أ' }

@@ -39,6 +39,7 @@ import { useShortcuts } from '../../shared/hooks/useShortcuts'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { SetupBar } from './components/SetupBar'
 import { ExtrasDrawer } from './components/ExtrasDrawer'
+import { HafalanModal } from './components/HafalanModal'
 import { EntryGrid } from './components/EntryGrid'
 import { MobileEntry } from './components/MobileEntry'
 import { BulkFillModal, type BulkFillValues } from './components/BulkFillModal'
@@ -46,6 +47,8 @@ import {
   BULANAN_MAX_SCORE,
   getCriteria,
   getScoreWithFallback,
+  isComplete,
+  isPracticalKey,
   MONTH_NAMES,
   periodKey,
   REPORT_CARD_TYPE_LABEL,
@@ -157,6 +160,7 @@ export function InputPage() {
   const behaviorQuery = useBehaviorForMonth(isMonthly ? studentIds : [], monthStart, monthEnd)
 
   const [extrasStudent, setExtrasStudent] = useState<ReportCardStudent | null>(null)
+  const [hafalanStudent, setHafalanStudent] = useState<ReportCardStudent | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
@@ -191,7 +195,7 @@ export function InputPage() {
     return map
   }, [behaviorQuery.data])
 
-  const criteria = useMemo(() => getCriteria(type, grade), [type, grade])
+  const criteria = useMemo(() => getCriteria(type, grade, classRow?.name), [type, grade, classRow?.name])
   const maxScore = isMonthly ? BULANAN_MAX_SCORE : SEMESTER_MAX_SCORE
   const musyrifName = musyrif || classRow?.homeroom_teacher?.name || null
   const updatedBy = sessionQuery.data?.user?.id ?? null
@@ -251,12 +255,16 @@ export function InputPage() {
   }, [getScore])
 
   const isStudentComplete = useCallback(
-    (studentId: string) => criteria.every((c) => typeof getScore(studentId, c.key) === 'number'),
-    [criteria, getScore],
+    (studentId: string) => {
+      const scores: Record<string, number | null> = {}
+      for (const criterion of criteria) scores[criterion.key] = getScore(studentId, criterion.key)
+      return isComplete(type, scores, grade, classRow?.name)
+    },
+    [criteria, getScore, type, grade, classRow?.name],
   )
 
   const completeCount = useMemo(
-    () => students.reduce((count, student) => count + (isStudentComplete(student.id) ? 1 : 0), 0),
+    () => students.reduce((count, student) => (isStudentComplete(student.id) ? count + 1 : count), 0),
     [students, isStudentComplete],
   )
   const incompleteCount = students.length - completeCount
@@ -266,6 +274,7 @@ export function InputPage() {
     let count = 0
     for (const student of students) {
       for (const criterion of criteria) {
+        if (isPracticalKey(criterion.key)) continue
         const value = getScore(student.id, criterion.key)
         if (typeof value === 'number') {
           sum += value
@@ -601,7 +610,7 @@ export function InputPage() {
         run: () => shortcutsOpenRef.current(),
       },
     ],
-    isBlocked: bulkOpen || !!extrasStudent,
+    isBlocked: bulkOpen || !!extrasStudent || !!hafalanStudent,
   })
 
   useEffect(() => {
@@ -657,11 +666,8 @@ export function InputPage() {
   const focusNonce = useRef(0)
 
   const hasIncompleteVisible = useMemo(
-    () =>
-      visibleStudents.some((student) =>
-        criteria.some((criterion) => typeof getScore(student.id, criterion.key) !== 'number'),
-      ),
-    [visibleStudents, criteria, getScore],
+    () => visibleStudents.some((student) => !isStudentComplete(student.id)),
+    [visibleStudents, isStudentComplete],
   )
 
   const jumpToNextIncomplete = useCallback(() => {
@@ -671,18 +677,17 @@ export function InputPage() {
       : 0
     for (let i = 0; i < visibleStudents.length; i++) {
       const student = visibleStudents[(start + i) % visibleStudents.length]
+      if (isStudentComplete(student.id)) continue
       const col = criteria.findIndex(
         (criterion) => typeof getScore(student.id, criterion.key) !== 'number',
       )
-      if (col >= 0) {
-        jumpCursor.current = student.id
-        focusNonce.current += 1
-        setFocusRequest({ studentId: student.id, col, nonce: focusNonce.current })
-        return
-      }
+      jumpCursor.current = student.id
+      focusNonce.current += 1
+      setFocusRequest({ studentId: student.id, col: Math.max(col, 0), nonce: focusNonce.current })
+      return
     }
     message.info('Semua santri pada daftar ini sudah lengkap')
-  }, [visibleStudents, criteria, getScore, message])
+  }, [visibleStudents, criteria, getScore, isStudentComplete, message])
 
   useEffect(() => {
     jumpNextRef.current = jumpToNextIncomplete
@@ -711,6 +716,31 @@ export function InputPage() {
         }
       })()
     : undefined
+
+  // Catatan hafalan luar Juz 30-26 (draf ?? tersimpan) untuk tombol buku per baris.
+  const hafalanById = useMemo(() => {
+    const map = new Map<string, string>()
+    if (type !== 'pondok_oral') return map
+    for (const student of students) {
+      const saved = savedSemesterById.get(student.id)?.extras?.hafalan_note ?? ''
+      const draft = semesterDrafts[student.id]?.hafalan_note
+      const value = (draft ?? saved).trim()
+      if (value) map.set(student.id, value)
+    }
+    return map
+  }, [type, students, savedSemesterById, semesterDrafts])
+
+  const hafalanInitial = hafalanStudent
+    ? (hafalanById.get(hafalanStudent.id) ?? '')
+    : ''
+
+  const handleSaveHafalan = (studentId: string, value: string) => {
+    setSemesterDrafts((prev) => {
+      const draft = prev[studentId] ?? { scores: {} }
+      return { ...prev, [studentId]: { ...draft, hafalan_note: value } }
+    })
+    draftsEngine.scheduleAutosave(studentId)
+  }
 
   return (
     <div>
@@ -982,8 +1012,11 @@ export function InputPage() {
             behaviorByStudent={behaviorByStudent}
             hasClassStudents={students.length > 0}
             getScore={getScore}
+            isRowComplete={isStudentComplete}
+            hafalanById={hafalanById}
             onCommitScore={handleCommitScore}
             onOpenExtras={setExtrasStudent}
+            onOpenHafalan={setHafalanStudent}
             onClearFilters={clearFilters}
           />
         ) : (
@@ -1000,8 +1033,11 @@ export function InputPage() {
             focusRequest={focusRequest}
             hasClassStudents={students.length > 0}
             getScore={getScore}
+            isRowComplete={isStudentComplete}
+            hafalanById={hafalanById}
             onCommitScore={handleCommitScore}
             onOpenExtras={setExtrasStudent}
+            onOpenHafalan={setHafalanStudent}
             onResetRow={handleResetRow}
             onClearFilters={clearFilters}
             onUndo={undo}
@@ -1045,6 +1081,14 @@ export function InputPage() {
         maxScore={maxScore}
         onClose={() => setBulkOpen(false)}
         onApply={handleBulkApply}
+      />
+
+      <HafalanModal
+        open={!!hafalanStudent}
+        student={hafalanStudent}
+        initialValue={hafalanInitial}
+        onClose={() => setHafalanStudent(null)}
+        onSave={handleSaveHafalan}
       />
 
       <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />

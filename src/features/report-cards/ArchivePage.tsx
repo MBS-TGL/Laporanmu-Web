@@ -120,8 +120,11 @@ export function ArchivePage() {
       map.set(key, bucket)
     }
     return [...map.entries()].map(([key, b]) => {
-      const grade = classById.get(b.classId)?.grade ?? null
-      const complete = b.rows.filter((r) => isComplete(semesterType, r.scores ?? {}, grade)).length
+      const classRow = classById.get(b.classId)
+      const grade = classRow?.grade ?? null
+      const complete = b.rows.filter((r) =>
+        isComplete(semesterType, r.scores ?? {}, grade, classRow?.name),
+      ).length
       const sp = new URLSearchParams({ type: semesterType, semester: String(b.semester), ay: b.taId })
       return {
         key,

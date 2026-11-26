@@ -1105,13 +1105,16 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 - SystemHealth "3 temuan" → "3 jenis" (konsisten: chip 146 = total baris bermasalah, widget = jumlah jenis temuan).
 - Verifikasi: tsc 0, build sukses; pengukuran rect per card + screenshot runtime.
 
-### 2026-11-24: P2 kecepatan Asisten AI (cache FAQ sessionStorage)
-- **`shared/lib/aiCache.ts`**: cache jawaban di `sessionStorage` key `ai:faq:v1`, TTL 24 jam, maks 40 entri, kunci pertanyaan dinormalisasi (huruf kecil, tanda baca dibuang). Semua operasi fail-soft: storage penuh/diblokir tidak melempar error.
-- **Scope role**: key cache memakai prefix role (`admin|apa itu poin santri`), sehingga chip Sumber milik admin tidak bocor ke guru di tab yang sama.
-- **Aturan cache**: hanya pertanyaan yang punya knowledge match, pertanyaan saran, atau pertanyaan mandiri tanpa penanda follow-up (`lanjut`, `lebih`, `jelaskan`, `tadi`, `contohnya`, dan sejenisnya).
-- **`ChatAssistant`**: cache hit langsung menambah bubble user + asisten tanpa `isLoading` dan tanpa request network; cache miss menyimpan teks + sources setelah sukses. Log DEV mencatat `durationMs` dan `estimatedTokens` tanpa isi percakapan.
-- **Gotcha**: jangan cache semua pertanyaan. Jawaban lanjutan yang bergantung pada history harus tetap memanggil model.
-- **Verifikasi**: vitest **332/332**, `npm run build` sukses, eslint file P2 0. Uji klik saran dua kali di browser belum dijalankan.
+### 2026-11-26 — Raport Lisan 2025/2026: Program-aware, Juz berurutan & hafalan_note
+- **Konteks**: Raport lisan dirombak mengikuti Excel revisi (PAS 2025/2026). Perbedaan utama: Boarding (12 aspek non-praktik, incl. Tuhfatul) vs Reguler (11 aspek, no Tuhfatul).
+- **Deteksi Program**: `getOralProgram(className)` memakai regex `/reguler|regular/i` pada nama kelas; default ke `boarding` jika tak cocok atau null.
+- **Aturan "Lengkap" Lisan**: (1) Semua materi wajib terisi; (2) Praktik (7-9) wajib terisi; (3) Juz 30–26 wajib berurutan mulai dari Juz 30 (boleh berhenti di mana saja, tapi tak boleh ada celah/bolong). Pengecekan via `isComplete` di `constants.ts`.
+- **Hafalan Non-Standar**: Tombol ikon buku (`BookOutlined`) di kolom Aksi (EntryGrid/MobileEntry) membuka `HafalanModal` untuk mengisi `hafalan_note` (disimpan di `extras` jsonb). Tampil di PrintCard sebagai baris "Hafalan:" (ID/AR) bila terisi.
+- **Perhitungan Nilai**: `calcAverage` dan Predikat kini mengecualikan aspek praktik (dianggap lulus/tidak saja di Excel). Rata-rata cetak dibulatkan 2 desimal (`toFixed(2)`).
+- **UI/UX**: PreviewPage otomatis memilih Bahasa Arab untuk Boarding dan Indonesia untuk Reguler (override manual tetap bisa). Rekap lisan berkelompok: Materi / Tahfidz / Praktik. Grid input memisahkan kelompok dengan border kiri tebal (startsGroup).
+- **Data Legacy**: Mendukung fallback key lama (doa, hadits, dll) via `ORAL_LEGACY_KEY_MAP` agar nilai lama tidak hilang di tampilan baru.
+- Verifikasi: `tsc -b` 0, build sukses, vitest **363/363** (termasuk unit test baru untuk program lisan, kelengkapan juz, dan payload extras). Runtime 5174: verifikasi visual desktop & 390px (ikon buku, pemisah kelompok, status lengkap, baris hafalan cetak).
+
 
 ### 2026-11-23: P1 akurasi Asisten AI (knowledge base + menu sadar-role + chip Sumber)
 - **Akar masalah**: `ChatAssistant` tidak pernah mengirim `context`; server hanya memakai `body.context` untuk mode `chat`, sementara `APP_CONTEXT` di `ai.ts` tidak terkirim dan sudah usang (`/cek`, "Cek Poin Santri"). Model lalu mengarang menu "Data Wali" dan "Kontak Wali".

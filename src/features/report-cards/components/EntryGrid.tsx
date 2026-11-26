@@ -9,8 +9,8 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { Badge, Button, Empty, Popconfirm, Space, Tooltip, Typography, theme } from 'antd'
-import { CheckCircleFilled, DeleteOutlined, FormOutlined } from '@ant-design/icons'
-import type { Criterion } from '../constants'
+import { BookOutlined, CheckCircleFilled, DeleteOutlined, FormOutlined } from '@ant-design/icons'
+import { isPracticalKey, isTahfidzKey, type Criterion } from '../constants'
 import { parseScoreBlock } from '../pasteParse'
 import type { ReportCardStudent, ReportCardType } from '../types'
 
@@ -41,8 +41,11 @@ interface EntryGridProps {
   focusRequest: GridFocusRequest | null
   hasClassStudents: boolean
   getScore: (studentId: string, key: string) => number | null
+  isRowComplete: (studentId: string) => boolean
+  hafalanById: Map<string, string>
   onCommitScore: (studentId: string, key: string, value: number | null) => void
   onOpenExtras: (student: ReportCardStudent) => void
+  onOpenHafalan: (student: ReportCardStudent) => void
   onResetRow: (studentId: string) => void
   onClearFilters: () => void
   onUndo: () => void
@@ -69,6 +72,22 @@ function valueOf(text: string, max: number): number | null {
   const parsed = Number.parseFloat(text.replace(',', '.'))
   if (Number.isNaN(parsed)) return null
   return Math.min(max, Math.max(0, parsed))
+}
+
+/** Kelompok kolom ujian lisan: Materi | Tahfidz | Praktik (null = tanpa kelompok). */
+function groupOf(type: ReportCardType, criterion: Criterion): string | null {
+  if (type !== 'pondok_oral') return null
+  if (isTahfidzKey(criterion.key)) return 'Tahfidz'
+  if (isPracticalKey(criterion.key)) return 'Praktik'
+  return 'Materi'
+}
+
+/** Garis pemisah antar kelompok kolom (bukan antar kolom dalam kelompok sama). */
+function startsGroup(criteria: Criterion[], col: number, type: ReportCardType): boolean {
+  if (col === 0) return false
+  const prev = groupOf(type, criteria[col - 1])
+  const curr = groupOf(type, criteria[col])
+  return curr !== null && prev !== curr
 }
 
 /** Sel nilai: input teks dengan sanitasi desimal + tint predikat.
@@ -188,8 +207,11 @@ interface ScoreRowProps {
   canDelete: boolean
   behavior: BehaviorInfo | undefined
   dirty: boolean
+  complete: boolean
+  hafalanNote: string
   onCommitScore: (studentId: string, key: string, value: number | null) => void
   onOpenExtras: (student: ReportCardStudent) => void
+  onOpenHafalan: (student: ReportCardStudent) => void
   onResetRow: (studentId: string) => void
   focusCell: (row: number, col: number) => void
   onJumpNextIncomplete: (row: number) => void
@@ -210,8 +232,11 @@ const ScoreRow = memo(function ScoreRow({
   canDelete,
   behavior,
   dirty,
+  complete,
+  hafalanNote,
   onCommitScore,
   onOpenExtras,
+  onOpenHafalan,
   onResetRow,
   focusCell,
   onJumpNextIncomplete,
@@ -305,7 +330,7 @@ const ScoreRow = memo(function ScoreRow({
               {filled}/{criteria.length} terisi{dirty ? ' · draf' : ''}
             </div>
           </div>
-          {filled === criteria.length && (
+          {complete && (
             <CheckCircleFilled
               style={{ color: token.colorSuccess, fontSize: 14, flexShrink: 0 }}
               aria-label="Lengkap"
@@ -316,7 +341,16 @@ const ScoreRow = memo(function ScoreRow({
 
       {/* Sel nilai per kriteria */}
       {criteria.map((criterion, col) => (
-        <td key={criterion.key} style={{ padding: '6px 4px', textAlign: 'center' }}>
+        <td
+          key={criterion.key}
+          style={{
+            padding: '6px 4px',
+            textAlign: 'center',
+            borderLeft: startsGroup(criteria, col, type)
+              ? `2px solid ${token.colorBorder}`
+              : undefined,
+          }}
+        >
           <ScoreCell
             value={scores[col]}
             max={maxScore}
@@ -333,7 +367,7 @@ const ScoreRow = memo(function ScoreRow({
 
       {/* Rata-rata */}
       <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-        <RowAverage scores={scores} />
+        <RowAverage scores={scores} criteria={criteria} />
       </td>
 
       {/* Status */}
@@ -342,7 +376,7 @@ const ScoreRow = memo(function ScoreRow({
           <Typography.Text style={{ fontSize: 12, color: token.colorInfo, fontWeight: 600 }}>
             Draf
           </Typography.Text>
-        ) : filled === criteria.length ? (
+        ) : complete ? (
           <Typography.Text style={{ fontSize: 12, color: token.colorSuccess, fontWeight: 600 }}>
             Lengkap
           </Typography.Text>
@@ -398,16 +432,30 @@ const ScoreRow = memo(function ScoreRow({
         }}
       >
         <Space size={2}>
-          <Tooltip title="Data pendukung (fisik, kehadiran, catatan)">
-            <Button
-              type="text"
-              size="small"
-              icon={<FormOutlined />}
-              disabled={!canWrite}
-              onClick={() => onOpenExtras(student)}
-              aria-label={`Data pendukung ${student.name}`}
-            />
-          </Tooltip>
+          {type === 'pondok_oral' ? (
+            <Tooltip title={hafalanNote ? `Hafalan: ${hafalanNote}` : 'Hafalan di luar Juz 30–26'}>
+              <Button
+                type="text"
+                size="small"
+                icon={<BookOutlined />}
+                disabled={!canWrite}
+                onClick={() => onOpenHafalan(student)}
+                aria-label={`Hafalan ${student.name}`}
+                style={hafalanNote ? { color: token.colorPrimary } : undefined}
+              />
+            </Tooltip>
+          ) : (
+            <Tooltip title="Data pendukung (fisik, kehadiran, catatan)">
+              <Button
+                type="text"
+                size="small"
+                icon={<FormOutlined />}
+                disabled={!canWrite}
+                onClick={() => onOpenExtras(student)}
+                aria-label={`Data pendukung ${student.name}`}
+              />
+            </Tooltip>
+          )}
           {canDelete && (
             <Popconfirm
               title="Hapus data raport siswa ini?"
@@ -443,8 +491,11 @@ function areRowPropsEqual(prev: ScoreRowProps, next: ScoreRowProps) {
     prev.canDelete !== next.canDelete ||
     prev.behavior !== next.behavior ||
     prev.dirty !== next.dirty ||
+    prev.complete !== next.complete ||
+    prev.hafalanNote !== next.hafalanNote ||
     prev.onCommitScore !== next.onCommitScore ||
     prev.onOpenExtras !== next.onOpenExtras ||
+    prev.onOpenHafalan !== next.onOpenHafalan ||
     prev.onResetRow !== next.onResetRow ||
     prev.focusCell !== next.focusCell ||
     prev.onJumpNextIncomplete !== next.onJumpNextIncomplete ||
@@ -474,8 +525,11 @@ export function EntryGrid({
   focusRequest,
   hasClassStudents,
   getScore,
+  isRowComplete,
+  hafalanById,
   onCommitScore,
   onOpenExtras,
+  onOpenHafalan,
   onResetRow,
   onClearFilters,
   onUndo,
@@ -506,12 +560,10 @@ export function EntryGrid({
   const incompleteRows = useMemo(
     () =>
       students.reduce<number[]>((rows, student, index) => {
-        if (criteria.some((criterion) => typeof getScore(student.id, criterion.key) !== 'number')) {
-          rows.push(index)
-        }
+        if (!isRowComplete(student.id)) rows.push(index)
         return rows
       }, []),
-    [students, criteria, getScore],
+    [students, isRowComplete],
   )
   const incompleteRowsRef = useRef(incompleteRows)
   useEffect(() => {
@@ -603,8 +655,17 @@ export function EntryGrid({
             >
               Santri
             </th>
-            {criteria.map((criterion) => (
-              <th key={criterion.key} style={{ ...headerCell, minWidth: 76 }}>
+            {criteria.map((criterion, col) => (
+              <th
+                key={criterion.key}
+                style={{
+                  ...headerCell,
+                  minWidth: 76,
+                  borderLeft: startsGroup(criteria, col, type)
+                    ? `2px solid ${token.colorBorder}`
+                    : undefined,
+                }}
+              >
                 <Tooltip
                   title={
                     criterion.desc
@@ -648,8 +709,11 @@ export function EntryGrid({
               canDelete={canDelete}
               behavior={behaviorByStudent.get(student.id)}
               dirty={dirtyIds.has(student.id)}
+              complete={isRowComplete(student.id)}
+              hafalanNote={hafalanById.get(student.id) ?? ''}
               onCommitScore={onCommitScore}
               onOpenExtras={onOpenExtras}
+              onOpenHafalan={onOpenHafalan}
               onResetRow={onResetRow}
               focusCell={focusCell}
               onJumpNextIncomplete={jumpNextIncomplete}
@@ -664,10 +728,12 @@ export function EntryGrid({
   )
 }
 
-/** Rata-rata baris dari nilai efektif yang sudah dihitung parent. */
-function RowAverage({ scores }: { scores: (number | null)[] }) {
+/** Rata-rata baris dari nilai efektif; materi praktik dikecualikan (mengikuti V1). */
+function RowAverage({ scores, criteria }: { scores: (number | null)[]; criteria: Criterion[] }) {
   const { token } = theme.useToken()
-  const values = scores.filter((value): value is number => typeof value === 'number')
+  const values = scores.filter(
+    (value, index) => typeof value === 'number' && !isPracticalKey(criteria[index]?.key ?? ''),
+  ) as number[]
   const average =
     values.length === 0
       ? null
