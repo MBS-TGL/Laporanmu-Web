@@ -398,18 +398,20 @@ export function PreviewPage() {
     if (!element) return
 
     const cardWidth = pageSize === 'f4' ? 813 : 794
-    const cardHeight = pageSize === 'f4' ? 1247 : 1123
     const updateFit = () => {
-      if (!element.clientWidth) return
-      // Ruang efektif: kurangi padding panel dan tinggi bar zoom di atas kertas.
-      const availableWidth = Math.max(200, element.clientWidth - 32)
-      const availableHeight = Math.max(
-        240,
-        (focusMode ? window.innerHeight : element.clientHeight) - 32 - 56,
-      )
-      const scale = Math.min(availableWidth / cardWidth, availableHeight / cardHeight)
-      const next = Math.min(1, Math.max(0.3, Number(scale.toFixed(3))))
-      setFitZoom(next)
+      const containerWidth = element.clientWidth
+      if (!containerWidth || containerWidth < 100) return
+
+      const computed = window.getComputedStyle(element)
+      const padL = parseFloat(computed.paddingLeft) || 16
+      const padR = parseFloat(computed.paddingRight) || 16
+
+      // Ruang efektif lebar dengan breathing room (seperti v1: padL, padR, 32px margin, faktor 0.96)
+      const availableWidth = Math.max(200, containerWidth - padL - padR - 32)
+      // v1 cap di 0.80 agar kartu terbingkai proporsional dan nyaman dibaca
+      const calculated = Math.min(0.80, Math.max(0.35, (availableWidth / cardWidth) * 0.96))
+      const rounded = Number(calculated.toFixed(2))
+      setFitZoom(rounded)
     }
 
     updateFit()
