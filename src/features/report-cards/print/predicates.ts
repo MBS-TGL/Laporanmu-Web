@@ -26,7 +26,7 @@ export const ORAL_GRADE_SCALE = [
 export const ORAL_PRACTICAL_SCALE = [
   { ar: 'أ', id: 'A', range: '90 - 100' },
   { ar: 'ب', id: 'B', range: '80 - 89' },
-  { ar: 'ج', id: 'C', range: '< 80' },
+  { ar: 'ج', id: 'C', range: '0 - 79' },
 ] as const
 
 export function toV1ReportType(type: ReportCardType): V1ReportType {

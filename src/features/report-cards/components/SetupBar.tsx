@@ -137,7 +137,7 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
             Jenis Rapor
           </Typography.Text>
           <Select
-            style={{ width: '100%' }}
+            style={{ width: '100%', color: '#0f172a', fontWeight: 600 }}
             value={params.type}
             onChange={(v) => patch({ type: v as ReportCardType })}
             options={Object.entries(REPORT_CARD_TYPE_LABEL).map(([value, label]) => ({ value, label }))}

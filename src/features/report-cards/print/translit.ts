@@ -195,11 +195,32 @@ export const SINGLE: Record<string, string> = {
 }
 
 /**
+ * Membersihkan gelar akademik atau sebutan Latin sebelum transliterasi ke Arab
+ * (misal: "Khoirul Anwar, S.Pd." -> "Khoirul Anwar", "Ir. H. M. Ali Maksum" -> "Ali Maksum")
+ */
+export const stripAcademicTitles = (name: string): string => {
+    if (!name) return ''
+    return name
+        // Hapus gelar depan (Ir., Drs., Dra., Dr., K.H., KH., H., Hj., Ustadz, Ust.)
+        .replace(/^\s*(ir\.|drs\.|dra\.|dr\.|prof\.|k\.?h\.?|h\.|hj\.|ustadz\b|ust\b)\s+/gi, '')
+        // Hapus gelar belakang setelah koma atau spasi (S.Pd., M.Pd., Lc., S.Ag., dll.)
+        .replace(/,\s*[a-z\s.,]+$/i, (match) => {
+            // Jika ada pola titik/singkatan gelar (seperti S.Pd. atau Lc.)
+            if (/\b(s|m|dr|ph|lc|ba|ma)\b/i.test(match) || match.includes('.')) return ''
+            return match
+        })
+        // Hapus singkatan gelar di akhir nama tanpa koma (misal: " Khoirul Anwar S.Pd.")
+        .replace(/\s+\b(S|M|Drs|Dra|Ir|Lc|Dr)\.([A-Za-z.]+)?$/g, '')
+        .trim()
+}
+
+/**
  * Helper to transliterate Latin name strings to Arabic characters.
  */
 export const translitToAr = (str: string): string => {
     if (!str) return ''
-    return str.trim().split(/\s+/).map(w => {
+    const cleaned = stripAcademicTitles(str)
+    return cleaned.trim().split(/\s+/).map(w => {
         const wl = w.toLowerCase()
         // 1) Direct match in dictionary
         if (KATA_ARAB[wl]) return KATA_ARAB[wl]
@@ -236,7 +257,7 @@ export const translitClassToAr = (className: string): string => {
     if (!className) return ''
     const ANGKA_AR: Record<string, string> = { '1': 'الأول', '2': 'الثاني', '3': 'الثالث', '4': 'الرابع', '5': 'الخامس', '6': 'السادس', '7': 'السابع', '8': 'الثامن', '9': 'التاسع', '10': 'العاشر' }
     const HURUF_AR: Record<string, string> = { 'a': 'أ', 'b': 'ب', 'c': 'ج', 'd': 'د', 'e': 'ه' }
-    const KELAS_KATA: Record<string, string> = { 'boarding': '', 'pondok': '', 'reguler': '', 'regular': '', 'putra': 'بوتر', 'putri': 'بوتري', 'ikhwan': 'إخوان', 'akhwat': 'أخوات', 'sd': '', 'smp': '', 'sma': '', 'mts': '', 'ma': '', 'class': '', 'kelas': '' }
+    const KELAS_KATA: Record<string, string> = { 'boarding': '', 'pondok': '', 'reguler': '', 'regular': '', 'putra': 'بنين', 'putri': 'بنات', 'ikhwan': 'إخوان', 'akhwat': 'أخوات', 'sd': '', 'smp': '', 'sma': '', 'mts': '', 'ma': '', 'class': '', 'kelas': '' }
     
     const parts = className.toLowerCase().split(/[\s\-_]+/), result: string[] = []
     for (const p of parts) {

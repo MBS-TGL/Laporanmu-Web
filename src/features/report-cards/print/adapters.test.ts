@@ -147,7 +147,10 @@ describe('helper cetak', () => {
 
   it('translit nama dan kelas', () => {
     expect(translitToAr('Muhammad Ahmad')).toContain('محمد')
+    expect(translitToAr('Khoirul Anwar, S.Pd.')).not.toContain('فد')
     expect(translitClassToAr('7A')).toBe('السابع أ')
+    expect(translitClassToAr('7 Putra')).toContain('بنين')
+    expect(translitClassToAr('8 Putri')).toContain('بنات')
   })
 
   it('predikat bulanan mengikuti skala 1-9', () => {

@@ -997,7 +997,14 @@ export function PrintCard({
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', textAlign: isAr ? 'left' : 'right', lineHeight: 1.3 }}>
             <span style={{ fontWeight: 600, color: '#aaa' }}>
-              {isAr ? `رقم التقرير: ${reportNo}` : `No. Rapor: ${reportNo}`}
+              {isAr ? (
+                <>
+                  <span>رقم التقرير: </span>
+                  <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{reportNo}</span>
+                </>
+              ) : (
+                `No. Rapor: ${reportNo}`
+              )}
             </span>
             <span>{isAr ? `تاريخ الطباعة: ${formatPrintDate('ar')}` : `Waktu Cetak: ${formatPrintDate('id')}`}</span>
           </div>
