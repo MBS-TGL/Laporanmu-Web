@@ -124,24 +124,16 @@ export function PrintCard({
   const averageText = average === null ? '—' : average.toFixed(2)
 
   const rowPadding = isAr
-    ? isSemesterExam
-      ? isA4
-        ? '1px 0'
-        : '2px 0'
-      : isA4
-        ? '2.5px 0'
-        : '4px 0'
-    : isSemesterExam
-      ? isA4
-        ? '2px 0'
-        : '4px 0'
-      : isA4
-        ? '4px 0'
-        : '7px 0'
+    ? isA4
+      ? '2.5px 0'
+      : '4px 0'
+    : isA4
+      ? '4px 0'
+      : '7px 0'
   const secPadding = isAr ? (isA4 ? '3px 7px' : '6px 7px') : isA4 ? '5px 7px' : '9.5px 7px'
   const absPadding = isAr ? (isA4 ? '1.5px 7px' : '3px 7px') : isA4 ? '3.5px 7px' : '6.5px 7px'
   // Padding baris tabel nilai (v1 `rp`): lebih rapat dari baris info santri.
-  const cellPadding = isSemesterExam ? (isA4 ? '1px' : '2px') : isA4 ? '1.5px' : '2px'
+  const cellPadding = isA4 ? '1.5px' : '2px'
 
   const displayVal = (value: PrintExtra[string], zeroAsDash = false): string | number => {
     if (
@@ -212,7 +204,7 @@ export function PrintCard({
     border,
     verticalAlign: 'middle',
     color: '#000',
-    fontSize: isAr ? (isSemesterExam ? '16pt' : '13.5pt') : '10.5pt',
+    fontSize: isAr ? '13.5pt' : '10.5pt',
     lineHeight: 1.2,
   }
 
@@ -313,29 +305,35 @@ export function PrintCard({
   const lisanSummary = isLisan
     ? (() => {
         const numFmt = (value: number | string) => (isAr ? toArabicNum(value) : String(value))
-        const miniCell: CSSProperties = {
+        // Sel mengikuti tabel nilai di atasnya (headerCell/bodyCell) agar tinggi baris,
+        // border, dan lebar kolom konsisten.
+        const miniHead: CSSProperties = {
+          ...headerCell,
+          padding: `${cellPadding} 6px`,
           border,
-          padding: isAr ? '1px 6px' : '2px 6px',
-          fontSize: isAr ? '12.5pt' : '9.5pt',
-          fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
-          lineHeight: 1.2,
-          color: '#000',
+        }
+        const miniCell: CSSProperties = {
+          ...bodyCell,
+          padding: `${cellPadding} 6px`,
           textAlign: 'center',
-          verticalAlign: 'middle',
         }
-        const miniHead: CSSProperties = { ...miniCell, fontWeight: 800, background: '#f0f4f8' }
-        const miniTitle: CSSProperties = {
-          fontWeight: 700,
-          fontSize: isAr ? '13pt' : '10.5pt',
-          fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
+        const miniLabel: CSSProperties = {
+          ...miniCell,
           textAlign: isAr ? 'right' : 'left',
-          lineHeight: 1.2,
-          margin: '6px 0 2px',
+          padding: `${cellPadding} 10px`,
+          fontWeight: 700,
         }
-        const miniTable: CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }
+        const miniTable: CSSProperties = {
+          width: '100%',
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
+          marginBottom: isA4 ? 6 : 8,
+        }
         // Rentang angka selalu dibaca kiri-ke-kanan, juga di halaman RTL
         const ltr = (text: string) => (
-          <span style={{ direction: 'ltr', unicodeBidi: 'isolate', display: 'inline-block' }}>{numFmt(text)}</span>
+          <span style={{ direction: 'ltr', unicodeBidi: 'isolate', display: 'inline-block' }}>
+            {numFmt(text)}
+          </span>
         )
         const hasPractical = practicalCriteria.length > 0
 
@@ -347,77 +345,38 @@ export function PrintCard({
               direction: isAr ? 'rtl' : 'ltr',
               alignItems: 'flex-start',
               gap: 8,
-              marginTop: 6,
-              marginBottom: isA4 ? 3 : 4,
             }}
           >
-            <div style={{ flex: '1 1 40%', minWidth: 0 }}>
-              <table style={miniTable}>
-                <tbody>
-                  <tr>
-                    <td style={{ ...miniCell, textAlign: isAr ? 'right' : 'left', fontWeight: 700 }}>{L.totalLisan}</td>
-                    <td style={{ ...miniHead, width: '28%' }}>{numFmt(total)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...miniCell, textAlign: isAr ? 'right' : 'left', fontWeight: 700 }}>{L.avgLisan}</td>
-                    <td style={{ ...miniHead, width: '28%' }}>{numFmt(averageText)}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {hasPractical && (
-                <>
-                  <div style={miniTitle}>{L.practicalTitle}</div>
-                  <table style={miniTable}>
-                    <thead>
-                      <tr>
-                        <th style={{ ...miniHead, width: '12%' }}>{L.num}</th>
-                        <th style={miniHead}>{L.practicalSubject}</th>
-                        <th style={{ ...miniHead, width: '18%' }}>{L.score}</th>
-                        <th style={{ ...miniHead, width: '18%' }}>{L.grade}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {practicalCriteria.map((criterion, index) => {
-                        const value = scores[criterion.key] ?? null
-                        return (
-                          <tr key={criterion.key}>
-                            <td style={miniCell}>{numFmt(index + 1)}</td>
-                            <td style={{ ...miniCell, textAlign: isAr ? 'right' : 'left' }}>
-                              {isAr ? criterion.ar ?? criterion.id : criterion.id}
-                            </td>
-                            <td style={{ ...miniCell, fontWeight: 700 }}>{displayVal(value)}</td>
-                            <td style={{ ...miniCell, fontWeight: 700 }}>{gradeLabel(value, criterion.key)}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </>
-              )}
-            </div>
-
-            <div style={{ flex: '1 1 32%', minWidth: 0, marginTop: 6 }}>
-              <table style={miniTable}>
-                <thead>
-                  <tr>
-                    <th colSpan={2} style={miniHead}>{L.gradeSystem}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ORAL_GRADE_SCALE.map((row) => (
-                    <tr key={row.min}>
-                      <td style={{ ...miniCell, fontWeight: 700 }}>{isAr ? row.ar : row.id}</td>
-                      <td style={miniCell}>{ltr(`${row.min} - ${row.max}`)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
             {hasPractical && (
-              <div style={{ flex: '1 1 28%', minWidth: 0, marginTop: 6 }}>
+              <div style={{ flex: '1 1 55%', minWidth: 0 }}>
                 <table style={miniTable}>
+                  <thead>
+                    <tr>
+                      <th colSpan={3} style={miniHead}>{L.practicalTitle}</th>
+                    </tr>
+                    <tr>
+                      <th style={{ ...miniHead, width: '12%' }}>{L.num}</th>
+                      <th style={miniHead}>{L.practicalSubject}</th>
+                      <th style={{ ...miniHead, width: '24%' }}>{L.score}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {practicalCriteria.map((criterion, index) => {
+                      const value = scores[criterion.key] ?? null
+                      return (
+                        <tr key={criterion.key}>
+                          <td style={miniCell}>{numFmt(index + 1)}</td>
+                          <td style={miniLabel}>
+                            {isAr ? criterion.ar ?? criterion.id : criterion.id}
+                          </td>
+                          <td style={{ ...miniCell, fontWeight: 700 }}>{displayVal(value)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+
+                <table style={{ ...miniTable, marginBottom: 0 }}>
                   <thead>
                     <tr>
                       <th colSpan={2} style={miniHead}>{L.practicalPredicate}</th>
@@ -426,7 +385,7 @@ export function PrintCard({
                   <tbody>
                     {ORAL_PRACTICAL_SCALE.map((row) => (
                       <tr key={row.id}>
-                        <td style={{ ...miniCell, fontWeight: 700 }}>{isAr ? row.ar : row.id}</td>
+                        <td style={{ ...miniCell, fontWeight: 700, width: '50%' }}>{isAr ? row.ar : row.id}</td>
                         <td style={miniCell}>{ltr(row.range)}</td>
                       </tr>
                     ))}
@@ -434,6 +393,24 @@ export function PrintCard({
                 </table>
               </div>
             )}
+
+            <div style={{ flex: hasPractical ? '1 1 45%' : '1 1 100%', minWidth: 0 }}>
+              <table style={{ ...miniTable, marginBottom: 0 }}>
+                <thead>
+                  <tr>
+                    <th colSpan={2} style={miniHead}>{L.gradeSystem}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ORAL_GRADE_SCALE.map((row) => (
+                    <tr key={row.min}>
+                      <td style={{ ...miniCell, fontWeight: 700, width: '50%' }}>{isAr ? row.ar : row.id}</td>
+                      <td style={miniCell}>{ltr(`${row.min} - ${row.max}`)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )
       })()
@@ -469,27 +446,27 @@ export function PrintCard({
 
       <div className="raport-card-body">
         {/* Kop sekolah */}
-        <div style={{ marginBottom: isSemesterExam ? (isA4 ? 4 : 6) : isA4 ? 6 : 12 }}>
+        <div style={{ marginBottom: isA4 ? 6 : 12 }}>
           <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: 'none', margin: '0 0 10px 0' }}>
             <tbody>
               <tr>
-                <td style={{ width: isSemesterExam ? '60pt' : '68pt', verticalAlign: 'middle', textAlign: 'center' }}>
+                <td style={{ width: '68pt', verticalAlign: 'middle', textAlign: 'center' }}>
                   <img
                     src={unitLogo}
                     alt="Logo unit"
-                    style={{ maxWidth: isSemesterExam ? '60pt' : '68pt', maxHeight: isSemesterExam ? '60pt' : '68pt', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                    style={{ maxWidth: '68pt', maxHeight: '68pt', objectFit: 'contain', display: 'block', margin: '0 auto' }}
                   />
                 </td>
                 <td style={{ padding: '0 10px', verticalAlign: 'middle', textAlign: 'center' }}>
                   {settings.school_subtitle_ar && (
-                    <div style={{ fontSize: isSemesterExam ? '10.5pt' : '12.5pt', color: '#444', direction: 'rtl', marginBottom: 2, fontFamily: RAPORT_AR_FONT, fontWeight: 700, lineHeight: 1.3 }}>
+                    <div style={{ fontSize: '12.5pt', color: '#444', direction: 'rtl', marginBottom: 2, fontFamily: RAPORT_AR_FONT, fontWeight: 700, lineHeight: 1.3 }}>
                       {settings.school_subtitle_ar}
                     </div>
                   )}
-                  <div style={{ fontSize: isSemesterExam ? '26pt' : '30pt', fontWeight: 900, color: settings.report_color_primary, direction: 'rtl', fontFamily: RAPORT_AR_FONT, lineHeight: 1.05, marginBottom: 4 }}>
+                  <div style={{ fontSize: '30pt', fontWeight: 900, color: settings.report_color_primary, direction: 'rtl', fontFamily: RAPORT_AR_FONT, lineHeight: 1.05, marginBottom: 4 }}>
                     {settings.school_name_ar}
                   </div>
-                  <div style={{ fontSize: isSemesterExam ? '13pt' : '15pt', fontWeight: 800, letterSpacing: 0.8, color: '#111', marginTop: 2 }}>
+                  <div style={{ fontSize: '15pt', fontWeight: 800, letterSpacing: 0.8, color: '#111', marginTop: 2 }}>
                     {settings.school_name_id}
                   </div>
                   <div style={{ fontSize: '8.5pt', color: '#666', marginTop: 4, lineHeight: 1.3, fontWeight: 400, fontFamily: RAPORT_SANS }}>
@@ -497,11 +474,11 @@ export function PrintCard({
                     <div>{settings.school_address_line2}</div>
                   </div>
                 </td>
-                <td style={{ width: isSemesterExam ? '60pt' : '68pt', verticalAlign: 'middle', textAlign: 'center' }}>
+                <td style={{ width: '68pt', verticalAlign: 'middle', textAlign: 'center' }}>
                   <img
                     src={settings.logo_url}
                     alt="Logo pondok"
-                    style={{ maxWidth: isSemesterExam ? '60pt' : '68pt', maxHeight: isSemesterExam ? '60pt' : '68pt', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                    style={{ maxWidth: '68pt', maxHeight: '68pt', objectFit: 'contain', display: 'block', margin: '0 auto' }}
                   />
                 </td>
               </tr>
@@ -512,17 +489,17 @@ export function PrintCard({
         </div>
 
         {/* Judul laporan */}
-        <div style={{ textAlign: 'center', margin: isSemesterExam ? (isA4 ? '2px 0' : '2px 0 4px') : isA4 ? '6px 0 8px' : '12px 0 16px', fontFamily: isAr ? RAPORT_AR_FONT : 'inherit' }}>
-          <div style={{ fontSize: isAr ? '28pt' : isSemesterExam ? '14pt' : '18pt', fontWeight: 900, direction: isAr ? 'rtl' : 'ltr', lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? 'uppercase' : undefined }}>
+        <div style={{ textAlign: 'center', margin: isA4 ? '6px 0 8px' : '12px 0 16px', fontFamily: isAr ? RAPORT_AR_FONT : 'inherit' }}>
+          <div style={{ fontSize: isAr ? '28pt' : '18pt', fontWeight: 900, direction: isAr ? 'rtl' : 'ltr', lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? 'uppercase' : undefined }}>
             {reportTitle}
           </div>
-          <div style={{ fontSize: isAr ? '22pt' : isSemesterExam ? '12pt' : '14pt', fontWeight: 700, direction: isAr ? 'rtl' : 'ltr', marginTop: isAr ? 4 : 10, lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? 'uppercase' : undefined }}>
+          <div style={{ fontSize: isAr ? '22pt' : '14pt', fontWeight: 700, direction: isAr ? 'rtl' : 'ltr', marginTop: isAr ? 4 : 10, lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? '' : undefined }}>
             {periodTitle}
           </div>
         </div>
 
         {/* Info santri */}
-        <table style={{ width: '100%', marginBottom: isSemesterExam ? (isA4 ? 4 : 6) : isA4 ? 6 : 10, fontSize: isAr ? '10.5pt' : '11.5pt', borderCollapse: 'collapse', tableLayout: 'fixed', direction: isAr ? 'rtl' : 'ltr' }}>
+        <table style={{ width: '100%', marginBottom: isA4 ? 6 : 10, fontSize: isAr ? '10.5pt' : '11.5pt', borderCollapse: 'collapse', tableLayout: 'fixed', direction: isAr ? 'rtl' : 'ltr' }}>
           <tbody>
             <tr style={{ borderBottom: '1px solid #ccc' }}>
               <td style={{ width: '14%', verticalAlign: 'middle', padding: rowPadding }}>
@@ -580,7 +557,7 @@ export function PrintCard({
         )}
 
         {/* Tabel nilai */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10.5pt', marginBottom: isSemesterExam ? (isA4 ? 3 : 4) : isA4 ? 6 : 12 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10.5pt', marginBottom: isA4 ? 6 : 12 }}>
           <thead>
             <tr>
               {isAr ? (
@@ -631,15 +608,10 @@ export function PrintCard({
                       {isMapelPondok && (
                         <td style={{ ...bodyCell, textAlign: 'center', padding: `${cellPadding} 6px`, fontWeight: 700 }}>{displayVal(kkmScore)}</td>
                       )}
-                      {isSemesterExam && subjectAr ? (
-                        <td colSpan={2} style={{ ...bodyCell, textAlign: 'right', padding: `${cellPadding} 10px`, fontFamily: RAPORT_AR_FONT, fontSize: isSemesterExam ? '16pt' : `${lc.arMainFontSize}pt` }}>
+                      {subjectAr ? (
+                        <td colSpan={2} style={{ ...bodyCell, textAlign: 'right', padding: `${cellPadding} 10px`, fontFamily: RAPORT_AR_FONT, fontSize: `${lc.arMainFontSize}pt` }}>
                           {subjectAr}
                         </td>
-                      ) : subjectAr ? (
-                        <>
-                          <td style={{ ...bodyCell, textAlign: 'right', padding: `${cellPadding} 10px`, fontFamily: RAPORT_AR_FONT, fontSize: `${lc.arMainFontSize}pt`, width: `${lc.subjectArWidth}%` }}>{subjectAr}</td>
-                          <td style={{ ...bodyCell, textAlign: 'right', padding: `${cellPadding} 10px`, color: '#444', fontSize: '10.5pt', width: `${lc.subjectIdWidth}%` }}>{criterion.id}</td>
-                        </>
                       ) : (
                         <td colSpan={2} style={{ ...bodyCell, textAlign: 'right', padding: `${cellPadding} 10px`, color: '#444', fontSize: '10.5pt' }}>{criterion.id}</td>
                       )}
@@ -667,6 +639,52 @@ export function PrintCard({
               )
             })}
           </tbody>
+          {isLisan && (
+            <tfoot>
+              <tr>
+                {isAr ? (
+                  <>
+                    <td style={bodyCell} />
+                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>
+                      {toArabicNum(total)}
+                    </td>
+                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'right', fontWeight: 700, background: '#f0f4f8', fontFamily: RAPORT_AR_FONT }}>
+                      {RL.total_label.ar}
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'left', fontWeight: 700, background: '#f0f4f8' }}>
+                      {RL.total_label.id}
+                    </td>
+                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{total}</td>
+                    <td style={bodyCell} />
+                  </>
+                )}
+              </tr>
+              <tr>
+                {isAr ? (
+                  <>
+                    <td style={bodyCell} />
+                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700, fontFamily: RAPORT_AR_FONT }}>
+                      {averageText === '—' ? '—' : toArabicNum(averageText)}
+                    </td>
+                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'right', fontWeight: 700, background: '#f0f4f8', fontFamily: RAPORT_AR_FONT }}>
+                      {RL.avg_label.ar}
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'left', fontWeight: 700, background: '#f0f4f8' }}>
+                      {RL.avg_label.id}
+                    </td>
+                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{averageText}</td>
+                    <td style={bodyCell} />
+                  </>
+                )}
+              </tr>
+            </tfoot>
+          )}
         </table>
 
         {isSemesterExam && !isLisan && filledScores.length > 0 && (
@@ -709,7 +727,7 @@ export function PrintCard({
               borderCollapse: 'collapse',
               tableLayout: 'fixed',
               fontSize: '10.5pt',
-              marginBottom: isA4 ? 3 : 4,
+              marginBottom: isA4 ? 6 : 8,
               direction: isAr ? 'rtl' : 'ltr',
             }}
           >
@@ -717,25 +735,23 @@ export function PrintCard({
               <tr>
                 <td
                   style={{
-                    border,
-                    padding: isAr ? '1px 6px' : '2px 6px',
+                    ...bodyCell,
+                    padding: `${cellPadding} 6px`,
                     fontWeight: 700,
                     background: '#f0f4f8',
                     width: '18%',
                     textAlign: isAr ? 'right' : 'left',
                     fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
-                    fontSize: isAr ? '12.5pt' : '9.5pt',
                   }}
                 >
                   {L.hafalanLisan}
                 </td>
                 <td
                   style={{
-                    border,
-                    padding: isAr ? '1px 6px' : '2px 6px',
+                    ...bodyCell,
+                    padding: `${cellPadding} 6px`,
                     textAlign: isAr ? 'right' : 'left',
                     fontFamily: isAr ? RAPORT_AR_FONT : 'inherit',
-                    fontSize: isAr ? '12.5pt' : '9.5pt',
                   }}
                 >
                   {displayVal(extra.hafalan_note)}

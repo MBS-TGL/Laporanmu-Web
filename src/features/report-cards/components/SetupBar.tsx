@@ -120,14 +120,19 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
 
   return (
     <Card style={{ marginBottom: 16 }}>
-      <Row gutter={[12, 12]} align="bottom">
-        <Col xs={12} sm={8} md={5}>
+      <Row
+        gutter={16}
+        align="bottom"
+        wrap={false}
+        style={{ overflowX: 'auto', paddingBottom: 6 }}
+      >
+        <Col flex="none" style={{ minWidth: 80 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Kelas
           </Typography.Text>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{className}</div>
+          <div style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>{className}</div>
         </Col>
-        <Col xs={12} sm={8} md={4}>
+        <Col flex="1" style={{ minWidth: 150 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Jenis Rapor
           </Typography.Text>
@@ -141,7 +146,7 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
 
         {isMonthly ? (
           <>
-            <Col xs={12} sm={8} md={5}>
+            <Col flex="1" style={{ minWidth: 140 }}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 Bulan
               </Typography.Text>
@@ -152,7 +157,7 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
                 options={MONTH_NAMES.map((m, i) => ({ value: i + 1, label: m }))}
               />
             </Col>
-            <Col xs={12} sm={8} md={4}>
+            <Col flex="0 0 100px">
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 Tahun
               </Typography.Text>
@@ -167,7 +172,7 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
           </>
         ) : (
           <>
-            <Col xs={12} sm={8} md={5}>
+            <Col flex="1" style={{ minWidth: 160 }}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 Semester
               </Typography.Text>
@@ -181,13 +186,13 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
                 ]}
               />
             </Col>
-            <Col xs={12} sm={8} md={8}>
+            <Col flex="1" style={{ minWidth: 180 }}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 Tahun Ajaran
               </Typography.Text>
               <Select
                 style={{ width: '100%' }}
-                placeholder="Pilih year ajaran"
+                placeholder="Pilih tahun ajaran"
                 loading={yearsQuery.isPending}
                 value={effectiveTa || undefined}
                 onChange={(v) => patch({ ay: v as string })}
@@ -197,7 +202,7 @@ export function SetupBar({ classId, homeroomTeacherName }: SetupBarProps) {
           </>
         )}
 
-        <Col xs={24} sm={8} md={6}>
+        <Col flex="1" style={{ minWidth: 200 }}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Musyrif / Wali Kelas
           </Typography.Text>
