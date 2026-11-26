@@ -1115,6 +1115,15 @@ File hidup untuk agent: catat **keputusan arsitektur** (dengan tanggal), **gotch
 - **Data Legacy**: Mendukung fallback key lama (doa, hadits, dll) via `ORAL_LEGACY_KEY_MAP` agar nilai lama tidak hilang di tampilan baru.
 - Verifikasi: `tsc -b` 0, build sukses, vitest **363/363** (termasuk unit test baru untuk program lisan, kelengkapan juz, dan payload extras). Runtime 5174: verifikasi visual desktop & 390px (ikon buku, pemisah kelompok, status lengkap, baris hafalan cetak).
 
+### 2026-11-26 — Perapian Penamaan, Skala Nilai, dan Cetak Rapor Pondok (ID/AR)
+- **Keseragaman Label Rapor**: Nama jenis rapor di dropdown, judul dokumen, dan filter disamakan via `REPORT_CARD_TYPE_LABEL`: `Rapor Bulanan`, `Rapor Ujian Lisan`, `Rapor Ujian Tulis`, `Rapor Umum`. Judul kartu cetak menjadi huruf kapital (`RAPOR BULANAN`, `RAPOR UJIAN LISAN`, `RAPOR UJIAN TULIS`, `RAPOR UMUM`).
+- **Skala Praktik**: Rentang `ORAL_PRACTICAL_SCALE` C diubah dari `< 80` menjadi `0 - 79` (Arab: `٠ - ٧٩`), menghapus karakter `<` dan `>` yang membingungkan arah baca RTL pada teks Arab.
+- **Header Tabel Lisan**: Diubah dari "Mata Pelajaran" menjadi "Materi Ujian" (Arab: "مواد الاختبار") dalam 1 kolom `colSpan={2}` (persis pola Raport Bulanan). Sub-judul redundan di atas tabel nilai dan di atas tabel praktik dihapus untuk menghemat vertical space.
+- **Tinggi Sel Sejajar**: Tinggi baris isi dan tfoot (Jumlah Nilai, Rata-rata) disamakan dengan tinggi baris mapel Arab via komputasi `lineHeight` berbasis `arMainFontSize * 1.2`. Nilai kosong pada Jumlah Nilai & Rata-rata konsisten menampilkan `"—"`.
+- **Transliterasi Arab yang Alami**: Kelas putra diterjemahkan menjadi `"بنين"` (dulu `"بوتر"`), putri menjadi `"بنات"` (dulu `"بوتري"`). Gelar akademik Latin (S.Pd., M.Pd., Lc., dll.) otomatis dibersihkan via `stripAcademicTitles` sebelum diterjemahkan ke Arab, sehingga mencetak nama murni tanpa singkatan fonetik `"س.فد."`.
+- **Sanitasi Tahun Ajaran**: `cleanAcademicYearName` otomatis membuang suffix semester seperti `(Ganjil)` atau `Genap` saat mencetak kartu rapor agar tidak dobel semester. `effectiveAy` fallback otomatis ke tahun ajaran aktif (`is_active = true`) di InputPage dan PreviewPage.
+- **Verifikasi**: Build sukses, eslint `report-cards` bersih, vitest 363/363 lulus. Git commit: `010fbe1`, `4440a01`, `781969f`, `9207e68`, `3060173`, `ab8a159`.
+
 
 ### 2026-11-23: P1 akurasi Asisten AI (knowledge base + menu sadar-role + chip Sumber)
 - **Akar masalah**: `ChatAssistant` tidak pernah mengirim `context`; server hanya memakai `body.context` untuk mode `chat`, sementara `APP_CONTEXT` di `ai.ts` tidak terkirim dan sudah usang (`/cek`, "Cek Poin Santri"). Model lalu mengarang menu "Data Wali" dan "Kontak Wali".
