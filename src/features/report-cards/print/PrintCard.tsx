@@ -125,7 +125,9 @@ export function PrintCard({
 
   const rowPadding = isAr
     ? isA4
-      ? '2.5px 0'
+      ? isLisan
+        ? '1.5px 0'
+        : '2.5px 0'
       : '4px 0'
     : isA4
       ? '4px 0'
@@ -133,7 +135,10 @@ export function PrintCard({
   const secPadding = isAr ? (isA4 ? '3px 7px' : '6px 7px') : isA4 ? '5px 7px' : '9.5px 7px'
   const absPadding = isAr ? (isA4 ? '1.5px 7px' : '3px 7px') : isA4 ? '3.5px 7px' : '6.5px 7px'
   // Padding baris tabel nilai (v1 `rp`): lebih rapat dari baris info santri.
-  const cellPadding = isA4 ? '1.5px' : '2px'
+  const cellPadding = isA4 ? (isLisan ? '1px' : '1.5px') : '2px'
+  // Ujian Lisan memuat banyak bagian (12 baris + praktik + skala); di A4 kop dan judul dikecilkan sedikit
+  const compactLisan = isLisan && isA4
+  const logoPt = compactLisan ? '58pt' : '68pt'
 
   const displayVal = (value: PrintExtra[string], zeroAsDash = false): string | number => {
     if (
@@ -168,8 +173,8 @@ export function PrintCard({
             ? RL.ujian_pondok_report.ar
             : RL.ujian_pondok_report.id
           : isAr
-            ? 'التقرير العام'
-            : 'RAPORT UMUM'
+            ? 'تقرير عام'
+            : 'Rapor Umum'
 
   const semesterPair = semester === 2 ? RL.semester_genap : RL.semester_ganjil
   const periodTitle =
@@ -301,20 +306,20 @@ export function PrintCard({
         },
       ]
 
-  // Ringkasan Ujian Lisan seperti di Excel: Jumlah/Rata-rata + Ujian Praktik | Sistem Penilaian | Predikat Praktik
+  // Ringkasan Ujian Lisan seperti di Excel: Ujian Praktik + Predikat Praktik (kiri) | Sistem Penilaian (kanan)
   const lisanSummary = isLisan
     ? (() => {
         const numFmt = (value: number | string) => (isAr ? toArabicNum(value) : String(value))
-        // Sel mengikuti tabel nilai di atasnya (headerCell/bodyCell) agar tinggi baris,
-        // border, dan lebar kolom konsisten.
-        const miniHead: CSSProperties = {
-          ...headerCell,
-          padding: `${cellPadding} 6px`,
-          border,
-        }
+        // Samakan ukuran sel dengan tabel Ujian Lisan: header pakai headerCell (sama),
+        // isi pakai line-height agar tinggi baris = tinggi baris isi tabel utama
+        // (baris utama dipicu teks mapel Arab berukuran arMainFontSize).
+        const miniFontSize = isAr ? 13.5 : 10.5
+        const mainBodyLineHeight = (lc.arMainFontSize * 1.2) / miniFontSize
+        const miniHead: CSSProperties = { ...headerCell }
         const miniCell: CSSProperties = {
           ...bodyCell,
           padding: `${cellPadding} 6px`,
+          lineHeight: mainBodyLineHeight,
           textAlign: 'center',
         }
         const miniLabel: CSSProperties = {
@@ -336,6 +341,12 @@ export function PrintCard({
           </span>
         )
         const hasPractical = practicalCriteria.length > 0
+        const blockBox = (flex: string): CSSProperties => ({
+          flex,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        })
 
         return (
           <div
@@ -345,19 +356,22 @@ export function PrintCard({
               direction: isAr ? 'rtl' : 'ltr',
               alignItems: 'flex-start',
               gap: 8,
+              marginBottom: isA4 ? 4 : 6,
             }}
           >
             {hasPractical && (
-              <div style={{ flex: '1 1 55%', minWidth: 0 }}>
+              <div style={blockBox('1.3 1 0')}>
                 <table style={miniTable}>
+                  <colgroup>
+                    <col style={{ width: '12%' }} />
+                    <col />
+                    <col style={{ width: '24%' }} />
+                  </colgroup>
                   <thead>
                     <tr>
-                      <th colSpan={3} style={miniHead}>{L.practicalTitle}</th>
-                    </tr>
-                    <tr>
-                      <th style={{ ...miniHead, width: '12%' }}>{L.num}</th>
+                      <th style={miniHead}>{L.num}</th>
                       <th style={miniHead}>{L.practicalSubject}</th>
-                      <th style={{ ...miniHead, width: '24%' }}>{L.score}</th>
+                      <th style={miniHead}>{L.score}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -377,6 +391,10 @@ export function PrintCard({
                 </table>
 
                 <table style={{ ...miniTable, marginBottom: 0 }}>
+                  <colgroup>
+                    <col style={{ width: '50%' }} />
+                    <col style={{ width: '50%' }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th colSpan={2} style={miniHead}>{L.practicalPredicate}</th>
@@ -385,7 +403,7 @@ export function PrintCard({
                   <tbody>
                     {ORAL_PRACTICAL_SCALE.map((row) => (
                       <tr key={row.id}>
-                        <td style={{ ...miniCell, fontWeight: 700, width: '50%' }}>{isAr ? row.ar : row.id}</td>
+                        <td style={{ ...miniCell, fontWeight: 700 }}>{isAr ? row.ar : row.id}</td>
                         <td style={miniCell}>{ltr(row.range)}</td>
                       </tr>
                     ))}
@@ -394,8 +412,12 @@ export function PrintCard({
               </div>
             )}
 
-            <div style={{ flex: hasPractical ? '1 1 45%' : '1 1 100%', minWidth: 0 }}>
+            <div style={blockBox(hasPractical ? '1 1 0' : '1 1 100%')}>
               <table style={{ ...miniTable, marginBottom: 0 }}>
+                <colgroup>
+                  <col style={{ width: '50%' }} />
+                  <col style={{ width: '50%' }} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th colSpan={2} style={miniHead}>{L.gradeSystem}</th>
@@ -404,7 +426,7 @@ export function PrintCard({
                 <tbody>
                   {ORAL_GRADE_SCALE.map((row) => (
                     <tr key={row.min}>
-                      <td style={{ ...miniCell, fontWeight: 700, width: '50%' }}>{isAr ? row.ar : row.id}</td>
+                      <td style={{ ...miniCell, fontWeight: 700 }}>{isAr ? row.ar : row.id}</td>
                       <td style={miniCell}>{ltr(`${row.min} - ${row.max}`)}</td>
                     </tr>
                   ))}
@@ -446,15 +468,15 @@ export function PrintCard({
 
       <div className="raport-card-body">
         {/* Kop sekolah */}
-        <div style={{ marginBottom: isA4 ? 6 : 12 }}>
+        <div style={{ marginBottom: compactLisan ? 3 : isA4 ? 6 : 12 }}>
           <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', border: 'none', margin: '0 0 10px 0' }}>
             <tbody>
               <tr>
-                <td style={{ width: '68pt', verticalAlign: 'middle', textAlign: 'center' }}>
+                <td style={{ width: logoPt, verticalAlign: 'middle', textAlign: 'center' }}>
                   <img
                     src={unitLogo}
                     alt="Logo unit"
-                    style={{ maxWidth: '68pt', maxHeight: '68pt', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                    style={{ maxWidth: logoPt, maxHeight: logoPt, objectFit: 'contain', display: 'block', margin: '0 auto' }}
                   />
                 </td>
                 <td style={{ padding: '0 10px', verticalAlign: 'middle', textAlign: 'center' }}>
@@ -474,11 +496,11 @@ export function PrintCard({
                     <div>{settings.school_address_line2}</div>
                   </div>
                 </td>
-                <td style={{ width: '68pt', verticalAlign: 'middle', textAlign: 'center' }}>
+                <td style={{ width: logoPt, verticalAlign: 'middle', textAlign: 'center' }}>
                   <img
                     src={settings.logo_url}
                     alt="Logo pondok"
-                    style={{ maxWidth: '68pt', maxHeight: '68pt', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                    style={{ maxWidth: logoPt, maxHeight: logoPt, objectFit: 'contain', display: 'block', margin: '0 auto' }}
                   />
                 </td>
               </tr>
@@ -489,11 +511,11 @@ export function PrintCard({
         </div>
 
         {/* Judul laporan */}
-        <div style={{ textAlign: 'center', margin: isA4 ? '6px 0 8px' : '12px 0 16px', fontFamily: isAr ? RAPORT_AR_FONT : 'inherit' }}>
-          <div style={{ fontSize: isAr ? '28pt' : '18pt', fontWeight: 900, direction: isAr ? 'rtl' : 'ltr', lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? 'uppercase' : undefined }}>
+        <div style={{ textAlign: 'center', margin: compactLisan ? '3px 0 5px' : isA4 ? '6px 0 8px' : '12px 0 16px', fontFamily: isAr ? RAPORT_AR_FONT : 'inherit' }}>
+          <div style={{ fontSize: isAr ? (compactLisan ? '24pt' : '28pt') : '18pt', fontWeight: 900, direction: isAr ? 'rtl' : 'ltr', lineHeight: isAr ? 1.15 : 1.3, textTransform: isAr ? undefined : 'uppercase' }}>
             {reportTitle}
           </div>
-          <div style={{ fontSize: isAr ? '22pt' : '14pt', fontWeight: 700, direction: isAr ? 'rtl' : 'ltr', marginTop: isAr ? 4 : 10, lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? '' : undefined }}>
+          <div style={{ fontSize: isAr ? (compactLisan ? '19pt' : '22pt') : '14pt', fontWeight: 700, direction: isAr ? 'rtl' : 'ltr', marginTop: isAr ? 4 : 10, lineHeight: isAr ? 1.15 : 1.3, textTransform: isLisan && !isAr ? '' : undefined }}>
             {periodTitle}
           </div>
         </div>
@@ -543,18 +565,6 @@ export function PrintCard({
             </tr>
           </tbody>
         </table>
-
-        {(isLisan || isMapelPondok) && (
-          <div style={{ textAlign: isAr ? 'right' : 'left', direction: isAr ? 'rtl' : 'ltr', fontFamily: isAr ? RAPORT_AR_FONT : 'inherit', fontSize: isAr ? '13pt' : '11pt', fontWeight: 700, marginBottom: 2 }}>
-            {isLisan
-              ? isAr
-                ? 'الاختبار الشفهي'
-                : 'Ujian Lisan'
-              : isAr
-                ? 'الاختبار للدراسة الإسلامية'
-                : 'Ujian Mapel Pondok'}
-          </div>
-        )}
 
         {/* Tabel nilai */}
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10.5pt', marginBottom: isA4 ? 6 : 12 }}>
@@ -646,7 +656,7 @@ export function PrintCard({
                   <>
                     <td style={bodyCell} />
                     <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>
-                      {toArabicNum(total)}
+                      {filledScores.length ? toArabicNum(total) : '—'}
                     </td>
                     <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'right', fontWeight: 700, background: '#f0f4f8', fontFamily: RAPORT_AR_FONT }}>
                       {RL.total_label.ar}
@@ -657,7 +667,7 @@ export function PrintCard({
                     <td colSpan={3} style={{ ...bodyCell, padding: `${cellPadding} 10px`, textAlign: 'left', fontWeight: 700, background: '#f0f4f8' }}>
                       {RL.total_label.id}
                     </td>
-                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{total}</td>
+                    <td style={{ ...bodyCell, padding: `${cellPadding} 6px`, textAlign: 'center', fontWeight: 700 }}>{filledScores.length ? total : '—'}</td>
                     <td style={bodyCell} />
                   </>
                 )}

@@ -22,8 +22,8 @@ export const SEMESTER_LABEL: Record<1 | 2, string> = {
 
 export const REPORT_CARD_TYPE_LABEL: Record<ReportCardType, string> = {
   monthly: 'Rapor Bulanan',
-  pondok_oral: 'Pondok (Lisan)',
-  pondok_subject: 'Pondok (Mapel)',
+  pondok_oral: 'Rapor Ujian Lisan',
+  pondok_subject: 'Rapor Ujian Tulis',
   general: 'Rapor Umum',
 }
 
