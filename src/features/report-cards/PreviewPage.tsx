@@ -399,7 +399,8 @@ export function PreviewPage() {
 
     const cardWidth = pageSize === 'f4' ? 813 : 794
     const updateFit = () => {
-      const containerWidth = element.clientWidth
+      const rect = element.getBoundingClientRect()
+      const containerWidth = rect.width || element.clientWidth
       if (!containerWidth || containerWidth < 100) return
 
       const computed = window.getComputedStyle(element)
@@ -414,11 +415,12 @@ export function PreviewPage() {
       setFitZoom(rounded)
     }
 
-    updateFit()
+    const raf = requestAnimationFrame(updateFit)
     const observer = new ResizeObserver(updateFit)
     observer.observe(element)
     window.addEventListener('resize', updateFit)
     return () => {
+      cancelAnimationFrame(raf)
       observer.disconnect()
       window.removeEventListener('resize', updateFit)
     }
