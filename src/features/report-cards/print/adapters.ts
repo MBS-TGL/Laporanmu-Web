@@ -227,13 +227,22 @@ export function buildVerifyUrl(args: {
   return `${origin}/verify?${params.toString()}`
 }
 
+export function cleanAcademicYearName(name: string): string {
+  if (!name) return ''
+  // Bersihkan embel-embel semester dari nama tahun akademik (mis. "(Ganjil)", "Genap", "Odd", "Even")
+  return name
+    .replace(/\s*\(?\b(ganjil|genap|odd|even|semester\s*\d*)\b\)?/gi, '')
+    .trim()
+}
+
 export function getYearDisplay(
   month: number,
   year: number,
   lang: 'id' | 'ar',
   academicYear: string,
 ): string {
-  if (academicYear) return lang === 'ar' ? toArabicNum(academicYear) : academicYear
+  const cleaned = cleanAcademicYearName(academicYear)
+  if (cleaned) return lang === 'ar' ? toArabicNum(cleaned) : cleaned
   const start = month >= 7 ? year : year - 1
   const end = start + 1
   return lang === 'ar' ? `${toArabicNum(start)} – ${toArabicNum(end)}` : `${start} – ${end}`

@@ -186,11 +186,15 @@ export function PreviewPage() {
   const studentIds = useMemo(() => students.map((s) => s.id), [students])
 
   const isMonthly = type === 'monthly'
-  const monthlyQuery = useMonthlyRows(studentIds, month, year)
-  const semesterQuery = useSemesterRows(studentIds, type as SemesterType, semester, ay || undefined)
   const schoolQuery = useSchoolSettings()
   const yearsQuery = useAcademicYearsBrief()
-  const yearName = (yearsQuery.data ?? []).find((y) => y.id === ay)?.name
+  const activeYear = (yearsQuery.data ?? []).find((y) => y.is_active)
+  const effectiveAy = ay || activeYear?.id || ''
+  const selectedYear = (yearsQuery.data ?? []).find((y) => y.id === effectiveAy)
+  const yearName = selectedYear?.name
+
+  const monthlyQuery = useMonthlyRows(studentIds, month, year)
+  const semesterQuery = useSemesterRows(studentIds, type as SemesterType, semester, effectiveAy || undefined)
 
   const monthlyById = useMemo(
     () => new Map((monthlyQuery.data ?? []).map((r) => [r.student_id, r])),
@@ -291,7 +295,7 @@ export function PreviewPage() {
       reportType: v1Type,
       dbReportType: type,
       semester,
-      academicYearId: ay,
+      academicYearId: effectiveAy,
       appDomain: printSettings.app_domain,
     })
     return {

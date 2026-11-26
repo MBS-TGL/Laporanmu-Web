@@ -38,6 +38,7 @@ import { useDebounce } from '../../shared/hooks/useDebounce'
 import { useShortcuts } from '../../shared/hooks/useShortcuts'
 import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { SetupBar } from './components/SetupBar'
+import { useAcademicYearsBrief } from '../classes/hooks'
 import { ExtrasDrawer } from './components/ExtrasDrawer'
 import { HafalanModal } from './components/HafalanModal'
 import { EntryGrid } from './components/EntryGrid'
@@ -124,6 +125,10 @@ export function InputPage() {
   const ay = searchParams.get('ay') ?? ''
   const musyrif = searchParams.get('musyrif') ?? ''
 
+  const yearsQuery = useAcademicYearsBrief()
+  const activeYear = (yearsQuery.data ?? []).find((y) => y.is_active)
+  const effectiveAy = ay || activeYear?.id || ''
+
   const classesQuery = useReportCardClasses()
   const classRow = (classesQuery.data ?? []).find((c) => c.id === classId)
   const grade = classRow?.grade ?? null
@@ -141,8 +146,8 @@ export function InputPage() {
     () =>
       isMonthly
         ? ['report-cards', 'monthly', year, month, studentCount, firstStudentId]
-        : ['report-cards', 'semester', type, semester, ay, studentCount, firstStudentId],
-    [isMonthly, year, month, type, semester, ay, studentCount, firstStudentId],
+        : ['report-cards', 'semester', type, semester, effectiveAy, studentCount, firstStudentId],
+    [isMonthly, year, month, type, semester, effectiveAy, studentCount, firstStudentId],
   )
 
   const monthlyQuery = useMonthlyRows(isMonthly ? studentIds : [], month, year)
@@ -151,7 +156,7 @@ export function InputPage() {
     isMonthly ? [] : studentIds,
     type as SemesterType,
     semester,
-    ay || undefined,
+    effectiveAy || undefined,
   )
 
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01T00:00:00Z`
@@ -201,7 +206,7 @@ export function InputPage() {
   const updatedBy = sessionQuery.data?.user?.id ?? null
 
   const draftsEngine = useEntryDrafts({
-    storageKey: `raport-draft:${periodKey(type, isMonthly ? { month, year } : { semester, academicYearId: ay })}:${classId}`,
+    storageKey: `raport-draft:${periodKey(type, isMonthly ? { month, year } : { semester, academicYearId: effectiveAy })}:${classId}`,
     queryKey,
     isMonthly,
     type,
@@ -209,7 +214,7 @@ export function InputPage() {
     month,
     year,
     semester,
-    ay,
+    ay: effectiveAy,
     musyrifName,
     updatedBy,
     savedMonthlyById,
@@ -385,12 +390,12 @@ export function InputPage() {
         )
       } else {
         resetSemesterRef.current.mutate(
-          { studentIds: [studentId], reportType: type as SemesterType, semester, academicYearId: ay },
+          { studentIds: [studentId], reportType: type as SemesterType, semester, academicYearId: effectiveAy },
           { onSuccess: onDone, onError },
         )
       }
     },
-    [isMonthly, month, year, type, semester, ay, message, clearStudentDraft, clearHistory],
+    [isMonthly, month, year, type, semester, effectiveAy, message, clearStudentDraft, clearHistory],
   )
 
   const handleResetPeriod = () => {
@@ -404,7 +409,7 @@ export function InputPage() {
       resetMonthly.mutate({ studentIds, month, year }, { onSuccess: onDone, onError })
     } else {
       resetSemester.mutate(
-        { studentIds, reportType: type as SemesterType, semester, academicYearId: ay },
+        { studentIds, reportType: type as SemesterType, semester, academicYearId: effectiveAy },
         { onSuccess: onDone, onError },
       )
     }
