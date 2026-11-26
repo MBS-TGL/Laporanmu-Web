@@ -242,10 +242,14 @@ export function getYearDisplay(
   academicYear: string,
 ): string {
   const cleaned = cleanAcademicYearName(academicYear)
-  if (cleaned) return lang === 'ar' ? toArabicNum(cleaned) : cleaned
+  if (cleaned) {
+    // Normalisasi pemisah tahun ajaran menjadi YYYY/YYYY yang seragam
+    const normalized = cleaned.replace(/\s*[-–]\s*/, '/')
+    return lang === 'ar' ? `\u200F${toArabicNum(normalized)}` : normalized
+  }
   const start = month >= 7 ? year : year - 1
   const end = start + 1
-  return lang === 'ar' ? `${toArabicNum(start)} – ${toArabicNum(end)}` : `${start} – ${end}`
+  return lang === 'ar' ? `\u200F${toArabicNum(start)}/${toArabicNum(end)}` : `${start}/${end}`
 }
 
 export function formatPrintDate(lang: 'id' | 'ar'): string {

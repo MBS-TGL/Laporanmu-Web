@@ -115,9 +115,23 @@ export function printCards(args: {
     win.print()
   }
   if (win.document.fonts?.ready) {
-    win.document.fonts.ready.then(() => window.setTimeout(run, 100)).catch(() => run())
+    win.document.fonts.ready
+      .then(async () => {
+        try {
+          if (win.document.fonts.load) {
+            await Promise.all([
+              win.document.fonts.load('400 16px Amiri'),
+              win.document.fonts.load('700 16px Amiri'),
+            ])
+          }
+        } catch {
+          // Abaikan bila load font spesifik gagal, lanjut print buffer
+        }
+        window.setTimeout(run, 400)
+      })
+      .catch(() => window.setTimeout(run, 600))
   } else {
-    window.setTimeout(run, 300)
+    window.setTimeout(run, 600)
   }
   return true
 }

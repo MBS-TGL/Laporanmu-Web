@@ -159,11 +159,12 @@ describe('helper cetak', () => {
     expect(getGradePredicate(null, 'bulanan').id).toBe('—')
   })
 
-  it('tahun ajaran mengikuti bulan Juli', () => {
-    expect(getYearDisplay(11, 2026, 'id', '')).toBe('2026 – 2027')
-    expect(getYearDisplay(3, 2026, 'id', '')).toBe('2025 – 2026')
+  it('tahun ajaran mengikuti bulan Juli dengan format baku YYYY/YYYY', () => {
+    expect(getYearDisplay(11, 2026, 'id', '')).toBe('2026/2027')
+    expect(getYearDisplay(3, 2026, 'id', '')).toBe('2025/2026')
     expect(getYearDisplay(3, 2026, 'id', '2025/2026')).toBe('2025/2026')
-    expect(getYearDisplay(3, 2026, 'id', '2026 - 2027 (Ganjil)')).toBe('2026 - 2027')
+    expect(getYearDisplay(3, 2026, 'id', '2026 - 2027 (Ganjil)')).toBe('2026/2027')
     expect(getYearDisplay(3, 2026, 'id', '2026/2027 Genap')).toBe('2026/2027')
+    expect(getYearDisplay(11, 2026, 'ar', '')).toBe('\u200F٢٠٢٦/٢٠٢٧')
   })
 })

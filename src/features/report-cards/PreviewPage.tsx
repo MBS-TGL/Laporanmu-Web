@@ -135,7 +135,7 @@ function buildRekapColumns(
 }
 
 export function PreviewPage() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const { classId = '' } = useParams()
   const [searchParams] = useSearchParams()
   const { token } = theme.useToken()
@@ -146,9 +146,9 @@ export function PreviewPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [zoomMode, setZoomMode] = useState<'fit' | 'custom'>('custom')
-  const [fitZoom, setFitZoom] = useState(1)
-  const [customZoom, setCustomZoom] = useState(1)
+  const [zoomMode, setZoomMode] = useState<'fit' | 'custom'>('fit')
+  const [fitZoom, setFitZoom] = useState(0.65)
+  const [customZoom, setCustomZoom] = useState(0.65)
   const [printTarget, setPrintTarget] = useState<'all' | string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [langOverride, setLangOverride] = useState<'id' | 'ar' | null>(null)
@@ -389,7 +389,7 @@ export function PreviewPage() {
   const zoom = zoomMode === 'fit' ? fitZoom : customZoom
   const setZoom = (value: number) => {
     setZoomMode('custom')
-    setCustomZoom(Number(Math.max(0.35, Math.min(1.2, value)).toFixed(2)))
+    setCustomZoom(Number(Math.max(0.3, Math.min(1.4, value)).toFixed(2)))
   }
 
   useEffect(() => {
@@ -519,7 +519,19 @@ export function PreviewPage() {
 
   const handlePrintMenu: MenuProps['onClick'] = ({ key }) => {
     if (key === 'all') {
-      if (filteredStudents.length > 0) setPrintTarget('all')
+      if (filteredStudents.length === 0) return
+      if (incompleteCount > 0) {
+        modal.confirm({
+          title: 'Ada santri yang belum lengkap',
+          content: `${incompleteCount} dari ${filteredStudents.length} santri belum lengkap nilainya. Tetap cetak semua kartu?`,
+          okText: 'Tetap Cetak',
+          cancelText: 'Batal',
+          okButtonProps: { danger: true },
+          onOk: () => setPrintTarget('all'),
+        })
+        return
+      }
+      setPrintTarget('all')
       return
     }
     if (selectedStudent) setPrintTarget(selectedStudent.id)
