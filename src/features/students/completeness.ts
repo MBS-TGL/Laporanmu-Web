@@ -43,9 +43,11 @@ export function missingFieldsOf(s: CompletenessFields): string[] {
 
 /**
  * Field inti yang menentukan status "belum lengkap" (chip + filter).
+ * Foto tidak ikut: di data nyata seluruh santri belum berfoto, sehingga
+ * angkanya selalu sama dengan total. Foto tetap punya filter "Tanpa foto".
  * Field lain tetap dihitung untuk ring kelengkapan di drawer.
  */
-const CRITICAL_LABELS = new Set(['Foto', 'NISN', 'NIK', 'Telepon', 'Alamat', 'Nama wali'])
+const CRITICAL_LABELS = new Set(['NISN', 'NIK', 'Telepon', 'Alamat', 'Nama wali'])
 const CRITICAL_CHECKS = FIELD_CHECKS.filter((f) => CRITICAL_LABELS.has(f.label))
 
 /** Label field inti yang masih kosong */

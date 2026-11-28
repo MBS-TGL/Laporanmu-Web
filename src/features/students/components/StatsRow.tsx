@@ -84,7 +84,7 @@ export const StatsRow = memo(function StatsRow({
         <StatChip
           icon={<UserOutlined />}
           label="Tanpa gender"
-          value={stats?.unknownGender ?? '–'}
+          value={stats?.unknownGender ?? (loading ? '–' : 0)}
           color="slate"
           loading={loading}
           hideIfZero
