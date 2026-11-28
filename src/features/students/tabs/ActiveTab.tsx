@@ -91,7 +91,7 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ]
 
 export const MISSING_OPTIONS: { value: MissingField; label: string }[] = [
-  { value: 'any', label: 'Data belum lengkap' },
+  { value: 'any', label: 'Data inti belum lengkap' },
   { value: 'photo', label: 'Tanpa foto' },
   { value: 'pin', label: 'Tanpa PIN' },
   { value: 'phone', label: 'Tanpa nomor telepon' },

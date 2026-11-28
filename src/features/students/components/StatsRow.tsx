@@ -10,6 +10,7 @@ import {
   RiseOutlined,
   TeamOutlined,
   TrophyOutlined,
+  UserOutlined,
   WarningOutlined,
   WomanOutlined,
 } from '@ant-design/icons'
@@ -79,6 +80,14 @@ export const StatsRow = memo(function StatsRow({
           loading={loading}
           active={gender === 'P'}
           onClick={() => onGenderToggle('P')}
+        />
+        <StatChip
+          icon={<UserOutlined />}
+          label="Tanpa gender"
+          value={stats?.unknownGender ?? '–'}
+          color="slate"
+          loading={loading}
+          hideIfZero
         />
         <StatChip
           icon={<TrophyOutlined />}
@@ -262,7 +271,7 @@ export const StatsRow = memo(function StatsRow({
                             fontWeight: 600,
                           }}
                         >
-                          {c.percent}% · {c.incomplete}/{c.total}
+                          {c.percent}% · {c.total - c.incomplete}/{c.total} lengkap
                         </span>
                       </button>
                     )
@@ -294,7 +303,7 @@ export const StatsRow = memo(function StatsRow({
               <span style={{ color: token.colorTextSecondary }}>Kelengkapan:</span>
               <span style={{ fontWeight: 600, color: token.colorWarning }}>{worstCompl.name}</span>
               <span style={{ fontWeight: 700, color: token.colorWarning }}>
-                {worstCompl.percent}% ({worstCompl.incomplete}/{worstCompl.total})
+                {worstCompl.percent}% ({worstCompl.total - worstCompl.incomplete}/{worstCompl.total} lengkap)
               </span>
             </button>
           </Popover>

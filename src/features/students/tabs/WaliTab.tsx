@@ -313,7 +313,7 @@ export function WaliTab({ active }: { active: boolean }) {
         />
         <StatChip
           icon={<UserOutlined />}
-          label="Anak Tercatat"
+          label="Anak dengan data wali"
           value={childCount}
           color="sky"
           loading={familiesQuery.isPending}

@@ -193,6 +193,8 @@ export interface StudentStats {
   total: number
   male: number
   female: number
+  /** santri aktif dengan gender kosong — melengkapi male + female = total */
+  unknownGender: number
   avgPoints: number
   riskCount: number
   incompleteCount: number

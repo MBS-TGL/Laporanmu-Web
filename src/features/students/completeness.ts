@@ -41,12 +41,24 @@ export function missingFieldsOf(s: CompletenessFields): string[] {
   return FIELD_CHECKS.filter((f) => !f.test(s)).map((f) => f.label)
 }
 
+/**
+ * Field inti yang menentukan status "belum lengkap" (chip + filter).
+ * Field lain tetap dihitung untuk ring kelengkapan di drawer.
+ */
+const CRITICAL_LABELS = new Set(['Foto', 'NISN', 'NIK', 'Telepon', 'Alamat', 'Nama wali'])
+const CRITICAL_CHECKS = FIELD_CHECKS.filter((f) => CRITICAL_LABELS.has(f.label))
+
+/** Label field inti yang masih kosong */
+export function criticalMissingFieldsOf(s: CompletenessFields): string[] {
+  return CRITICAL_CHECKS.filter((f) => !f.test(s)).map((f) => f.label)
+}
+
 /** Persen kelengkapan data 0–100 */
 export function completenessPercent(s: CompletenessFields): number {
   return Math.round(((FIELD_CHECKS.length - missingFieldsOf(s).length) / FIELD_CHECKS.length) * 100)
 }
 
-/** true bila minimal satu field master belum diisi */
+/** true bila minimal satu field inti belum diisi */
 export function isIncomplete(s: CompletenessFields): boolean {
-  return missingFieldsOf(s).length > 0
+  return criticalMissingFieldsOf(s).length > 0
 }

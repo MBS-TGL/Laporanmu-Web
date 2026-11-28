@@ -526,6 +526,7 @@ export async function fetchStudentStats(): Promise<StudentStats> {
 
   let male = 0
   let female = 0
+  let unknownGender = 0
   let pointSum = 0
   let riskCount = 0
   let incompleteCount = 0
@@ -537,6 +538,7 @@ export async function fetchStudentStats(): Promise<StudentStats> {
   for (const row of rows) {
     if (row.gender === 'L') male += 1
     else if (row.gender === 'P') female += 1
+    else unknownGender += 1
     pointSum += row.total_points ?? 0
     if ((row.total_points ?? 0) <= RISK_THRESHOLD) riskCount += 1
     if (isIncomplete(row)) incompleteCount += 1
@@ -596,6 +598,7 @@ export async function fetchStudentStats(): Promise<StudentStats> {
     total,
     male,
     female,
+    unknownGender,
     avgPoints: total > 0 ? Math.round(pointSum / total) : 0,
     riskCount,
     incompleteCount,
@@ -890,7 +893,7 @@ export async function updateAlumni(id: string, values: AlumniFormValues): Promis
 }
 
 async function insertAlumniWithRetry(
-  payloads: any[],
+  payloads: Array<Record<string, unknown>>,
   offset: number,
 ): Promise<ImportAlumniResult[]> {
   const { error } = await supabase.from('students').insert(payloads)
