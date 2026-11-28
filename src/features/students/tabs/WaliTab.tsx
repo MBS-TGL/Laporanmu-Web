@@ -2,22 +2,26 @@ import { useMemo, useRef, useState } from 'react'
 import { App, Button, Card, Empty, Input, Space, Table, Tag, Tooltip, theme, type InputRef, type TableColumnsType } from 'antd'
 import {
   CopyOutlined,
+  ExclamationCircleOutlined,
   MessageOutlined,
   ReloadOutlined,
   SearchOutlined,
   SyncOutlined,
   ThunderboltOutlined,
   UserOutlined,
-  WhatsAppOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { StatChip } from '../../../shared/components/StatChip'
+import { StudentName } from '../../../shared/components/StudentName'
+import { ClassChip } from '../../../shared/components/ClassChip'
+import { WhatsAppButton } from '../../../shared/components/WhatsAppButton'
 import { ShortcutsModal } from '../../../shared/components/ShortcutsModal'
 import { useTabActions } from '../../../shared/components/ActionsSlot'
 import { useShortcuts, type ShortcutItem } from '../../../shared/hooks/useShortcuts'
 import { useDebounce } from '../../../shared/hooks/useDebounce'
 import { useTablePagination } from '../../../shared/hooks/useTablePagination'
+import { formatDisplayName } from '../../../shared/utils/displayName'
 import { useStudentDetail } from '../useStudentDetail'
 import { fetchGuardianFamilies, type GuardianFamilyRow } from '../api'
 import type { GuardianRelation } from '../types'
@@ -71,6 +75,14 @@ function groupGuardianFamilies(rows: GuardianFamilyRow[]): FamilyGroup[] {
     }
   }
   return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name, 'id'))
+}
+
+/** Bagian data wali yang masih kosong — dipakai penanda halus di kolom Wali */
+function guardianIssues(f: FamilyGroup): string[] {
+  const issues: string[] = []
+  if (f.name.trim().split(/\s+/).length < 2) issues.push('nama wali hanya satu kata')
+  if (!f.phone) issues.push('nomor HP belum diisi')
+  return issues
 }
 
 /** Tab "Hub Wali" — wali agregat per keluarga (RLS: developer/admin/pengurus). */
@@ -144,16 +156,51 @@ export function WaliTab({ active }: { active: boolean }) {
 
   const shortcuts = useShortcuts({ items: shortcutItems, isBlocked: !active })
 
+  const hasOccupation = families.some((f) => f.occupation)
+
+  const occupationColumn: TableColumnsType<FamilyGroup>[number] = {
+    title: 'Pekerjaan',
+    dataIndex: 'occupation',
+    key: 'occupation',
+    width: 150,
+    responsive: ['lg'],
+    render: (v: string | null) => v || '—',
+  }
+
   const columns: TableColumnsType<FamilyGroup> = [
     {
       title: 'Wali',
       dataIndex: 'name',
       key: 'name',
+      sorter: (a, b) => a.name.localeCompare(b.name, 'id'),
+      render: (_, row) => {
+        const issues = guardianIssues(row)
+        return (
+          <Space size={6}>
+            <StudentName name={row.name} />
+            {issues.length > 0 && (
+              <Tooltip
+                trigger={['hover', 'click']}
+                title={`Data wali belum lengkap: ${issues.join(', ')}`}
+              >
+                <ExclamationCircleOutlined
+                  aria-label={`Data wali belum lengkap: ${issues.join(', ')}`}
+                  style={{ color: token.colorWarning, fontSize: 12 }}
+                />
+              </Tooltip>
+            )}
+          </Space>
+        )
+      },
+    },
+    {
+      title: 'Hubungan',
+      key: 'relation',
+      width: 120,
       render: (_, row) => (
         <Space size={4} wrap>
-          <span style={{ fontWeight: 600 }}>{row.name}</span>
           {row.relations.map((r) => (
-            <Tag key={r} color={RELATION_COLOR[r]} style={{ borderRadius: 6 }}>
+            <Tag key={r} color={RELATION_COLOR[r]} style={{ borderRadius: 6, marginInlineEnd: 0 }}>
               {RELATION_LABEL[r]}
             </Tag>
           ))}
@@ -166,7 +213,6 @@ export function WaliTab({ active }: { active: boolean }) {
       key: 'phone',
       width: 200,
       render: (_, row) => {
-        const waOk = /^0[1-9]\d{7,}$/.test((row.phone ?? '').replace(/\D/g, ''))
         return (
           <Space size={0}>
             <span>{row.phone ?? <span style={{ color: token.colorTextQuaternary }}>—</span>}</span>
@@ -175,53 +221,25 @@ export function WaliTab({ active }: { active: boolean }) {
                 <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => copyPhone(row.phone!)} />
               </Tooltip>
             )}
-            <Tooltip title={waOk ? 'Buka WhatsApp' : 'Nomor HP belum tersedia'}>
-              <span>
-                <Button
-                  type="text"
-                  size="small"
-                  disabled={!waOk}
-                  icon={<WhatsAppOutlined />}
-                  onClick={() =>
-                    waOk &&
-                    window.open(
-                      `https://wa.me/${row.phone!.replace(/\D/g, '').replace(/^0/, '62')}`,
-                      '_blank',
-                      'noopener',
-                    )
-                  }
-                />
-              </span>
-            </Tooltip>
+            <WhatsAppButton phone={row.phone} size="small" label="Buka WhatsApp" />
           </Space>
         )
       },
     },
-    {
-      title: 'Pekerjaan',
-      dataIndex: 'occupation',
-      key: 'occupation',
-      width: 150,
-      responsive: ['lg'],
-      render: (v: string | null) => v || '—',
-    },
+    ...(hasOccupation ? [occupationColumn] : []),
     {
       title: 'Anak',
       key: 'students',
+      sorter: (a, b) =>
+        (a.students[0]?.name ?? '').localeCompare(b.students[0]?.name ?? '', 'id'),
       render: (_, row) =>
         row.students.length > 0 ? (
           <Space size={4} wrap>
             {row.students.map((s) => (
-              <Button
-                key={s.id}
-                type="link"
-                size="small"
-                style={{ padding: 0, height: 'auto' }}
-                onClick={() => openStudentDetail(s.id)}
-              >
-                {s.name}
-                {s.class_name ? ` · ${s.class_name}` : ''}
-              </Button>
+              <Space key={s.id} size={6} wrap>
+                <StudentName name={s.name} weight={400} onClick={() => openStudentDetail(s.id)} />
+                <ClassChip name={s.class_name} />
+              </Space>
             ))}
           </Space>
         ) : (
@@ -237,8 +255,13 @@ export function WaliTab({ active }: { active: boolean }) {
         const firstStudent = row.students[0]
         if (!firstStudent) return <span style={{ color: token.colorTextQuaternary }}>—</span>
         return (
-          <Tooltip title="Buka detail siswa">
-            <Button type="text" icon={<UserOutlined />} onClick={() => openStudentDetail(firstStudent.id)} />
+          <Tooltip title={`Buka detail ${formatDisplayName(firstStudent.name)}`}>
+            <Button
+              type="text"
+              aria-label={`Buka detail ${formatDisplayName(firstStudent.name)}`}
+              icon={<UserOutlined />}
+              onClick={() => openStudentDetail(firstStudent.id)}
+            />
           </Tooltip>
         )
       },

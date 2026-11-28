@@ -8,7 +8,7 @@ import {
   theme,
   type TableColumnsType,
 } from 'antd'
-import { DeleteOutlined, IdcardOutlined, UndoOutlined } from '@ant-design/icons'
+import { IdcardOutlined, InboxOutlined, UndoOutlined } from '@ant-design/icons'
 import { SortIcon } from '../../../shared/components/SortIcon'
 import { columnSortOrder } from '../../../shared/utils/tableSort'
 import { photoThumb } from '../../../shared/utils/photoThumb'
@@ -189,19 +189,17 @@ export function useAlumniColumns({
                 </Tooltip>
               )}
               {canDelete && (
-                <Tooltip title="Hapus alumni">
+                <Tooltip title="Arsipkan alumni">
                   <Popconfirm
-                    title="Hapus alumni ini?"
-                    description={`${formatDisplayName(row.name)} akan dipindahkan ke arsip.`}
-                    okText="Ya, Hapus"
-                    okButtonProps={{ danger: true }}
+                    title="Arsipkan alumni ini?"
+                    description={`${formatDisplayName(row.name)} akan dipindahkan ke tab Arsip dan bisa dipulihkan kapan saja.`}
+                    okText="Ya, Arsipkan"
                     cancelText="Batal"
                     onConfirm={() => onDelete(row)}
                   >
                     <Button
                       type="text"
-                      danger
-                      icon={<DeleteOutlined />}
+                      icon={<InboxOutlined />}
                       loading={deleteMutation.isPending && deleteMutation.variables === row.id}
                     />
                   </Popconfirm>

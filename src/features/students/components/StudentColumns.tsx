@@ -1,33 +1,13 @@
 import { useMemo } from 'react'
-import {
-  Avatar,
-  Button,
-  Dropdown,
-  Grid,
-  Popconfirm,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-  theme,
-  type TableColumnsType,
-} from 'antd'
-import {
-  DeleteOutlined,
-  EditOutlined,
-  EyeOutlined,
-  FallOutlined,
-  IdcardOutlined,
-  MoreOutlined,
-  RiseOutlined,
-  WhatsAppOutlined,
-} from '@ant-design/icons'
+import { Avatar, Tag, Tooltip, Typography, theme, type TableColumnsType } from 'antd'
+import { FallOutlined, RiseOutlined } from '@ant-design/icons'
 import { StatusTag } from '../../../shared/components/StatusTag'
 import { SortIcon } from '../../../shared/components/SortIcon'
+import { StudentName } from '../../../shared/components/StudentName'
+import { ClassChip } from '../../../shared/components/ClassChip'
+import { StudentActions } from './StudentActions'
 import { columnSortOrder } from '../../../shared/utils/tableSort'
 import { photoThumb } from '../../../shared/utils/photoThumb'
-import { formatDisplayName } from '../../../shared/utils/displayName'
-import { waLink } from '../wa'
 import { STUDENT_STATUS_META, GENDER_LABEL } from '../status'
 import type { SortOption, Student, StudentStatus } from '../types'
 
@@ -45,135 +25,12 @@ function initials(name: string): string {
   return name.charAt(0).toUpperCase()
 }
 
-/** Aksi baris tabel: tombol ikon di desktop, menu dropdown di mobile (C4) */
-function StudentActions({
-  row,
-  canWrite,
-  canDelete,
-  onDetail,
-  onCard,
-  onEdit,
-  onDelete,
-  token,
-}: {
-  row: Student
-  canWrite: boolean
-  canDelete: boolean
-  onDetail: (s: Student) => void
-  onCard: (s: Student) => void
-  onEdit: (s: Student) => void
-  onDelete: (id: string) => void
-  token: any
-}) {
-  const screens = Grid.useBreakpoint()
-  const isMobile = !screens.md
-
-  const actions = (
-    <>
-      <Tooltip title="Lihat detail">
-        <Button
-          type="text"
-          aria-label="Lihat detail"
-          icon={<EyeOutlined />}
-          onClick={() => onDetail(row)}
-        />
-      </Tooltip>
-      <Tooltip title="Kartu portal (kode & PIN)">
-        <Button
-          type="text"
-          aria-label="Kartu portal"
-          icon={<IdcardOutlined />}
-          onClick={() => onCard(row)}
-        />
-      </Tooltip>
-      <Tooltip title={row.phone ? 'Chat WhatsApp' : 'Nomor HP belum tersedia'}>
-        <span>
-          <Button
-            type="text"
-            aria-label="Chat WhatsApp"
-            disabled={!row.phone}
-            icon={<WhatsAppOutlined style={{ color: row.phone ? token.colorSuccess : undefined }} />}
-            onClick={() => row.phone && window.open(waLink(row.phone), '_blank', 'noopener')}
-          />
-        </span>
-      </Tooltip>
-      {canWrite && (
-        <Tooltip title="Edit">
-          <Button
-            type="text"
-            aria-label="Edit data"
-            icon={<EditOutlined />}
-            onClick={() => onEdit(row)}
-          />
-        </Tooltip>
-      )}
-      {canDelete && (
-        <Popconfirm
-          title="Hapus siswa ini?"
-          description="Data akan ditandai terhapus (soft delete)."
-          onConfirm={() => onDelete(row.id)}
-          okText="Ya, Hapus"
-          cancelText="Batal"
-        >
-          <Tooltip title="Hapus">
-            <Button type="text" danger aria-label="Hapus siswa" icon={<DeleteOutlined />} />
-          </Tooltip>
-        </Popconfirm>
-      )}
-    </>
-  )
-
-  if (!isMobile) return <Space size={0}>{actions}</Space>
-
-  return (
-    <Dropdown
-      trigger={['click']}
-      placement="bottomRight"
-      menu={{
-        items: [
-          { key: 'detail', icon: <EyeOutlined />, label: 'Lihat Detail', onClick: () => onDetail(row) },
-          { key: 'card', icon: <IdcardOutlined />, label: 'Kartu Portal', onClick: () => onCard(row) },
-          {
-            key: 'wa',
-            icon: <WhatsAppOutlined />,
-            label: 'WhatsApp',
-            disabled: !row.phone,
-            onClick: () => row.phone && window.open(waLink(row.phone), '_blank', 'noopener'),
-          },
-          ...(canWrite
-            ? [{ key: 'edit', icon: <EditOutlined />, label: 'Edit Data', onClick: () => onEdit(row) }]
-            : []),
-          ...(canDelete
-            ? [
-                { type: 'divider' as const },
-                {
-                  key: 'delete',
-                  icon: <DeleteOutlined />,
-                  label: 'Hapus',
-                  danger: true,
-                  onClick: () => {
-                    // Popconfirm dalam dropdown sering bermasalah — pakai konfirmasi modal bila mobile?
-                    // Untuk simpelnya, panggil onDelete langsung (handleDelete sudah punya konfirmasi?)
-                    // Tidak, handleDelete di parent dipicu Popconfirm.
-                    // Gunakan onDelete saja, atau biarkan Popconfirm di luar.
-                    // Cara termudah: panggil onDelete yang membungkus konfirmasi.
-                    onDelete(row.id)
-                  },
-                },
-              ]
-            : []),
-        ],
-      }}
-    >
-      <Button type="text" icon={<MoreOutlined />} />
-    </Dropdown>
-  )
-}
-
 interface StudentColumnsDeps {
   privacy: boolean
   photos: Record<string, string>
   sortBy: SortOption | undefined
+  /** Baris hasil filter — dipakai menyembunyikan kolom yang seragam */
+  rows: Student[]
   canWrite: boolean
   canDelete: boolean
   onDetail: (student: Student) => void
@@ -189,6 +46,7 @@ export function useStudentColumns({
   privacy,
   photos,
   sortBy,
+  rows,
   canWrite,
   canDelete,
   onDetail,
@@ -198,6 +56,9 @@ export function useStudentColumns({
   onTagClick,
 }: StudentColumnsDeps): TableColumnsType<Student> {
   const { token } = theme.useToken()
+  // Kolom Status/Poin tidak memberi informasi saat semua baris hasil filter bernilai sama.
+  const hideStatus = rows.length > 1 && rows.every((r) => r.status === rows[0].status)
+  const hidePoints = rows.length > 1 && rows.every((r) => r.total_points === rows[0].total_points)
 
   return useMemo<TableColumnsType<Student>>(
     () => {
@@ -212,7 +73,7 @@ export function useStudentColumns({
       const sortOrderOf = (key: keyof typeof SORT_PAIRS) =>
         columnSortOrder(sortBy, key, SORT_PAIRS)
 
-      return [
+      const cols: TableColumnsType<Student> = [
         {
           title: 'Santri',
           dataIndex: 'name',
@@ -230,13 +91,7 @@ export function useStudentColumns({
                 {privacy ? '*' : initials(row.name)}
               </Avatar>
               <div style={{ minWidth: 0 }}>
-                <Button
-                  type="link"
-                  style={{ padding: 0, height: 'auto', fontWeight: 600, fontSize: 14 }}
-                  onClick={() => onDetail(row)}
-                >
-                  {privacy ? MASK : formatDisplayName(row.name)}
-                </Button>
+                <StudentName name={row.name} masked={privacy} onClick={() => onDetail(row)} />
                 <div style={{ fontSize: 12, color: token.colorTextTertiary, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>
                     {row.gender ? `${GENDER_LABEL[row.gender]} · ` : ''}
@@ -277,26 +132,11 @@ export function useStudentColumns({
           sortIcon,
           sortOrder: sortOrderOf('class'),
           render: (_, row) => (
-            <div>
-              {row.classes?.name ? (
-                <Tag
-                  style={{
-                    borderRadius: 6,
-                    fontWeight: 500,
-                    background: token.colorPrimaryBg,
-                    color: token.colorPrimary,
-                    border: 'none',
-                  }}
-                >
-                  {row.classes.name}
-                </Tag>
-              ) : (
-                '-'
-              )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+              {row.classes?.name ? <ClassChip name={row.classes.name} /> : '-'}
               {row.dorms?.name && (
                 <Tag
                   style={{
-                    marginInlineStart: 4,
                     borderRadius: 6,
                     fontWeight: 500,
                     background: token.colorFillTertiary,
@@ -366,12 +206,15 @@ export function useStudentColumns({
               onCard={onCard}
               onEdit={onEdit}
               onDelete={onDelete}
-              token={token}
             />
           ),
         },
       ]
+      return cols.filter(
+        (col) =>
+          !(hideStatus && col.key === 'status') && !(hidePoints && col.key === 'total_points'),
+      )
     },
-    [sortBy, privacy, photos, canWrite, canDelete, token, onDetail, onCard, onEdit, onDelete, onTagClick],
+    [sortBy, privacy, photos, canWrite, canDelete, token, onDetail, onCard, onEdit, onDelete, onTagClick, hideStatus, hidePoints],
   )
 }

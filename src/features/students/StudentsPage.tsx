@@ -93,7 +93,7 @@ export function StudentsPage() {
     allStudents, isRefreshing, totalActive, isTruncated,
     selectedIdSet, selectedStudents, alreadyPinned,
     tagOptions, noPinCount, rows, pg, paginatedRows, photos,
-    resetPage, advFilterCount, filterChips, allFilteredSelected,
+    resetPage, advFilterCount, filterChips,
   } = useStudentPageState({
     initialClassId: searchParams.get('classId') ?? undefined,
     initialDormId: searchParams.get('dormId') ?? undefined,
@@ -397,6 +397,7 @@ export function StudentsPage() {
     privacy,
     photos,
     sortBy,
+    rows,
     canWrite,
     canDelete,
     onDetail: openDetail,
@@ -463,8 +464,6 @@ export function StudentsPage() {
                     searchInputRef={searchInputRef}
                     resetPage={resetPage}
                     clearAllFilters={clearAllFilters}
-                    toggleSelectAll={toggleSelectAll}
-                    allFilteredSelected={allFilteredSelected}
                     advFilterCount={advFilterCount}
                     filterChips={filterChips}
                     tagOptions={tagOptions}

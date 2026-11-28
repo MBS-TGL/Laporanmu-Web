@@ -22,13 +22,13 @@ import {
   CameraOutlined,
   CheckSquareOutlined,
   CloseOutlined,
-  DeleteOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
   ExportOutlined,
   FileExcelOutlined,
   HistoryOutlined,
   IdcardOutlined,
+  InboxOutlined,
   ManOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -65,9 +65,8 @@ import type {
   StudentStatus,
 } from '../types'
 
-// Alumni (graduated) tidak termasuk — dikelola di AlumniPage; "Semua" = aktif + pindah + keluar
+// Alumni (graduated) tidak termasuk — dikelola di AlumniPage; tab Arsip punya pintunya sendiri
 const STATUS_OPTIONS = [
-  { label: 'Semua', value: '' },
   { label: 'Aktif', value: 'active' },
   { label: 'Pindah', value: 'transferred' },
   { label: 'Keluar', value: 'left' },
@@ -293,8 +292,6 @@ interface ActiveTabProps {
   searchInputRef: RefObject<InputRef | null>
   resetPage: () => void
   clearAllFilters: () => void
-  toggleSelectAll: () => void
-  allFilteredSelected: boolean
   advFilterCount: number
   filterChips: FilterChip[]
   tagOptions: { value: string; label: string }[]
@@ -368,8 +365,6 @@ export function ActiveTab({
   searchInputRef,
   resetPage,
   clearAllFilters,
-  toggleSelectAll,
-  allFilteredSelected,
   advFilterCount,
   filterChips,
   tagOptions,
@@ -414,6 +409,13 @@ export function ActiveTab({
           aria-label="Muat ulang data"
           icon={<SyncOutlined spin={isRefreshing} />}
           onClick={handleRefresh}
+        />
+      </Tooltip>
+      <Tooltip title="Ekspor data (Ctrl+E)">
+        <Button
+          aria-label="Ekspor data"
+          icon={<ExportOutlined />}
+          onClick={() => openExport('filtered')}
         />
       </Tooltip>
       <Dropdown
@@ -516,15 +518,6 @@ export function ActiveTab({
             }}
             style={{ flex: '1 1 160px', minWidth: 150 }}
           />
-          <Tooltip title="Pilih semua hasil filter / batal (Ctrl+A)">
-            <Button
-              icon={<CheckSquareOutlined />}
-              type={allFilteredSelected ? 'primary' : 'default'}
-              onClick={toggleSelectAll}
-            >
-              {selectedIds.length > 0 ? `${selectedIds.length} Terpilih` : 'Pilih'}
-            </Button>
-          </Tooltip>
           <Badge count={advFilterCount} size="small" offset={[-6, 6]}>
             <Button
               icon={<SlidersOutlined />}
@@ -713,13 +706,12 @@ export function ActiveTab({
           {
             key: 'archive',
             label: 'Arsipkan',
-            icon: <DeleteOutlined />,
-            variant: 'danger',
+            icon: <InboxOutlined />,
             hidden: !canWrite,
             loading: bulkDeleteMutation.isPending,
             confirm: {
-              title: `Arsipkan ${selectedIds.length} siswa terpilih?`,
-              description: 'Data akan ditandai terhapus (soft delete) dan bisa dipulihkan lewat tab Arsip.',
+              title: `Arsipkan ${selectedIds.length} santri terpilih?`,
+              description: 'Data akan dipindah ke tab Arsip dan bisa dipulihkan kapan saja.',
               okText: 'Ya, Arsipkan',
             },
             onClick: () => bulkArchive(selectedIds),

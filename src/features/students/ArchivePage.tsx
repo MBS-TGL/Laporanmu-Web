@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Alert,
   App,
@@ -6,12 +6,12 @@ import {
   Card,
   Empty,
   Input,
-  Popconfirm,
   Select,
   Space,
   Table,
   Tooltip,
   theme,
+  type InputRef,
   type TableProps,
 } from 'antd'
 import {
@@ -21,22 +21,28 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   InboxOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   SearchOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { hardDeleteErrorMessage } from '../../shared/api/crud'
 import { ActionBar } from '../../shared/components/ActionBar'
 import { FilterChips, type FilterChip } from '../../shared/components/FilterChips'
 import { StatChip } from '../../shared/components/StatChip'
-import { StatusTag } from '../../shared/components/StatusTag'
 import { SortIcon } from '../../shared/components/SortIcon'
+import { StudentName } from '../../shared/components/StudentName'
+import { ClassChip } from '../../shared/components/ClassChip'
+import { ShortcutsModal } from '../../shared/components/ShortcutsModal'
 import { useTabActions } from '../../shared/components/ActionsSlot'
 import { useDebounce } from '../../shared/hooks/useDebounce'
 import { usePermissions } from '../../shared/hooks/useProfile'
+import { useShortcuts, type ShortcutItem } from '../../shared/hooks/useShortcuts'
 import { useTablePagination } from '../../shared/hooks/useTablePagination'
 import { columnSortOrder, sortByFromTableChange } from '../../shared/utils/tableSort'
+import { formatDisplayName } from '../../shared/utils/displayName'
 import { ArchiveExport } from './components/ArchiveExport'
 import { DetailDrawer } from './components/DetailDrawer'
 import {
@@ -90,7 +96,7 @@ function archiveDays(deletedAt: string | null): number | null {
 
 /** Daftar siswa yang sudah di-soft delete + aksi pulihkan & hapus permanen */
 export function ArchivePage({ active }: { active: boolean }) {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const { token } = theme.useToken()
   const { canWrite, canDelete } = usePermissions()
   const [search, setSearch] = useState('')
@@ -100,6 +106,7 @@ export function ArchivePage({ active }: { active: boolean }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [detail, setDetail] = useState<Student | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const searchInputRef = useRef<InputRef>(null)
 
   const debouncedSearch = useDebounce(search)
   const archivedQuery = useArchivedStudents()
@@ -110,6 +117,32 @@ export function ArchivePage({ active }: { active: boolean }) {
   const bulkRestoreMutation = useBulkRestoreStudents()
   const hardDeleteMutation = useHardDeleteStudent()
   const bulkHardDeleteMutation = useHardDeleteStudentsBulk()
+
+  const shortcutItems: ShortcutItem[] = [
+    {
+      keys: ['Ctrl', 'K'],
+      label: 'Fokus ke search',
+      group: 'Navigasi',
+      icon: <SearchOutlined />,
+      run: () => searchInputRef.current?.focus(),
+    },
+    {
+      keys: ['R'],
+      label: 'Muat ulang data',
+      group: 'Tampilan',
+      icon: <ReloadOutlined />,
+      run: () => void archivedQuery.refetch(),
+    },
+    {
+      keys: ['?'],
+      label: 'Toggle palet shortcut',
+      group: 'Tampilan',
+      icon: <ThunderboltOutlined />,
+      run: () => shortcuts.toggle(),
+    },
+  ]
+
+  const shortcuts = useShortcuts({ items: shortcutItems, isBlocked: !active })
 
   const classOptions = useMemo(
     () => (classesQuery.data ?? []).map((c) => ({ value: c.id, label: c.name })),
@@ -213,7 +246,7 @@ export function ArchivePage({ active }: { active: boolean }) {
     if (range !== 'all')
       chips.push({
         key: 'range',
-        label: `Dihapus: ${RANGE_LABEL[range]}`,
+        label: `Diarsipkan: ${RANGE_LABEL[range]}`,
         onClear: () => {
           setRange('all')
           resetPage()
@@ -225,15 +258,47 @@ export function ArchivePage({ active }: { active: boolean }) {
 
   const handleRestore = (student: Student) => {
     restoreMutation.mutate(student.id, {
-      onSuccess: () => message.success(`${student.name} dipulihkan`),
+      onSuccess: () => message.success(`${formatDisplayName(student.name)} dipulihkan`),
       onError: (err: Error) => message.error(err.message || 'Gagal memulihkan siswa'),
     })
   }
 
   const handleHardDelete = (student: Student) => {
     hardDeleteMutation.mutate(student.id, {
-      onSuccess: () => message.success(`${student.name} dihapus permanen`),
+      onSuccess: () => message.success(`${formatDisplayName(student.name)} dihapus permanen`),
       onError: (err: unknown) => message.error(hardDeleteErrorMessage(err)),
+    })
+  }
+
+  const confirmRestore = (student: Student) => {
+    modal.confirm({
+      title: 'Pulihkan santri ini?',
+      content: `${formatDisplayName(student.name)} akan aktif kembali di tab Santri Aktif.`,
+      okText: 'Ya, Pulihkan',
+      cancelText: 'Batal',
+      onOk: () => handleRestore(student),
+    })
+  }
+
+  const confirmHardDelete = (student: Student) => {
+    modal.confirm({
+      title: 'Hapus permanen santri ini?',
+      content: `${formatDisplayName(student.name)} akan dihapus permanen dari database dan tidak bisa dipulihkan lagi.`,
+      okText: 'Ya, Hapus Permanen',
+      okButtonProps: { danger: true },
+      cancelText: 'Batal',
+      onOk: () => handleHardDelete(student),
+    })
+  }
+
+  const confirmHardDeleteBulk = (ids: string[], scope: string) => {
+    modal.confirm({
+      title: `Hapus permanen ${ids.length} santri?`,
+      content: `${scope} akan dihapus permanen dari database dan tidak bisa dipulihkan lagi.`,
+      okText: 'Ya, Hapus Permanen',
+      okButtonProps: { danger: true },
+      cancelText: 'Batal',
+      onOk: () => bulkHardDelete(ids),
     })
   }
 
@@ -265,6 +330,9 @@ export function ArchivePage({ active }: { active: boolean }) {
       <Tooltip title="Ekspor arsip">
         <Button icon={<DownloadOutlined />} onClick={() => setExportOpen(true)} />
       </Tooltip>
+      <Tooltip title="Shortcut keyboard (?)">
+        <Button aria-label="Shortcut keyboard" icon={<QuestionCircleOutlined />} onClick={shortcuts.open} />
+      </Tooltip>
     </Space>,
   )
 
@@ -282,13 +350,7 @@ export function ArchivePage({ active }: { active: boolean }) {
       sortIcon,
       render: (_, row) => (
         <div>
-          <Button
-            type="link"
-            onClick={() => setDetail(row)}
-            style={{ padding: 0, height: 'auto', fontWeight: 600, fontSize: 13.5 }}
-          >
-            {row.name}
-          </Button>
+          <StudentName name={row.name} size={13.5} onClick={() => setDetail(row)} />
           <div style={{ fontSize: 12, color: token.colorTextTertiary }}>{row.registration_code}</div>
         </div>
       ),
@@ -296,17 +358,10 @@ export function ArchivePage({ active }: { active: boolean }) {
     {
       title: 'Kelas',
       key: 'class',
-      render: (_, row) => row.classes?.name || '-',
+      render: (_, row) => (row.classes?.name ? <ClassChip name={row.classes.name} /> : '-'),
     },
     {
-      title: 'Status',
-      key: 'status',
-      width: 110,
-      // Semua baris di arsip adalah soft-deleted — status aslinya tak relevan
-      render: () => <StatusTag color="default">Terarsip</StatusTag>,
-    },
-    {
-      title: 'Dihapus',
+      title: 'Diarsipkan',
       dataIndex: 'deleted_at',
       key: 'deleted_at',
       width: 170,
@@ -331,43 +386,30 @@ export function ArchivePage({ active }: { active: boolean }) {
     {
       title: '',
       key: 'action',
-      width: 150,
+      width: 110,
       align: 'right',
       render: (_, row) => (
         <Space size={4}>
-          <Popconfirm
-            title="Pulihkan siswa ini?"
-            description="Data akan aktif kembali."
-            onConfirm={() => handleRestore(row)}
-            okText="Ya, Pulihkan"
-            cancelText="Batal"
-          >
+          <Tooltip title="Pulihkan">
             <Button
-              size="small"
+              type="text"
+              aria-label={`Pulihkan ${formatDisplayName(row.name)}`}
               icon={<ReloadOutlined />}
               loading={restoreMutation.isPending && restoreMutation.variables === row.id}
-            >
-              Pulihkan
-            </Button>
-          </Popconfirm>
+              onClick={() => confirmRestore(row)}
+            />
+          </Tooltip>
           {canDelete && (
-            <Popconfirm
-              title="Hapus permanen siswa ini?"
-              description={`${row.name} akan dihapus permanen dari database dan tidak bisa dipulihkan lagi.`}
-              okText="Ya, Hapus Permanen"
-              okButtonProps={{ danger: true }}
-              cancelText="Batal"
-              onConfirm={() => handleHardDelete(row)}
-            >
+            <Tooltip title="Hapus permanen">
               <Button
-                size="small"
                 type="text"
                 danger
                 icon={<DeleteOutlined />}
-                aria-label={`Hapus permanen ${row.name}`}
+                aria-label={`Hapus permanen ${formatDisplayName(row.name)}`}
                 loading={hardDeleteMutation.isPending && hardDeleteMutation.variables === row.id}
+                onClick={() => confirmHardDelete(row)}
               />
-            </Popconfirm>
+            </Tooltip>
           )}
         </Space>
       ),
@@ -389,7 +431,7 @@ export function ArchivePage({ active }: { active: boolean }) {
         />
         <StatChip
           icon={<ClockCircleOutlined />}
-          label="Dihapus 7 Hari Terakhir"
+          label="Diarsipkan 7 Hari Terakhir"
           value={recent7Count}
           color="sky"
           loading={archivedQuery.isPending}
@@ -451,18 +493,20 @@ export function ArchivePage({ active }: { active: boolean }) {
                 Tampilkan
               </Button>
               {canDelete && (
-                <Popconfirm
-                  title={`Hapus permanen ${old30.length} siswa?`}
-                  description="Semua siswa yang terarsip lebih dari 30 hari akan dihapus permanen dari database dan tidak bisa dipulihkan lagi."
-                  okText="Ya, Hapus Permanen"
-                  okButtonProps={{ danger: true, loading: bulkHardDeleteMutation.isPending }}
-                  cancelText="Batal"
-                  onConfirm={() => bulkHardDelete(old30.map((s) => s.id))}
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={bulkHardDeleteMutation.isPending}
+                  onClick={() =>
+                    confirmHardDeleteBulk(
+                      old30.map((s) => s.id),
+                      'Semua santri yang terarsip lebih dari 30 hari',
+                    )
+                  }
                 >
-                  <Button size="small" danger icon={<DeleteOutlined />}>
-                    Hapus Permanen
-                  </Button>
-                </Popconfirm>
+                  Hapus Permanen
+                </Button>
               )}
             </Space>
           }
@@ -481,6 +525,7 @@ export function ArchivePage({ active }: { active: boolean }) {
           }}
         >
           <Input
+            ref={searchInputRef}
             placeholder="Cari nama / kode / NISN"
             prefix={<SearchOutlined />}
             allowClear
@@ -505,7 +550,7 @@ export function ArchivePage({ active }: { active: boolean }) {
             }}
           />
           <Select
-            placeholder="Periode dihapus"
+            placeholder="Periode diarsipkan"
             style={{ minWidth: 180 }}
             value={range}
             options={RANGE_OPTIONS}
@@ -562,7 +607,7 @@ export function ArchivePage({ active }: { active: boolean }) {
                     <div>
                       <div>Belum ada siswa di arsip</div>
                       <div style={{ fontSize: 12, color: token.colorTextTertiary }}>
-                        Santri yang dihapus dari tab Santri Aktif akan muncul di sini
+                        Santri yang diarsipkan dari tab Santri Aktif akan muncul di sini
                       </div>
                     </div>
                   )
@@ -597,13 +642,8 @@ export function ArchivePage({ active }: { active: boolean }) {
             variant: 'danger',
             hidden: !canDelete,
             loading: bulkHardDeleteMutation.isPending,
-            confirm: {
-              title: `Hapus permanen ${selectedIds.length} siswa terpilih?`,
-              description:
-                'Semua data siswa terpilih akan dihapus permanen dari database dan tidak bisa dipulihkan lagi.',
-              okText: 'Ya, Hapus Permanen',
-            },
-            onClick: () => bulkHardDelete(selectedIds),
+            onClick: () =>
+              confirmHardDeleteBulk(selectedIds, 'Semua santri terpilih'),
           },
         ]}
       />
@@ -631,6 +671,8 @@ export function ArchivePage({ active }: { active: boolean }) {
         filteredRows={rows}
         selectedRows={selectedRows}
       />
+
+      <ShortcutsModal open={shortcuts.isOpen} onClose={shortcuts.close} sections={shortcuts.sections} />
     </div>
   )
 }

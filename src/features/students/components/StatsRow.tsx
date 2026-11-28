@@ -14,6 +14,7 @@ import {
   WomanOutlined,
 } from '@ant-design/icons'
 import { StatChip } from '../../../shared/components/StatChip'
+import { StudentName } from '../../../shared/components/StudentName'
 import type { Gender, MissingField, PointMode, StudentStats } from '../types'
 
 interface StatsRowProps {
@@ -147,7 +148,7 @@ export const StatsRow = memo(function StatsRow({
           >
             <CrownFilled style={{ color: '#f59e0b' }} />
             <span style={{ color: token.colorTextSecondary }}>Terbaik:</span>
-            <span style={{ fontWeight: 600 }}>{stats.topPerformer.name}</span>
+            <StudentName name={stats.topPerformer.name} size={12.5} />
             <span style={{ fontWeight: 700, color: token.colorSuccess }}>+{stats.topPerformer.points}</span>
           </span>
         )}
